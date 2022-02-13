@@ -6,3 +6,4 @@ from tree import DecisionTreeClassifier
 clf = DecisionTreeClassifier(random_state=0)
 iris = load_iris()
 print(cross_val_score(clf, iris.data, iris.target, cv=10))
+print("hola")
