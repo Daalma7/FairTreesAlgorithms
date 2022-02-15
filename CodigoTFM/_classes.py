@@ -14,15 +14,23 @@ randomized trees. Single and multi-output problems are both handled.
 #
 # License: BSD 3 clause
 
+import sys
+import os
+sys.path.append('.')
+sys.path.append(os.getcwd())
+
+from . import _tree
+from . import _splitter
+from . import _criterion
+from CodigoTFM._splitter import Splitter
+from CodigoTFM._criterion import Criterion
 import numbers
 import warnings
 from abc import ABCMeta
 from abc import abstractmethod
 from math import ceil
-
 import numpy as np
 from scipy.sparse import issparse
-
 from sklearn.base import BaseEstimator
 from sklearn.base import ClassifierMixin
 from sklearn.base import clone
@@ -36,15 +44,9 @@ from sklearn.utils.validation import _check_sample_weight
 from sklearn.utils import compute_sample_weight
 from sklearn.utils.multiclass import check_classification_targets
 from sklearn.utils.validation import check_is_fitted
+import sys
+sys.path.append(".")
 
-from sklearn.tree._criterion import Criterion
-from sklearn.tree._splitter import Splitter
-from sklearn.tree._tree import DepthFirstTreeBuilder
-from sklearn.tree._tree import BestFirstTreeBuilder
-from sklearn.tree._tree import Tree
-from sklearn.tree._tree import _build_pruned_tree_ccp
-from sklearn.tree._tree import ccp_pruning_path
-from sklearn.tree import _tree, _splitter, _criterion
 
 __all__ = ["DecisionTreeClassifier",
            "DecisionTreeRegressor",
@@ -83,25 +85,20 @@ class BaseDecisionTree(MultiOutputMixin, BaseEstimator, metaclass=ABCMeta):
 
     @abstractmethod
     def __init__(self,
-                 criterion,  # Splitting criterion (gini/entropy)
-                 splitter,   # Splitter (best split/random split)
-                 max_depth,  # Maximum depth the tree can have
-                 min_samples_split,  # Min number of samples that a node needs for a split to be done
-                 # Min number of samples for a node to be considered a leaf and stop dividing
+                 criterion,
+                 splitter,
+                 max_depth,
+                 min_samples_split,
                  min_samples_leaf,
                  min_weight_fraction_leaf,
-                 max_features,  # Max number of features a tree can have
-                 max_leaf_nodes,  #  Max number of leaf nodes the tree can have
-                 random_state,  # control randomness if there are draws in the criterion or random splitter
-                 min_impurity_decrease,  # Min decrease in the impurity to divide
+                 max_features,
+                 max_leaf_nodes,
+                 random_state,
+                 min_impurity_decrease,
                  min_impurity_split,
-                 class_weight=None,  #  Weight for each class
+                 class_weight=None,
                  presort='deprecated',
-                 ccp_alpha=0.0,  #  For cost complexity pruning
-                 f_lambda=0.0  # NEW This parameter controls fairness proportion for the criterion
-                 # a value of 0 means that fairness is not considered
-                 # a value of 1 indicates that only the fairness criterion is used
-                 ):
+                 ccp_alpha=0.0):
         self.criterion = criterion
         self.splitter = splitter
         self.max_depth = max_depth
@@ -344,24 +341,24 @@ class BaseDecisionTree(MultiOutputMixin, BaseEstimator, metaclass=ABCMeta):
                                                 random_state)
 
         if is_classifier(self):
-            self.tree_ = Tree(self.n_features_,
+            self.tree_ = _tree.Tree(self.n_features_,
                               self.n_classes_, self.n_outputs_)
         else:
-            self.tree_ = Tree(self.n_features_,
+            self.tree_ = _tree.Tree(self.n_features_,
                               # TODO: tree should't need this in this case
                               np.array([1] * self.n_outputs_, dtype=np.intp),
                               self.n_outputs_)
 
         # Use BestFirst if max_leaf_nodes given; use DepthFirst otherwise
         if max_leaf_nodes < 0:
-            builder = DepthFirstTreeBuilder(splitter, min_samples_split,
+            builder = _tree.DepthFirstTreeBuilder(splitter, min_samples_split,
                                             min_samples_leaf,
                                             min_weight_leaf,
                                             max_depth,
                                             self.min_impurity_decrease,
                                             min_impurity_split)
         else:
-            builder = BestFirstTreeBuilder(splitter, min_samples_split,
+            builder = _tree.BestFirstTreeBuilder(splitter, min_samples_split,
                                            min_samples_leaf,
                                            min_weight_leaf,
                                            max_depth,
@@ -516,13 +513,13 @@ class BaseDecisionTree(MultiOutputMixin, BaseEstimator, metaclass=ABCMeta):
         # build pruned tree
         if is_classifier(self):
             n_classes = np.atleast_1d(self.n_classes_)
-            pruned_tree = Tree(self.n_features_, n_classes, self.n_outputs_)
+            pruned_tree = _tree.Tree(self.n_features_, n_classes, self.n_outputs_)
         else:
-            pruned_tree = Tree(self.n_features_,
+            pruned_tree = _tree.Tree(self.n_features_,
                                # TODO: the tree shouldn't need this param
                                np.array([1] * self.n_outputs_, dtype=np.intp),
                                self.n_outputs_)
-        _build_pruned_tree_ccp(pruned_tree, self.tree_, self.ccp_alpha)
+        _tree._build_pruned_tree_ccp(pruned_tree, self.tree_, self.ccp_alpha)
 
         self.tree_ = pruned_tree
 
@@ -563,7 +560,7 @@ class BaseDecisionTree(MultiOutputMixin, BaseEstimator, metaclass=ABCMeta):
         """
         est = clone(self).set_params(ccp_alpha=0.0)
         est.fit(X, y, sample_weight=sample_weight)
-        return Bunch(**ccp_pruning_path(est.tree_))
+        return Bunch(**_tree.ccp_pruning_path(est.tree_))
 
     @property
     def feature_importances_(self):

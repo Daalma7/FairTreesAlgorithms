@@ -11,7 +11,6 @@
 #          Nelson Liu <nelson@nelsonliu.me>
 #
 # License: BSD 3 clause
-
 from libc.stdlib cimport calloc
 from libc.stdlib cimport free
 from libc.string cimport memcpy
@@ -25,10 +24,10 @@ np.import_array()
 from numpy.math cimport INFINITY
 from scipy.special.cython_special cimport xlogy
 
-from ._utils cimport log
-from ._utils cimport safe_realloc
-from ._utils cimport sizet_ptr_to_ndarray
-from ._utils cimport WeightedMedianCalculator
+from _utils cimport log
+from _utils cimport safe_realloc
+from _utils cimport sizet_ptr_to_ndarray
+from _utils cimport WeightedMedianCalculator
 
 # EPSILON is used in the Poisson criterion
 cdef double EPSILON = 10 * np.finfo('double').eps
@@ -288,8 +287,6 @@ cdef class ClassificationCriterion(Criterion):
         ----------
         y : array-like, dtype=DOUBLE_t
             The target stored as a buffer for memory efficiency
-        prot : array-like, dtype=DOUBLE_t                               #NEW
-            The protected attribute value stored as a buffer for memory efficiency #NEW
         sample_weight : array-like, dtype=DOUBLE_t
             The weight of each sample
         weighted_n_samples : double
@@ -302,7 +299,6 @@ cdef class ClassificationCriterion(Criterion):
             The last sample to use in the mask
         """
         self.y = y
-        self.prot = prot #NEW
         self.sample_weight = sample_weight
         self.samples = samples
         self.start = start
@@ -313,8 +309,6 @@ cdef class ClassificationCriterion(Criterion):
 
         cdef SIZE_t* n_classes = self.n_classes
         cdef double* sum_total = self.sum_total
-        cdef double** sum_prot_total = self.sum_prot_total # This will serve as a way to 
-                    #count the amount of examples of each class AND protected attributeNEW
 
         cdef SIZE_t i
         cdef SIZE_t p
@@ -338,9 +332,7 @@ cdef class ClassificationCriterion(Criterion):
             # Count weighted class frequency for each target
             for k in range(self.n_outputs):
                 c = <SIZE_t> self.y[i, k]
-                d = <SIZE_t> self.prot[i,k]     # NEW
                 sum_total[k * self.sum_stride + c] += w
-                sum_prot_total[k * self.sum_stride + c, d] += w # NEW count weighted fairness criteria
 
             self.weighted_n_node_samples += w
 
@@ -681,124 +673,6 @@ cdef class Gini(ClassificationCriterion):
 
         impurity_left[0] = gini_left / self.n_outputs
         impurity_right[0] = gini_right / self.n_outputs
-
-
-
-# TODO: Define new ClassificationCriterion based on fairness
-cdef class FairGini(ClassificationCriterion):
-    r""" Fair Gini Index impurity criterion.
-
-    This handles cases where the target is a classification taking values
-    0, 1, ... K-2, K-1. If node m represents a region Rm with Nm observations,
-    then let
-
-        count_k = 1/ Nm \sum_{x_i in Rm} I(yi = k)
-
-    be the proportion of class k observations in node m.
-
-    The Fair Gini Index is then defined as the sum of the following 2 parts:
-
-        index = (1-lambda) * (\sum_{k=0}^{K-1} count_k (1 - count_k)) + lambda * fairness_criterion
-              = (1-lambda) * (1 - \sum_{k=0}^{K-1} count_k ** 2)      + lambda * fairness_criterion
-
-    
-    The fairness criterion employed is to be defined. We have an extense set of them based
-    on different principles. To begin with i will start using FPR  
-    """
-
-    cdef double node_impurity(self) nogil:
-        """Evaluate the impurity of the current node.
-
-        Evaluate the Gini criterion as impurity of the current node,
-        i.e. the impurity of samples[start:end]. The smaller the impurity the
-        better.
-        """
-        cdef SIZE_t* n_classes = self.n_classes
-        cdef double* sum_total = self.sum_total
-        cdef double gini = 0.0
-        cdef double sq_count
-        cdef double count_k
-        cdef SIZE_t k
-        cdef SIZE_t c
-
-        for k in range(self.n_outputs):
-            sq_count = 0.0
-
-            for c in range(n_classes[k]):
-                count_k = sum_total[c]
-                sq_count += count_k * count_k
-
-            gini += 1.0 - sq_count / (self.weighted_n_node_samples *
-                                      self.weighted_n_node_samples)
-
-            sum_total += self.sum_stride
-
-        return gini / self.n_outputs
-
-    cdef void children_impurity(self, double* impurity_left,
-                                double* impurity_right) nogil:
-        """Evaluate the impurity in children nodes.
-
-        i.e. the impurity of the left child (samples[start:pos]) and the
-        impurity the right child (samples[pos:end]) using the Gini index.
-
-        Parameters
-        ----------
-        impurity_left : double pointer
-            The memory address to save the impurity of the left node to
-        impurity_right : double pointer
-            The memory address to save the impurity of the right node to
-        """
-        cdef SIZE_t* n_classes = self.n_classes
-        cdef double* sum_left = self.sum_left
-        cdef double* sum_right = self.sum_right
-        cdef double gini_left = 0.0
-        cdef double gini_right = 0.0
-        cdef double sq_count_left
-        cdef double sq_count_right
-        cdef double count_k
-        cdef SIZE_t k
-        cdef SIZE_t c
-
-        for k in range(self.n_outputs):
-            sq_count_left = 0.0
-            sq_count_right = 0.0
-
-            for c in range(n_classes[k]):
-                count_k = sum_left[c]
-                sq_count_left += count_k * count_k
-
-                count_k = sum_right[c]
-                sq_count_right += count_k * count_k
-
-            gini_left += 1.0 - sq_count_left / (self.weighted_n_left *
-                                                self.weighted_n_left)
-
-            gini_right += 1.0 - sq_count_right / (self.weighted_n_right *
-                                                  self.weighted_n_right)
-
-            sum_left += self.sum_stride
-            sum_right += self.sum_stride
-
-        impurity_left[0] = gini_left / self.n_outputs
-        impurity_right[0] = gini_right / self.n_outputs
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 cdef class RegressionCriterion(Criterion):

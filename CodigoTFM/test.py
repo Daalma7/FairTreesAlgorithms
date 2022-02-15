@@ -1,6 +1,6 @@
 from sklearn.datasets import load_iris
 from sklearn.model_selection import cross_val_score
-from CodigoTFM._classes import DecisionTreeClassifier
+from _classes import DecisionTreeClassifier
 
 clf = DecisionTreeClassifier(random_state=0)
 iris = load_iris()

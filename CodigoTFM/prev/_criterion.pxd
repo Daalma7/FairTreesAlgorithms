@@ -12,11 +12,11 @@
 import numpy as np
 cimport numpy as np
 
-from ._tree cimport DTYPE_t          # Type of X
-from ._tree cimport DOUBLE_t         # Type of y, sample_weight
-from ._tree cimport SIZE_t           # Type for indices and counters
-from ._tree cimport INT32_t          # Signed 32 bit integer
-from ._tree cimport UINT32_t         # Unsigned 32 bit integer
+from sklearn.tree._tree cimport DTYPE_t          # Type of X
+from sklearn.tree._tree cimport DOUBLE_t         # Type of y, sample_weight
+from sklearn.tree._tree cimport SIZE_t           # Type for indices and counters
+from sklearn.tree._tree cimport INT32_t          # Signed 32 bit integer
+from sklearn.tree._tree cimport UINT32_t         # Unsigned 32 bit integer
 
 cdef class Criterion:
     # The criterion computes the impurity of a node and the reduction of
@@ -26,8 +26,8 @@ cdef class Criterion:
     # Internal structures
     cdef const DOUBLE_t[:, ::1] y        # Values of y
     # TODO: Incorporate protected attribute
-    cdef const DOUBLE_t[:, ::2] prot     # Protected attribute NEW
-    cdef const f_lambda                  # Lambda controlling fairness weight NEW
+    cdef const DOUBLE_t[:, ::1] prot     # Protected attribute NEW
+    cdef const double f_lambda                  # Lambda controlling fairness weight NEW
 
     cdef DOUBLE_t* sample_weight         # Sample weights
 
