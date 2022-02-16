@@ -11,10 +11,6 @@
 #
 # License: BSD 3 clause
 
-print("a")
-print("a")
-
-print("a")
 from _criterion cimport Criterion
 
 from libc.stdlib cimport free

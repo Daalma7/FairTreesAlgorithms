@@ -95,7 +95,6 @@ class BaseDecisionTree(MultiOutputMixin, BaseEstimator, metaclass=ABCMeta):
                  max_leaf_nodes,
                  random_state,
                  min_impurity_decrease,
-                 min_impurity_split,
                  class_weight=None,
                  presort='deprecated',
                  ccp_alpha=0.0):
@@ -109,7 +108,6 @@ class BaseDecisionTree(MultiOutputMixin, BaseEstimator, metaclass=ABCMeta):
         self.random_state = random_state
         self.max_leaf_nodes = max_leaf_nodes
         self.min_impurity_decrease = min_impurity_decrease
-        self.min_impurity_split = min_impurity_split
         self.class_weight = class_weight
         self.presort = presort
         self.ccp_alpha = ccp_alpha
@@ -139,8 +137,7 @@ class BaseDecisionTree(MultiOutputMixin, BaseEstimator, metaclass=ABCMeta):
         check_is_fitted(self)
         return self.tree_.n_leaves
 
-    def fit(self, X, y, sample_weight=None, check_input=True,
-            X_idx_sorted=None):
+    def fit(self, X, y, sample_weight=None, check_input=True):
 
         random_state = check_random_state(self.random_state)
 
@@ -295,20 +292,6 @@ class BaseDecisionTree(MultiOutputMixin, BaseEstimator, metaclass=ABCMeta):
             min_weight_leaf = (self.min_weight_fraction_leaf *
                                np.sum(sample_weight))
 
-        if self.min_impurity_split is not None:
-            warnings.warn("The min_impurity_split parameter is deprecated. "
-                          "Its default value will change from 1e-7 to 0 in "
-                          "version 0.23, and it will be removed in 0.25. "
-                          "Use the min_impurity_decrease parameter instead.",
-                          FutureWarning)
-            min_impurity_split = self.min_impurity_split
-        else:
-            min_impurity_split = 1e-7
-
-        if min_impurity_split < 0.:
-            raise ValueError("min_impurity_split must be greater than "
-                             "or equal to 0")
-
         if self.min_impurity_decrease < 0.:
             raise ValueError("min_impurity_decrease must be greater than "
                              "or equal to 0")
@@ -355,18 +338,16 @@ class BaseDecisionTree(MultiOutputMixin, BaseEstimator, metaclass=ABCMeta):
                                             min_samples_leaf,
                                             min_weight_leaf,
                                             max_depth,
-                                            self.min_impurity_decrease,
-                                            min_impurity_split)
+                                            self.min_impurity_decrease)
         else:
             builder = _tree.BestFirstTreeBuilder(splitter, min_samples_split,
                                            min_samples_leaf,
                                            min_weight_leaf,
                                            max_depth,
                                            max_leaf_nodes,
-                                           self.min_impurity_decrease,
-                                           min_impurity_split)
+                                           self.min_impurity_decrease)
 
-        builder.build(self.tree_, X, y, sample_weight, X_idx_sorted)
+        builder.build(self.tree_, X, y, sample_weight)
 
         if self.n_outputs_ == 1 and is_classifier(self):
             self.n_classes_ = self.n_classes_[0]
@@ -681,16 +662,6 @@ class DecisionTreeClassifier(ClassifierMixin, BaseDecisionTree):
 
         .. versionadded:: 0.19
 
-    min_impurity_split : float, default=1e-7
-        Threshold for early stopping in tree growth. A node will split
-        if its impurity is above the threshold, otherwise it is a leaf.
-
-        .. deprecated:: 0.19
-           ``min_impurity_split`` has been deprecated in favor of
-           ``min_impurity_decrease`` in 0.19. The default value of
-           ``min_impurity_split`` will change from 1e-7 to 0 in 0.23 and it
-           will be removed in 0.25. Use ``min_impurity_decrease`` instead.
-
     class_weight : dict, list of dicts, "balanced" or None, default=None
         Weights associated with classes in the form ``{class_label: weight}``.
         If not given, all classes are supposed to have weight one. For
@@ -815,7 +786,6 @@ class DecisionTreeClassifier(ClassifierMixin, BaseDecisionTree):
                  random_state=None,
                  max_leaf_nodes=None,
                  min_impurity_decrease=0.,
-                 min_impurity_split=None,
                  class_weight=None,
                  presort='deprecated',
                  ccp_alpha=0.0):
@@ -831,12 +801,10 @@ class DecisionTreeClassifier(ClassifierMixin, BaseDecisionTree):
             class_weight=class_weight,
             random_state=random_state,
             min_impurity_decrease=min_impurity_decrease,
-            min_impurity_split=min_impurity_split,
             presort=presort,
             ccp_alpha=ccp_alpha)
 
-    def fit(self, X, y, sample_weight=None, check_input=True,
-            X_idx_sorted=None):
+    def fit(self, X, y, sample_weight=None, check_input=True):
         """Build a decision tree classifier from the training set (X, y).
 
         Parameters
@@ -860,12 +828,6 @@ class DecisionTreeClassifier(ClassifierMixin, BaseDecisionTree):
             Allow to bypass several input checking.
             Don't use this parameter unless you know what you do.
 
-        X_idx_sorted : array-like of shape (n_samples, n_features), optional
-            The indexes of the sorted training input samples. If many tree
-            are grown on the same dataset, this allows the ordering to be
-            cached between trees. If None, the data will be sorted here.
-            Don't use this parameter unless you know what to do.
-
         Returns
         -------
         self : object
@@ -875,8 +837,7 @@ class DecisionTreeClassifier(ClassifierMixin, BaseDecisionTree):
         super().fit(
             X, y,
             sample_weight=sample_weight,
-            check_input=check_input,
-            X_idx_sorted=X_idx_sorted)
+            check_input=check_input)
         return self
 
     def predict_proba(self, X, check_input=True):
@@ -1064,15 +1025,7 @@ class DecisionTreeRegressor(RegressorMixin, BaseDecisionTree):
 
         .. versionadded:: 0.19
 
-    min_impurity_split : float, (default=1e-7)
-        Threshold for early stopping in tree growth. A node will split
-        if its impurity is above the threshold, otherwise it is a leaf.
 
-        .. deprecated:: 0.19
-           ``min_impurity_split`` has been deprecated in favor of
-           ``min_impurity_decrease`` in 0.19. The default value of
-           ``min_impurity_split`` will change from 1e-7 to 0 in 0.23 and it
-           will be removed in 0.25. Use ``min_impurity_decrease`` instead.
 
     presort : deprecated, default='deprecated'
         This parameter is deprecated and will be removed in v0.24.
@@ -1169,7 +1122,6 @@ class DecisionTreeRegressor(RegressorMixin, BaseDecisionTree):
                  random_state=None,
                  max_leaf_nodes=None,
                  min_impurity_decrease=0.,
-                 min_impurity_split=None,
                  presort='deprecated',
                  ccp_alpha=0.0):
         super().__init__(
@@ -1183,12 +1135,10 @@ class DecisionTreeRegressor(RegressorMixin, BaseDecisionTree):
             max_leaf_nodes=max_leaf_nodes,
             random_state=random_state,
             min_impurity_decrease=min_impurity_decrease,
-            min_impurity_split=min_impurity_split,
             presort=presort,
             ccp_alpha=ccp_alpha)
 
-    def fit(self, X, y, sample_weight=None, check_input=True,
-            X_idx_sorted=None):
+    def fit(self, X, y, sample_weight=None, check_input=True):
         """Build a decision tree regressor from the training set (X, y).
 
         Parameters
@@ -1211,12 +1161,6 @@ class DecisionTreeRegressor(RegressorMixin, BaseDecisionTree):
             Allow to bypass several input checking.
             Don't use this parameter unless you know what you do.
 
-        X_idx_sorted : array-like of shape (n_samples, n_features), optional
-            The indexes of the sorted training input samples. If many tree
-            are grown on the same dataset, this allows the ordering to be
-            cached between trees. If None, the data will be sorted here.
-            Don't use this parameter unless you know what to do.
-
         Returns
         -------
         self : object
@@ -1226,8 +1170,7 @@ class DecisionTreeRegressor(RegressorMixin, BaseDecisionTree):
         super().fit(
             X, y,
             sample_weight=sample_weight,
-            check_input=check_input,
-            X_idx_sorted=X_idx_sorted)
+            check_input=check_input)
         return self
 
     @property
@@ -1353,15 +1296,7 @@ class ExtraTreeClassifier(DecisionTreeClassifier):
 
         .. versionadded:: 0.19
 
-    min_impurity_split : float, (default=1e-7)
-        Threshold for early stopping in tree growth. A node will split
-        if its impurity is above the threshold, otherwise it is a leaf.
 
-        .. deprecated:: 0.19
-           ``min_impurity_split`` has been deprecated in favor of
-           ``min_impurity_decrease`` in 0.19. The default value of
-           ``min_impurity_split`` will change from 1e-7 to 0 in 0.23 and it
-           will be removed in 0.25. Use ``min_impurity_decrease`` instead.
 
     class_weight : dict, list of dicts, "balanced" or None, default=None
         Weights associated with classes in the form ``{class_label: weight}``.
@@ -1453,7 +1388,6 @@ class ExtraTreeClassifier(DecisionTreeClassifier):
                  random_state=None,
                  max_leaf_nodes=None,
                  min_impurity_decrease=0.,
-                 min_impurity_split=None,
                  class_weight=None,
                  ccp_alpha=0.0):
         super().__init__(
@@ -1467,7 +1401,6 @@ class ExtraTreeClassifier(DecisionTreeClassifier):
             max_leaf_nodes=max_leaf_nodes,
             class_weight=class_weight,
             min_impurity_decrease=min_impurity_decrease,
-            min_impurity_split=min_impurity_split,
             random_state=random_state,
             ccp_alpha=ccp_alpha)
 
@@ -1578,15 +1511,6 @@ class ExtraTreeRegressor(DecisionTreeRegressor):
 
         .. versionadded:: 0.19
 
-    min_impurity_split : float, (default=1e-7)
-        Threshold for early stopping in tree growth. A node will split
-        if its impurity is above the threshold, otherwise it is a leaf.
-
-        .. deprecated:: 0.19
-           ``min_impurity_split`` has been deprecated in favor of
-           ``min_impurity_decrease`` in 0.19. The default value of
-           ``min_impurity_split`` will change from 1e-7 to 0 in 0.23 and it
-           will be removed in 0.25. Use ``min_impurity_decrease`` instead.
 
     max_leaf_nodes : int or None, optional (default=None)
         Grow a tree with ``max_leaf_nodes`` in best-first fashion.
@@ -1663,7 +1587,6 @@ class ExtraTreeRegressor(DecisionTreeRegressor):
                  max_features="auto",
                  random_state=None,
                  min_impurity_decrease=0.,
-                 min_impurity_split=None,
                  max_leaf_nodes=None,
                  ccp_alpha=0.0):
         super().__init__(
@@ -1676,6 +1599,5 @@ class ExtraTreeRegressor(DecisionTreeRegressor):
             max_features=max_features,
             max_leaf_nodes=max_leaf_nodes,
             min_impurity_decrease=min_impurity_decrease,
-            min_impurity_split=min_impurity_split,
             random_state=random_state,
             ccp_alpha=ccp_alpha)
