@@ -65,6 +65,7 @@ cdef class Splitter:
     cdef SIZE_t end                      # End position for the current node
 
     cdef const DOUBLE_t[:, ::1] y
+    cdef DOUBLE_t* prot
     cdef DOUBLE_t* sample_weight
 
     # The samples vector `samples` is maintained by the Splitter object such
@@ -85,6 +86,7 @@ cdef class Splitter:
 
     # Methods
     cdef int init(self, object X, const DOUBLE_t[:, ::1] y,
+                  DOUBLE_t* prot,
                   DOUBLE_t* sample_weight) except -1
 
     cdef int node_reset(self, SIZE_t start, SIZE_t end,

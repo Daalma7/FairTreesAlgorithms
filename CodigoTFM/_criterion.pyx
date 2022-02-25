@@ -10,12 +10,32 @@
 #          Jacob Schreiber <jmschreiber91@gmail.com>
 #          Nelson Liu <nelson@nelsonliu.me>
 #
-# License: BSD 3 clause
+# Modified by: David Villar <davidvillarmartos130499@gmail.com>
+
+# This file class structure is as follows
+#
+#   +-> Criterion
+#   |
+#   +-----+-> ClassificationCriterion
+#   |     |
+#   |     +-----> Entropy
+#   |     +-----> Gini
+#   |     +-----> Gini_Fair
+#   |
+#   +-----+-> RegressionCriterion
+#         |
+#         +-----> MSE
+#         +-----> MAE
+#         +-----> FriedmanMSE
+#         +-----> Poisson
+
+
 from libc.stdlib cimport calloc
 from libc.stdlib cimport free
 from libc.string cimport memcpy
 from libc.string cimport memset
 from libc.math cimport fabs
+from libc.stdio cimport printf
 
 import numpy as np
 cimport numpy as np
@@ -51,7 +71,8 @@ cdef class Criterion:
     def __setstate__(self, d):
         pass
 
-    cdef int init(self, const DOUBLE_t[:, ::1] y, DOUBLE_t* sample_weight,
+    cdef int init(self, const DOUBLE_t[:, ::1] y, DOUBLE_t* prot,
+                  DOUBLE_t* sample_weight,
                   double weighted_n_samples, SIZE_t* samples, SIZE_t start,
                   SIZE_t end) nogil except -1:
         """Placeholder for a method which will initialize the criterion.
@@ -207,7 +228,8 @@ cdef class ClassificationCriterion(Criterion):
     """Abstract criterion for classification."""
 
     def __cinit__(self, SIZE_t n_outputs,
-                  np.ndarray[SIZE_t, ndim=1] n_classes):
+                  np.ndarray[SIZE_t, ndim=1] n_classes,
+                  double f_lambda = 0.0):
         """Initialize attributes for this criterion.
 
         Parameters
@@ -216,6 +238,9 @@ cdef class ClassificationCriterion(Criterion):
             The number of targets, the dimensionality of the prediction
         n_classes : numpy.ndarray, dtype=SIZE_t
             The number of unique classes in each target
+        f_lambda : doulble
+            The balance between traditional criterion and fairness. May
+            not be used for some criteria, reason why holds 0 by default
         """
         self.sample_weight = NULL
 
@@ -230,6 +255,8 @@ cdef class ClassificationCriterion(Criterion):
         self.weighted_n_node_samples = 0.0
         self.weighted_n_left = 0.0
         self.weighted_n_right = 0.0
+
+        self.f_lambda = f_lambda
 
         # Count labels for each output
         self.sum_total = NULL
@@ -272,7 +299,7 @@ cdef class ClassificationCriterion(Criterion):
                  sizet_ptr_to_ndarray(self.n_classes, self.n_outputs)),
                 self.__getstate__())
 
-    cdef int init(self, const DOUBLE_t[:, ::1] y,
+    cdef int init(self, const DOUBLE_t[:, ::1] y, DOUBLE_t* prot,
                   DOUBLE_t* sample_weight, double weighted_n_samples,
                   SIZE_t* samples, SIZE_t start, SIZE_t end) nogil except -1:
         """Initialize the criterion.
@@ -299,6 +326,7 @@ cdef class ClassificationCriterion(Criterion):
             The last sample to use in the mask
         """
         self.y = y
+        self.prot = prot
         self.sample_weight = sample_weight
         self.samples = samples
         self.start = start
@@ -675,6 +703,115 @@ cdef class Gini(ClassificationCriterion):
         impurity_right[0] = gini_right / self.n_outputs
 
 
+
+cdef class Gini_Fair(ClassificationCriterion):
+    r"""Gini Index impurity criterion, modified with an additional fairness criterion.
+
+    This handles cases where the target is a classification taking values
+    0, 1, ... K-2, K-1. If node m represents a region Rm with Nm observations,
+    then let
+
+        count_k = 1/ Nm \sum_{x_i in Rm} I(yi = k)
+
+    be the proportion of class k observations in node m.
+
+    The Gini Index is then defined as:
+
+        index = \sum_{k=0}^{K-1} count_k (1 - count_k)
+              = 1 - \sum_{k=0}^{K-1} count_k ** 2
+    """
+
+    cdef double node_impurity(self) nogil:
+        """Evaluate the impurity of the current node.
+
+        Evaluate the Gini criterion as impurity of the current node,
+        i.e. the impurity of samples[start:end]. The smaller the impurity the
+        better.
+        """
+        cdef SIZE_t* n_classes = self.n_classes
+        cdef double* sum_total = self.sum_total
+        cdef double gini = 0.0
+        cdef double sq_count
+        cdef double count_k
+        cdef SIZE_t k
+        cdef SIZE_t c
+
+        printf("AAAAAA\nAAAAAA\nAAAAAA\nAAAAAA\nAAAAAA\nAAAAAA\n")
+        printf("The start number is %i\n", self.start)
+        printf("The end number is %i\n", self.end)
+        printf("The pos number is %i\n", self.pos)
+
+
+        printf("The number of samples is %f\n", self.n_samples)
+        printf("The value of self.lambda is %f\n", self.f_lambda)
+        for ind in range(self.start, self.end):
+            printf("The value of self.prot is: %f\n",  self.prot[ind])
+
+        for k in range(self.n_outputs):
+            sq_count = 0.0
+
+            for c in range(n_classes[k]):
+                count_k = sum_total[c]
+                sq_count += count_k * count_k
+
+            #gini += 1.0 - sq_count / (self.weighted_n_node_samples *
+            #                          self.weighted_n_node_samples)
+
+            gini += 1.0 - sq_count / (self.weighted_n_node_samples * self.weighted_n_node_samples)
+
+            sum_total += self.sum_stride
+
+        return gini / self.n_outputs
+
+    cdef void children_impurity(self, double* impurity_left,
+                                double* impurity_right) nogil:
+        """Evaluate the impurity in children nodes.
+
+        i.e. the impurity of the left child (samples[start:pos]) and the
+        impurity the right child (samples[pos:end]) using the Gini index.
+
+        Parameters
+        ----------
+        impurity_left : double pointer
+            The memory address to save the impurity of the left node to
+        impurity_right : double pointer
+            The memory address to save the impurity of the right node to
+        """
+        cdef SIZE_t* n_classes = self.n_classes
+        cdef double* sum_left = self.sum_left
+        cdef double* sum_right = self.sum_right
+        cdef double gini_left = 0.0
+        cdef double gini_right = 0.0
+        cdef double sq_count_left
+        cdef double sq_count_right
+        cdef double count_k
+        cdef SIZE_t k
+        cdef SIZE_t c
+
+        for k in range(self.n_outputs):
+            sq_count_left = 0.0
+            sq_count_right = 0.0
+
+            for c in range(n_classes[k]):
+                count_k = sum_left[c]
+                sq_count_left += count_k * count_k
+
+                count_k = sum_right[c]
+                sq_count_right += count_k * count_k
+
+            gini_left += 1.0 - sq_count_left / (self.weighted_n_left *
+                                                self.weighted_n_left)
+
+            gini_right += 1.0 - sq_count_right / (self.weighted_n_right *
+                                                  self.weighted_n_right)
+
+            sum_left += self.sum_stride
+            sum_right += self.sum_stride
+
+        impurity_left[0] = gini_left / self.n_outputs
+        impurity_right[0] = gini_right / self.n_outputs
+
+
 cdef class RegressionCriterion(Criterion):
     r"""Abstract regression criterion.
 
@@ -734,7 +871,8 @@ cdef class RegressionCriterion(Criterion):
     def __reduce__(self):
         return (type(self), (self.n_outputs, self.n_samples), self.__getstate__())
 
-    cdef int init(self, const DOUBLE_t[:, ::1] y, DOUBLE_t* sample_weight,
+    cdef int init(self, const DOUBLE_t[:, ::1] y, 
+                  DOUBLE_t* prot, DOUBLE_t* sample_weight,
                   double weighted_n_samples, SIZE_t* samples, SIZE_t start,
                   SIZE_t end) nogil except -1:
         """Initialize the criterion.
@@ -744,6 +882,7 @@ cdef class RegressionCriterion(Criterion):
         """
         # Initialize fields
         self.y = y
+        self.prot = prot
         self.sample_weight = sample_weight
         self.samples = samples
         self.start = start
@@ -1022,7 +1161,8 @@ cdef class MAE(RegressionCriterion):
             self.left_child[k] = WeightedMedianCalculator(n_samples)
             self.right_child[k] = WeightedMedianCalculator(n_samples)
 
-    cdef int init(self, const DOUBLE_t[:, ::1] y, DOUBLE_t* sample_weight,
+    cdef int init(self, const DOUBLE_t[:, ::1] y, 
+                  DOUBLE_t* prot, DOUBLE_t* sample_weight,
                   double weighted_n_samples, SIZE_t* samples, SIZE_t start,
                   SIZE_t end) nogil except -1:
         """Initialize the criterion.

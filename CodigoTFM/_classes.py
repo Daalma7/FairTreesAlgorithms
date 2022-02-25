@@ -12,7 +12,16 @@ randomized trees. Single and multi-output problems are both handled.
 #          Fares Hedayati <fares.hedayati@gmail.com>
 #          Nelson Liu <nelson@nelsonliu.me>
 #
-# License: BSD 3 clause
+# Modified by: David Villar <davidvillarmartos130499@gmail.com>
+
+# This file class structure is as follows
+#
+#   +-> BaseDecisionTree
+#   |
+#   +-----> DecisionTreeClassifier
+#   +-----> DecisionTreeClassifier
+#   +-----> ExtraTreeClassifier
+#   +-----> ExtraTreeClassifier
 
 import sys
 import os
@@ -61,7 +70,8 @@ __all__ = ["DecisionTreeClassifier",
 DTYPE = _tree.DTYPE
 DOUBLE = _tree.DOUBLE
 
-CRITERIA_CLF = {"gini": _criterion.Gini, "entropy": _criterion.Entropy}
+CRITERIA_CLF = {"gini": _criterion.Gini, "entropy": _criterion.Entropy,
+                "gini_fair": _criterion.Gini_Fair}
 CRITERIA_REG = {"mse": _criterion.MSE, "friedman_mse": _criterion.FriedmanMSE,
                 "mae": _criterion.MAE}
 
@@ -85,19 +95,22 @@ class BaseDecisionTree(MultiOutputMixin, BaseEstimator, metaclass=ABCMeta):
 
     @abstractmethod
     def __init__(self,
-                 criterion,
-                 splitter,
-                 max_depth,
-                 min_samples_split,
-                 min_samples_leaf,
-                 min_weight_fraction_leaf,
-                 max_features,
-                 max_leaf_nodes,
-                 random_state,
-                 min_impurity_decrease,
-                 class_weight=None,
-                 presort='deprecated',
-                 ccp_alpha=0.0):
+                 criterion,                 # Splitting criterion (gini/entropy...)
+                 splitter,                  # Splitter (best/random...)
+                 max_depth,                 # Max depth of the tree
+                 min_samples_split,         # Min samples needed to split a node
+                 min_samples_leaf,          # Min number of samples that a leaf node needs to have
+                 min_weight_fraction_leaf,  #
+                 max_features,              # Max number of features of the tree
+                 max_leaf_nodes,            # Max number of leaf nodes.
+                 random_state,              # Random state for some random processes
+                 min_impurity_decrease,     # Min impurity decrease for a split to be done
+                 class_weight=None,         # Weights for each class
+                 ccp_alpha=0.0,             # Cost sensitive pruning parameter
+                 f_lambda=0.0):             # Alpha parameter controlling balance between main
+                                            # criterion and fairness criterion
+                                            # A value of 0 means only traditional criterion will be used
+
         self.criterion = criterion
         self.splitter = splitter
         self.max_depth = max_depth
@@ -109,8 +122,8 @@ class BaseDecisionTree(MultiOutputMixin, BaseEstimator, metaclass=ABCMeta):
         self.max_leaf_nodes = max_leaf_nodes
         self.min_impurity_decrease = min_impurity_decrease
         self.class_weight = class_weight
-        self.presort = presort
         self.ccp_alpha = ccp_alpha
+        self.f_lambda = f_lambda
 
     def get_depth(self):
         """Return the depth of the decision tree.
@@ -137,7 +150,7 @@ class BaseDecisionTree(MultiOutputMixin, BaseEstimator, metaclass=ABCMeta):
         check_is_fitted(self)
         return self.tree_.n_leaves
 
-    def fit(self, X, y, sample_weight=None, check_input=True):
+    def fit(self, X, y, sample_weight=None, check_input=True, prot=None):
 
         random_state = check_random_state(self.random_state)
 
@@ -296,22 +309,22 @@ class BaseDecisionTree(MultiOutputMixin, BaseEstimator, metaclass=ABCMeta):
             raise ValueError("min_impurity_decrease must be greater than "
                              "or equal to 0")
 
-        if self.presort != 'deprecated':
-            warnings.warn("The parameter 'presort' is deprecated and has no "
-                          "effect. It will be removed in v0.24. You can "
-                          "suppress this warning by not passing any value "
-                          "to the 'presort' parameter.",
-                          FutureWarning)
+        # Added check for f_lambda value
+        if self.f_lambda > 1.0 or self.f_lambda < 0.0:
+            raise ValueError("f_lambda value should be a real number "
+                             "between 0 and 1")
 
         # Build tree
         criterion = self.criterion
         if not isinstance(criterion, Criterion):
             if is_classification:
                 criterion = CRITERIA_CLF[self.criterion](self.n_outputs_,
-                                                         self.n_classes_)
+                                                         self.n_classes_,
+                                                         self.f_lambda)
             else:
                 criterion = CRITERIA_REG[self.criterion](self.n_outputs_,
-                                                         n_samples)
+                                                         n_samples,
+                                                         self.f_lambda)
 
         SPLITTERS = SPARSE_SPLITTERS if issparse(X) else DENSE_SPLITTERS
 
@@ -346,8 +359,9 @@ class BaseDecisionTree(MultiOutputMixin, BaseEstimator, metaclass=ABCMeta):
                                            max_depth,
                                            max_leaf_nodes,
                                            self.min_impurity_decrease)
+        print(prot)
 
-        builder.build(self.tree_, X, y, sample_weight)
+        builder.build(self.tree_, X, y, sample_weight, prot)
 
         if self.n_outputs_ == 1 and is_classifier(self):
             self.n_classes_ = self.n_classes_[0]
@@ -504,7 +518,7 @@ class BaseDecisionTree(MultiOutputMixin, BaseEstimator, metaclass=ABCMeta):
 
         self.tree_ = pruned_tree
 
-    def cost_complexity_pruning_path(self, X, y, sample_weight=None):
+    def cost_complexity_pruning_path(self, X, y, sample_weight=None, prot=None):
         """Compute the pruning path during Minimal Cost-Complexity Pruning.
 
         See :ref:`minimal_cost_complexity_pruning` for details on the pruning
@@ -540,7 +554,7 @@ class BaseDecisionTree(MultiOutputMixin, BaseEstimator, metaclass=ABCMeta):
                 corresponding alpha value in ``ccp_alphas``.
         """
         est = clone(self).set_params(ccp_alpha=0.0)
-        est.fit(X, y, sample_weight=sample_weight)
+        est.fit(X, y, sample_weight=sample_weight, prot=prot)
         return Bunch(**_tree.ccp_pruning_path(est.tree_))
 
     @property
@@ -683,9 +697,6 @@ class DecisionTreeClassifier(ClassifierMixin, BaseDecisionTree):
         Note that these weights will be multiplied with sample_weight (passed
         through the fit method) if sample_weight is specified.
 
-    presort : deprecated, default='deprecated'
-        This parameter is deprecated and will be removed in v0.24.
-
         .. deprecated:: 0.22
 
     ccp_alpha : non-negative float, optional (default=0.0)
@@ -695,6 +706,13 @@ class DecisionTreeClassifier(ClassifierMixin, BaseDecisionTree):
         :ref:`minimal_cost_complexity_pruning` for details.
 
         .. versionadded:: 0.22
+    
+    f_lambda: parameter ranging from 0.0 to 1.0, which control the balance
+        between the traditional splitting criterion, and a fairness based one.
+        A value of 0.0 means that only the traditional method will be used, while
+        a value of 1.0 means that only the fairness method will be employed.
+
+        .. added by David Villar
 
     Attributes
     ----------
@@ -787,8 +805,8 @@ class DecisionTreeClassifier(ClassifierMixin, BaseDecisionTree):
                  max_leaf_nodes=None,
                  min_impurity_decrease=0.,
                  class_weight=None,
-                 presort='deprecated',
-                 ccp_alpha=0.0):
+                 ccp_alpha=0.0,
+                 f_lambda=0.0):
         super().__init__(
             criterion=criterion,
             splitter=splitter,
@@ -801,10 +819,10 @@ class DecisionTreeClassifier(ClassifierMixin, BaseDecisionTree):
             class_weight=class_weight,
             random_state=random_state,
             min_impurity_decrease=min_impurity_decrease,
-            presort=presort,
-            ccp_alpha=ccp_alpha)
+            ccp_alpha=ccp_alpha,
+            f_lambda=f_lambda)
 
-    def fit(self, X, y, sample_weight=None, check_input=True):
+    def fit(self, X, y, sample_weight=None, prot=None, check_input=True):
         """Build a decision tree classifier from the training set (X, y).
 
         Parameters
@@ -823,6 +841,10 @@ class DecisionTreeClassifier(ClassifierMixin, BaseDecisionTree):
             ignored while searching for a split in each node. Splits are also
             ignored if they would result in any single class carrying a
             negative weight in either child node.
+        
+        prot: array-like of shape (n_samples, 1)
+            The protected attribute values (class labels) as integers.
+            it should be part of the data in X.
 
         check_input : bool, (default=True)
             Allow to bypass several input checking.
@@ -837,6 +859,7 @@ class DecisionTreeClassifier(ClassifierMixin, BaseDecisionTree):
         super().fit(
             X, y,
             sample_weight=sample_weight,
+            prot=prot,
             check_input=check_input)
         return self
 
@@ -1025,13 +1048,6 @@ class DecisionTreeRegressor(RegressorMixin, BaseDecisionTree):
 
         .. versionadded:: 0.19
 
-
-
-    presort : deprecated, default='deprecated'
-        This parameter is deprecated and will be removed in v0.24.
-
-        .. deprecated:: 0.22
-
     ccp_alpha : non-negative float, optional (default=0.0)
         Complexity parameter used for Minimal Cost-Complexity Pruning. The
         subtree with the largest cost complexity that is smaller than
@@ -1122,7 +1138,6 @@ class DecisionTreeRegressor(RegressorMixin, BaseDecisionTree):
                  random_state=None,
                  max_leaf_nodes=None,
                  min_impurity_decrease=0.,
-                 presort='deprecated',
                  ccp_alpha=0.0):
         super().__init__(
             criterion=criterion,
@@ -1135,7 +1150,6 @@ class DecisionTreeRegressor(RegressorMixin, BaseDecisionTree):
             max_leaf_nodes=max_leaf_nodes,
             random_state=random_state,
             min_impurity_decrease=min_impurity_decrease,
-            presort=presort,
             ccp_alpha=ccp_alpha)
 
     def fit(self, X, y, sample_weight=None, check_input=True):

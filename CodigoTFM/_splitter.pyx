@@ -112,6 +112,7 @@ cdef class Splitter:
     cdef int init(self,
                    object X,
                    const DOUBLE_t[:, ::1] y,
+                   DOUBLE_t* prot,
                    DOUBLE_t* sample_weight) except -1:
         """Initialize the splitter.
 
@@ -172,6 +173,7 @@ cdef class Splitter:
         safe_realloc(&self.constant_features, n_features)
 
         self.y = y
+        self.prot = prot
 
         self.sample_weight = sample_weight
         return 0
@@ -197,6 +199,7 @@ cdef class Splitter:
         self.end = end
 
         self.criterion.init(self.y,
+                            self.prot,
                             self.sample_weight,
                             self.weighted_n_samples,
                             self.samples,
@@ -237,6 +240,7 @@ cdef class BaseDenseSplitter(Splitter):
     cdef int init(self,
                   object X,
                   const DOUBLE_t[:, ::1] y,
+                  DOUBLE_t* prot,
                   DOUBLE_t* sample_weight) except -1:
         """Initialize the splitter
 
@@ -245,7 +249,7 @@ cdef class BaseDenseSplitter(Splitter):
         """
 
         # Call parent init
-        Splitter.init(self, X, y, sample_weight)
+        Splitter.init(self, X, y, prot, sample_weight)
 
         self.X = X
         return 0
@@ -796,6 +800,7 @@ cdef class BaseSparseSplitter(Splitter):
     cdef int init(self,
                   object X,
                   const DOUBLE_t[:, ::1] y,
+                  DOUBLE_t* prot,
                   DOUBLE_t* sample_weight) except -1:
         """Initialize the splitter
 
@@ -803,7 +808,7 @@ cdef class BaseSparseSplitter(Splitter):
         or 0 otherwise.
         """
         # Call parent init
-        Splitter.init(self, X, y, sample_weight)
+        Splitter.init(self, X, y, prot, sample_weight)
 
         if not isinstance(X, csc_matrix):
             raise ValueError("X should be in csc format")
