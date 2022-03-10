@@ -62,8 +62,11 @@ cdef class Criterion:
     def __dealloc__(self):
         """Destructor."""
         free(self.sum_total)
+        free(self.sum_total_fair)
         free(self.sum_left)
         free(self.sum_right)
+        free(self.sum_left_fair)
+        free(self.sum_right_fair)
 
     def __getstate__(self):
         return {}
@@ -260,8 +263,37 @@ cdef class ClassificationCriterion(Criterion):
 
         # Count labels for each output
         self.sum_total = NULL
+        self.sum_total_fair = NULL
+        self.avg_tp_0 = 0
+        self.avg_fp_0 = 0
+        self.avg_tn_0 = 0
+        self.avg_fn_0 = 0
+        self.avg_tp_1 = 0
+        self.avg_fp_1 = 0
+        self.avg_tn_1 = 0
+        self.avg_fn_1 = 0
+
+        self.avg_left_tp_0 = 0
+        self.avg_left_fp_0 = 0
+        self.avg_left_tn_0 = 0
+        self.avg_left_fn_0 = 0
+        self.avg_left_tp_1 = 0
+        self.avg_left_fp_1 = 0
+        self.avg_left_tn_1 = 0
+        self.avg_left_fn_1 = 0
+
+        self.avg_right_tp_0 = 0
+        self.avg_right_fp_0 = 0
+        self.avg_right_tn_0 = 0
+        self.avg_right_fn_0 = 0
+        self.avg_right_tp_1 = 0
+        self.avg_right_fp_1 = 0
+        self.avg_right_tn_1 = 0
+        self.avg_right_fn_1 = 0
         self.sum_left = NULL
         self.sum_right = NULL
+        self.sum_left_fair = NULL
+        self.sum_right_fair = NULL
         self.n_classes = NULL
 
         safe_realloc(&self.n_classes, n_outputs)
@@ -283,10 +315,17 @@ cdef class ClassificationCriterion(Criterion):
         self.sum_total = <double*> calloc(n_elements, sizeof(double))
         self.sum_left = <double*> calloc(n_elements, sizeof(double))
         self.sum_right = <double*> calloc(n_elements, sizeof(double))
+        # The protected attribute will be a binary attribute
+        self.sum_total_fair = <double*> calloc(4, sizeof(double))
+        self.sum_right_fair = <double*> calloc(4, sizeof(double))
+        self.sum_left_fair = <double*> calloc(4, sizeof(double))
 
         if (self.sum_total == NULL or
+                self.sum_total_fair == NULL or
                 self.sum_left == NULL or
-                self.sum_right == NULL):
+                self.sum_right == NULL or
+                self.sum_left_fair == NULL or
+                self.sum_right_fair == NULL ):
             raise MemoryError()
 
     def __dealloc__(self):
@@ -337,17 +376,33 @@ cdef class ClassificationCriterion(Criterion):
 
         cdef SIZE_t* n_classes = self.n_classes
         cdef double* sum_total = self.sum_total
+        cdef double* sum_total_fair = self.sum_total_fair
+
+        self.total_0 = 0
+        self.total_1 = 0
+
+        self.avg_tp_0 = 0
+        self.avg_fp_0 = 0
+        self.avg_tn_0 = 0
+        self.avg_fn_0 = 0
+        self.avg_tp_1 = 0
+        self.avg_fp_1 = 0
+        self.avg_tn_1 = 0
+        self.avg_fn_1 = 0
 
         cdef SIZE_t i
         cdef SIZE_t p
         cdef SIZE_t k
         cdef SIZE_t c
+        cdef SIZE_t c2
         cdef DOUBLE_t w = 1.0
         cdef SIZE_t offset = 0
 
         for k in range(self.n_outputs):
             memset(sum_total + offset, 0, n_classes[k] * sizeof(double))
             offset += self.sum_stride
+        
+        memset(sum_total_fair, 0, 4 * sizeof(double))
 
         for p in range(start, end):
             i = samples[p]
@@ -361,8 +416,40 @@ cdef class ClassificationCriterion(Criterion):
             for k in range(self.n_outputs):
                 c = <SIZE_t> self.y[i, k]
                 sum_total[k * self.sum_stride + c] += w
+            
+            # There's only 1 protected attribute
+            c = <SIZE_t> self.y[i, 0]
+            c2 = <SIZE_t> self.prot[i]
+            sum_total_fair[c * 2 + c2] += w
+
+            # Given this update pattern, values are stored as:
+            # sum_total_fair[0]: y = 0, prot = 0
+            # sum_total_fair[1]: y = 0, prot = 1
+            # sum_total_fair[2]: y = 1, prot = 0
+            # sum_total_fair[3]: y = 1, prot = 1
 
             self.weighted_n_node_samples += w
+        
+        """
+        printf("%f ", self.weighted_n_node_samples)
+        printf("INIT\n")
+        printf("%f ", sum_total_fair[0])
+        printf("%f ", sum_total_fair[1])
+        printf("%f ", sum_total_fair[2])
+        printf("%f ", sum_total_fair[3])
+        printf("%f ", sum_total_fair[4])
+        printf("%f ", sum_total_fair[5])
+        printf("%f \n", sum_total_fair[6])
+        
+        printf("%f ", sum_total[0])
+        printf("%f ", sum_total[1])
+        printf("%f ", sum_total[2])
+        printf("%f ", sum_total[3])
+        printf("%f ", sum_total[4])
+        printf("%f ", sum_total[5])
+        printf("%f \n", sum_total[6])
+        """
+
 
         # Reset to pos=start
         self.reset()
@@ -382,6 +469,9 @@ cdef class ClassificationCriterion(Criterion):
         cdef double* sum_total = self.sum_total
         cdef double* sum_left = self.sum_left
         cdef double* sum_right = self.sum_right
+        cdef double* sum_total_fair = self.sum_total_fair
+        cdef double* sum_left_fair = self.sum_left_fair
+        cdef double* sum_right_fair = self.sum_right_fair
 
         cdef SIZE_t* n_classes = self.n_classes
         cdef SIZE_t k
@@ -390,9 +480,15 @@ cdef class ClassificationCriterion(Criterion):
             memset(sum_left, 0, n_classes[k] * sizeof(double))
             memcpy(sum_right, sum_total, n_classes[k] * sizeof(double))
 
+            memset(sum_left_fair, 0, 4 * sizeof(double))
+            memcpy(sum_right_fair, sum_total_fair, 4 * sizeof(double))
+
             sum_total += self.sum_stride
             sum_left += self.sum_stride
             sum_right += self.sum_stride
+            sum_total_fair += self.sum_stride
+            sum_left_fair += self.sum_stride
+            sum_right_fair += self.sum_stride
         return 0
 
     cdef int reverse_reset(self) nogil except -1:
@@ -409,6 +505,9 @@ cdef class ClassificationCriterion(Criterion):
         cdef double* sum_total = self.sum_total
         cdef double* sum_left = self.sum_left
         cdef double* sum_right = self.sum_right
+        cdef double* sum_total_fair = self.sum_total_fair
+        cdef double* sum_left_fair = self.sum_left_fair
+        cdef double* sum_right_fair = self.sum_right_fair
 
         cdef SIZE_t* n_classes = self.n_classes
         cdef SIZE_t k
@@ -417,9 +516,15 @@ cdef class ClassificationCriterion(Criterion):
             memset(sum_right, 0, n_classes[k] * sizeof(double))
             memcpy(sum_left, sum_total, n_classes[k] * sizeof(double))
 
+            memset(sum_right_fair, 0, 4 * sizeof(double))
+            memcpy(sum_left_fair, sum_total_fair, 4 * sizeof(double))
+
             sum_total += self.sum_stride
             sum_left += self.sum_stride
             sum_right += self.sum_stride
+            sum_total_fair += self.sum_stride
+            sum_left_fair += self.sum_stride
+            sum_right_fair += self.sum_stride
         return 0
 
     cdef int update(self, SIZE_t new_pos) nogil except -1:
@@ -440,6 +545,10 @@ cdef class ClassificationCriterion(Criterion):
         cdef double* sum_left = self.sum_left
         cdef double* sum_right = self.sum_right
         cdef double* sum_total = self.sum_total
+        cdef double* sum_left_fair = self.sum_left_fair
+        cdef double* sum_right_fair = self.sum_right_fair
+        cdef double* sum_total_fair = self.sum_total_fair
+
 
         cdef SIZE_t* n_classes = self.n_classes
         cdef SIZE_t* samples = self.samples
@@ -449,6 +558,7 @@ cdef class ClassificationCriterion(Criterion):
         cdef SIZE_t p
         cdef SIZE_t k
         cdef SIZE_t c
+        cdef SIZE_t c2
         cdef SIZE_t label_index
         cdef DOUBLE_t w = 1.0
 
@@ -469,6 +579,10 @@ cdef class ClassificationCriterion(Criterion):
                 for k in range(self.n_outputs):
                     label_index = k * self.sum_stride + <SIZE_t> self.y[i, k]
                     sum_left[label_index] += w
+                
+                c = <SIZE_t> self.y[i, 0]
+                c2 = <SIZE_t> self.prot[i]
+                sum_left_fair[c * 2 + c2] += w
 
                 self.weighted_n_left += w
 
@@ -484,6 +598,10 @@ cdef class ClassificationCriterion(Criterion):
                 for k in range(self.n_outputs):
                     label_index = k * self.sum_stride + <SIZE_t> self.y[i, k]
                     sum_left[label_index] -= w
+                
+                c = <SIZE_t> self.y[i, 0]
+                c2 = <SIZE_t> self.prot[i]
+                sum_left_fair[c * 2 + c2] -= w
 
                 self.weighted_n_left -= w
 
@@ -497,7 +615,30 @@ cdef class ClassificationCriterion(Criterion):
             sum_left += self.sum_stride
             sum_total += self.sum_stride
 
+        for c in range(n_classes[0]):
+            sum_right_fair[c] = sum_total_fair[c] - sum_left_fair[c]
+            sum_right_fair[c+1] = sum_total_fair[c+1] - sum_left_fair[c+1]
+
         self.pos = new_pos
+        """
+        printf("Nodo intermedio\n")
+        printf("Total\n")
+        printf("%f ", sum_total_fair[0])
+        printf("%f ", sum_total_fair[1])
+        printf("%f ", sum_total_fair[2])
+        printf("%f\n", sum_total_fair[3])
+        printf("Izquierda\n")
+        printf("%f ", sum_left_fair[0])
+        printf("%f ", sum_left_fair[1])
+        printf("%f ", sum_left_fair[2])
+        printf("%f\n", sum_left_fair[3])
+        printf("Derecha\n")
+        printf("%f ", sum_right_fair[0])
+        printf("%f ", sum_right_fair[1])
+        printf("%f ", sum_right_fair[2])
+        printf("%f\n", sum_right_fair[3])
+        """
+        
         return 0
 
     cdef double node_impurity(self) nogil:
@@ -507,6 +648,7 @@ cdef class ClassificationCriterion(Criterion):
                                 double* impurity_right) nogil:
         pass
 
+    #TODO: puede ser que haga falta modificar esto
     cdef void node_value(self, double* dest) nogil:
         """Compute the node value of samples[start:end] and save it into dest.
 
@@ -516,6 +658,7 @@ cdef class ClassificationCriterion(Criterion):
             The memory address which we will save the node value into.
         """
         cdef double* sum_total = self.sum_total
+        cdef double* sum_total_fair = self.sum_total_fair
         cdef SIZE_t* n_classes = self.n_classes
         cdef SIZE_t k
 
@@ -523,6 +666,20 @@ cdef class ClassificationCriterion(Criterion):
             memcpy(dest, sum_total, n_classes[k] * sizeof(double))
             dest += self.sum_stride
             sum_total += self.sum_stride
+
+
+
+
+"""
+----------------------------------------------------------------------------------
+----------------------------------------------------------------------------------
+----------------------------------------------------------------------------------
+----------------------------------------------------------------------------------
+----------------------------------------------------------------------------------
+----------------------------------------------------------------------------------
+"""
+
+
 
 
 cdef class Entropy(ClassificationCriterion):
@@ -550,6 +707,7 @@ cdef class Entropy(ClassificationCriterion):
         """
         cdef SIZE_t* n_classes = self.n_classes
         cdef double* sum_total = self.sum_total
+        cdef double* sum_total_fair = self.sum_total_fair
         cdef double entropy = 0.0
         cdef double count_k
         cdef SIZE_t k
@@ -634,6 +792,7 @@ cdef class Gini(ClassificationCriterion):
         """
         cdef SIZE_t* n_classes = self.n_classes
         cdef double* sum_total = self.sum_total
+        cdef double* sum_total_fair = self.sum_total_fair
         cdef double gini = 0.0
         cdef double sq_count
         cdef double count_k
@@ -704,6 +863,84 @@ cdef class Gini(ClassificationCriterion):
 
 
 
+cdef double dem_tpr(float tp, float fn, float tn, float fp) nogil:
+    return tp / (tp + fn)
+
+cdef double dem_fpr(float tp, float fn, float tn, float fp) nogil:
+    return fp / (fp + tn)
+
+cdef double dem_tnr(float tp, float fn, float tn, float fp) nogil:
+    return tn / (tn + fp)
+
+cdef double dem_ppv(float tp, float fn, float tn, float fp) nogil:
+    return tp / (tp + fp)
+
+"""
+
+#TPR: True Positive Rate: Verdaderos positivos entre todos los positivos (verdaderos positivos y falsos negativos)
+def dem_tpr(y_val_p, y_val_u, y_pred_p, y_pred_u):
+    
+    #Compute demography metric.
+    
+    tn_p, fp_p, fn_p, tp_p = confusion_matrix(y_val_p, y_pred_p).ravel()    #Matriz de confusion de los valores predichos, teniendo en cuenta los verdaderos valores y los predichos
+    tn_u, fp_u, fn_u, tp_u = confusion_matrix(y_val_u, y_pred_u).ravel()
+    tpr_p = tp_p/(tp_p + fn_p)
+    tpr_u = tp_u/(tp_u + fn_u)
+    dem = abs(tpr_p - tpr_u)
+    if(tpr_p == 0 or tpr_u == 0):
+        dem = 1
+    return dem
+
+#FPR: False Positive Rate: Falsos positivos entre todos los negativos (falsos positivos y verdaderos negativos)
+def dem_fpr(y_val_p, y_val_u, y_pred_p, y_pred_u):
+    
+    #Compute false positive rate parity.
+    
+    tn_p, fp_p, fn_p, tp_p = confusion_matrix(y_val_p, y_pred_p).ravel()
+    tn_u, fp_u, fn_u, tp_u = confusion_matrix(y_val_u, y_pred_u).ravel()
+    fpr_p = fp_p/(fp_p + tn_p)
+    fpr_u = fp_u/(fp_u + tn_u)
+    dem = abs(fpr_p - fpr_u)
+    if(fpr_p == 0 or fpr_u == 0):
+        dem = 1
+    return dem
+
+#TNR: True Negative Rate: Verdaderos negativos entre todos los negativos (verdaderos negativos y falsos positivos)
+def dem_tnr(y_val_p, y_val_u, y_pred_p, y_pred_u):
+    tn_p, fp_p, fn_p, tp_p = confusion_matrix(y_val_p, y_pred_p).ravel()
+    tn_u, fp_u, fn_u, tp_u = confusion_matrix(y_val_u, y_pred_u).ravel()
+    tnr_p = tn_p/(tn_p + fp_p)
+    tnr_u = tn_u/(tn_u + fp_u)
+    dem = abs(tnr_p - tnr_u)
+    return dem
+
+#PPV: Positive Predictive Value: Verdaderos positivos entre los predichos como positivos (verdaderos positivos y falsos positivos)
+def dem_ppv(y_val_p, y_val_u, y_pred_p, y_pred_u):
+    tn_p, fp_p, fn_p, tp_p = confusion_matrix(y_val_p, y_pred_p).ravel()
+    tn_u, fp_u, fn_u, tp_u = confusion_matrix(y_val_u, y_pred_u).ravel()
+    ppv_p = tp_p/(tp_p + fp_p)
+    ppv_u = tp_u/(tp_u + fp_u)
+    dem = abs(ppv_p - ppv_u)
+    if(tp_p == 0 or tp_u ==0):
+        dem = 1
+    return dem
+
+#PNR: Predicted Negative Rate: Predichos como negativos entre todos los valores (MEDIDA PARA DEMOGRAPHIC PARITY)
+def dem_pnr(y_val_p, y_val_u, y_pred_p, y_pred_u):
+    tn_p, fp_p, fn_p, tp_p = confusion_matrix(y_val_p, y_pred_p).ravel()
+    tn_u, fp_u, fn_u, tp_u = confusion_matrix(y_val_u, y_pred_u).ravel()
+    pnr_p = (fn_p + tn_p)/(tn_p + fp_p + fn_p + tp_p)
+    pnr_u = (fn_u + tn_u)/(tn_u + fp_u + fn_u + tp_u)
+    dem = abs(pnr_p - pnr_u)
+    
+    return dem
+
+
+"""
+
+
+
+
 cdef class Gini_Fair(ClassificationCriterion):
     r"""Gini Index impurity criterion, modified with an additional fairness criterion.
 
@@ -730,38 +967,61 @@ cdef class Gini_Fair(ClassificationCriterion):
         """
         cdef SIZE_t* n_classes = self.n_classes
         cdef double* sum_total = self.sum_total
+        cdef double* sum_total_fair = self.sum_total_fair
         cdef double gini = 0.0
         cdef double sq_count
         cdef double count_k
+        cdef double f_lambda = self.f_lambda
         cdef SIZE_t k
         cdef SIZE_t c
 
-        printf("AAAAAA\nAAAAAA\nAAAAAA\nAAAAAA\nAAAAAA\nAAAAAA\n")
-        printf("The start number is %i\n", self.start)
-        printf("The end number is %i\n", self.end)
-        printf("The pos number is %i\n", self.pos)
+        cdef double tp 
+        cdef double tn 
+        cdef double fp
+        cdef double fn
 
+        #printf("The number of samples is %f\n", self.n_samples)
+        #printf("The value of self.lambda is %f\n", self.f_lambda)
+        #for ind in range(self.start, self.end):
+        #    printf("The value of self.prot is: %f\n",  self.prot[ind])
+        printf("%f ", sum_total[0])
+        printf("%f \n", sum_total[1])
+        printf("%f ", sum_total_fair[0])
+        printf("%f ", sum_total_fair[1])
+        printf("%f ", sum_total_fair[2])
+        printf("%f \n", sum_total_fair[3])
 
-        printf("The number of samples is %f\n", self.n_samples)
-        printf("The value of self.lambda is %f\n", self.f_lambda)
-        for ind in range(self.start, self.end):
-            printf("The value of self.prot is: %f\n",  self.prot[ind])
+        printf("prob 0: %f: \n", sum_total[0] / self.weighted_n_node_samples)
+        printf("prob 1: %f: \n", sum_total[1] / self.weighted_n_node_samples)
+
+        tp = sum_total[1] * (sum_total[1] / self.weighted_n_node_samples)
+        fn = sum_total[1] * (sum_total[0] / self.weighted_n_node_samples)
+        tn = sum_total[0] * (sum_total[0] / self.weighted_n_node_samples)
+        fp = sum_total[0] * (sum_total[1] / self.weighted_n_node_samples)
+        printf("TP: %f: \n", tp)
+        printf("FN: %f: \n", fn)
+        printf("TN: %f: \n", tn)
+        printf("FP: %f: \n", fp)
+        printf("TPR: %f: \n", dem_tpr(tp, fn, tn, fp))
+        printf("FPR: %f: \n", dem_fpr(tp, fn, tn, fp))
+        printf("TNR: %f: \n", dem_tnr(tp, fn, tn, fp))
+        printf("PPV: %f: \n", dem_ppv(tp, fn, tn, fp))
 
         for k in range(self.n_outputs):
             sq_count = 0.0
 
             for c in range(n_classes[k]):
+                # For classical gini criterion
                 count_k = sum_total[c]
                 sq_count += count_k * count_k
+                # For fairness criterion
 
-            #gini += 1.0 - sq_count / (self.weighted_n_node_samples *
-            #                          self.weighted_n_node_samples)
-
-            gini += 1.0 - sq_count / (self.weighted_n_node_samples * self.weighted_n_node_samples)
+            gini += 1.0 - sq_count / (self.weighted_n_node_samples *
+                                      self.weighted_n_node_samples)
 
             sum_total += self.sum_stride
 
-        return gini / self.n_outputs
+        return (gini + f_lambda * dem_tpr(tp, fn, tn, fp)) / self.n_outputs
 
     cdef void children_impurity(self, double* impurity_left,
                                 double* impurity_right) nogil:
@@ -780,6 +1040,8 @@ cdef class Gini_Fair(ClassificationCriterion):
         cdef SIZE_t* n_classes = self.n_classes
         cdef double* sum_left = self.sum_left
         cdef double* sum_right = self.sum_right
+        cdef double* sum_left_fair = self.sum_left_fair
+        cdef double* sum_right_fair = self.sum_right_fair
         cdef double gini_left = 0.0
         cdef double gini_right = 0.0
         cdef double sq_count_left
@@ -787,6 +1049,17 @@ cdef class Gini_Fair(ClassificationCriterion):
         cdef double count_k
         cdef SIZE_t k
         cdef SIZE_t c
+
+        printf("IZQDA: ")
+        printf("%f ", sum_left_fair[0])
+        printf("%f ", sum_left_fair[1])
+        printf("%f ", sum_left_fair[2])
+        printf("%f \n", sum_left_fair[3])
+        printf("DCHA: ")
+        printf("%f ", sum_right_fair[0])
+        printf("%f ", sum_right_fair[1])
+        printf("%f ", sum_right_fair[2])
+        printf("%f \n", sum_right_fair[3])
 
         for k in range(self.n_outputs):
             sq_count_left = 0.0
@@ -855,15 +1128,18 @@ cdef class RegressionCriterion(Criterion):
         # Allocate accumulators. Make sure they are NULL, not uninitialized,
         # before an exception can be raised (which triggers __dealloc__).
         self.sum_total = NULL
+        self.sum_total_fair = NULL
         self.sum_left = NULL
         self.sum_right = NULL
 
         # Allocate memory for the accumulators
         self.sum_total = <double*> calloc(n_outputs, sizeof(double))
+        self.sum_total_fair = <double*> calloc(n_outputs, sizeof(double))
         self.sum_left = <double*> calloc(n_outputs, sizeof(double))
         self.sum_right = <double*> calloc(n_outputs, sizeof(double))
 
         if (self.sum_total == NULL or
+                self.sum_total_fair == NULL or
                 self.sum_left == NULL or
                 self.sum_right == NULL):
             raise MemoryError()
@@ -1594,3 +1870,11 @@ cdef class Poisson(RegressionCriterion):
 
                 poisson_loss += w * xlogy(y[i, k], y[i, k] / y_mean)
         return poisson_loss / (weight_sum * n_outputs)
+
+
+
+
+
+
+
+

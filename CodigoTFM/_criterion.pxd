@@ -53,6 +53,53 @@ cdef class Criterion:
     cdef double* sum_left           # Same as above, but for the left side of the split
     cdef double* sum_right          # same as above, but for the right side of the split
 
+    cdef double* sum_total_fair
+    cdef double* sum_left_fair
+    cdef double* sum_right_fair
+
+    cdef double* base_probs
+    
+    cdef double total_0
+    cdef double total_1
+
+    cdef double* confusion_0
+    cdef double* confusion_1
+
+    cdef double* confusion_left_0
+    cdef double* confusion_left_1
+
+    cdef double* confusion_right_0
+    cdef double* confusion_right_1
+
+
+    cdef double avg_tp_0
+    cdef double avg_fp_0
+    cdef double avg_tn_0
+    cdef double avg_fn_0
+    cdef double avg_tp_1
+    cdef double avg_fp_1
+    cdef double avg_tn_1
+    cdef double avg_fn_1
+
+    cdef double avg_left_tp_0
+    cdef double avg_left_fp_0
+    cdef double avg_left_tn_0
+    cdef double avg_left_fn_0
+    cdef double avg_left_tp_1
+    cdef double avg_left_fp_1
+    cdef double avg_left_tn_1
+    cdef double avg_left_fn_1
+
+    cdef double avg_right_tp_0
+    cdef double avg_right_fp_0
+    cdef double avg_right_tn_0
+    cdef double avg_right_fn_0
+    cdef double avg_right_tp_1
+    cdef double avg_right_fp_1
+    cdef double avg_right_tn_1
+    cdef double avg_right_fn_1
+
+
     # The criterion object is maintained such that left and right collected
     # statistics correspond to samples[start:pos] and samples[pos:end].
 
@@ -83,3 +130,5 @@ cdef class RegressionCriterion(Criterion):
     """Abstract regression criterion."""
 
     cdef double sq_sum_total
+
+
