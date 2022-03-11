@@ -863,17 +863,271 @@ cdef class Gini(ClassificationCriterion):
 
 
 
-cdef double dem_tpr(float tp, float fn, float tn, float fp) nogil:
-    return tp / (tp + fn)
+cdef double dem_tpr(double* sum_fair) nogil:
 
-cdef double dem_fpr(float tp, float fn, float tn, float fp) nogil:
-    return fp / (fp + tn)
+    cdef double tp_0
+    cdef double fn_0
+    cdef double tp_1 
+    cdef double fn_1
+    cdef double tpr_0
+    cdef double tpr_1
+    cdef double dem
+    cdef double den
+    cdef double temp_0
+    cdef double temp_1
+    cdef double prob_1_0
+    cdef double prob_1_1
 
-cdef double dem_tnr(float tp, float fn, float tn, float fp) nogil:
-    return tn / (tn + fp)
+    if (sum_fair[0] + sum_fair[2]) == 0:
+        prob_1_0 = 0.5      # This value does not matter
+    else:
+        prob_1_0 = sum_fair[2] / (sum_fair[0] + sum_fair[2])
+    
+    if (sum_fair[1] + sum_fair[3]) == 0:
+        prob_1_1 = 0.5      # This value does not matter
+    else:
+        prob_1_1 = sum_fair[3] / (sum_fair[1] + sum_fair[3])
 
-cdef double dem_ppv(float tp, float fn, float tn, float fp) nogil:
-    return tp / (tp + fp)
+    # REPASAR TODO ESTO
+    tp_0 = sum_fair[2] * prob_1_0
+    fn_0 = sum_fair[2] * (1 - prob_1_0)
+    printf("DENTRO DE TPR\n")
+    printf("TP_0: %f: \n", tp_0)
+    printf("FN_0: %f: \n", fn_0)
+
+    tp_1 = sum_fair[3] * prob_1_1
+    fn_1 = sum_fair[3] * (1 - prob_1_1)
+    printf("TP_1: %f: \n", tp_1)
+    printf("FN_1: %f: \n", fn_1)
+
+    den = tp_0 + fn_0
+    if den == 0:
+        tpr_0 = 1
+    else:
+        tpr_0 = tp_0 / den
+
+    den = tp_1 + fn_1
+    if den == 0:
+        tpr_1 = 1
+    else:
+        tpr_1 = tp_1 / den
+
+    printf("TPR_0: %f, ", tpr_0)
+    printf("TPR_1: %f\n", tpr_1)
+    dem = fabs(tpr_0 - tpr_1)
+    if(tpr_0 == 0 or tpr_1 == 0):
+        dem = 1
+    return dem
+
+cdef double dem_fpr(double* sum_fair) nogil:
+
+    cdef double tn_0 
+    cdef double fp_0
+    cdef double tn_1 
+    cdef double fp_1
+    cdef double fpr_0
+    cdef double fpr_1
+    cdef double dem
+    cdef double den
+    cdef double prob_1_0
+    cdef double prob_1_1
+
+    if (sum_fair[0] + sum_fair[2]) == 0:
+        prob_1_0 = 0.5      # This value does not matter
+    else:
+        prob_1_0 = sum_fair[2] / (sum_fair[0] + sum_fair[2])
+    
+    if (sum_fair[1] + sum_fair[3]) == 0:
+        prob_1_1 = 0.5      # This value does not matter
+    else:
+        prob_1_1 = sum_fair[3] / (sum_fair[1] + sum_fair[3])
+
+    tn_0 = sum_fair[0] * (1 - prob_1_0)
+    fp_0 = sum_fair[0] * prob_1_0
+    printf("DENTRO DE FPR\n")
+    printf("TN_0: %f: \n", tn_0)
+    printf("FP_0: %f: \n", fp_0)
+
+    tn_1 = sum_fair[1] * (1 - prob_1_1)
+    fp_1 = sum_fair[1] * prob_1_1
+    printf("TN_1: %f: \n", tn_1)
+    printf("FP_1: %f: \n", fp_1)
+
+    den = fp_0 + tn_0
+    if den == 0:
+        fpr_0 = 0
+    else:
+        fpr_0 = fp_0 / den
+    
+    den = fp_1 + tn_1
+    if den == 0:
+        fpr_1 = 0
+    else:
+        fpr_1 = fp_1 / den
+    
+    printf("FPR_0: %f, ", fpr_0)
+    printf("FPR_1: %f\n", fpr_1)
+    dem = fabs(fpr_0 - fpr_1)
+    if(fpr_0 == 0 or fpr_1 == 0):
+        dem = 1
+    return dem
+
+cdef double dem_tnr(double* sum_fair) nogil:
+
+    cdef double tn_0 
+    cdef double fp_0
+    cdef double tn_1 
+    cdef double fp_1
+    cdef double tnr_0
+    cdef double tnr_1
+    cdef double dem
+    cdef double den
+    cdef double prob_1_0
+    cdef double prob_1_1
+
+    if (sum_fair[0] + sum_fair[2]) == 0:
+        prob_1_0 = 0.5      # This value does not matter
+    else:
+        prob_1_0 = sum_fair[2] / (sum_fair[0] + sum_fair[2])
+    
+    if (sum_fair[1] + sum_fair[3]) == 0:
+        prob_1_1 = 0.5      # This value does not matter
+    else:
+        prob_1_1 = sum_fair[3] / (sum_fair[1] + sum_fair[3])
+
+    tn_0 = sum_fair[0] * (1 - prob_1_0)
+    fp_0 = sum_fair[0] * prob_1_0
+    printf("DENTRO DE TNR\n")
+    printf("TN_0: %f: \n", tn_0)
+    printf("FP_0: %f: \n", fp_0)
+
+    tn_1 = sum_fair[1] * (1 - prob_1_1)
+    fp_1 = sum_fair[1] * prob_1_1
+    printf("TN_1: %f: \n", tn_1)
+    printf("FP_1: %f: \n", fp_1)
+
+    
+
+    return fabs(tn_0 / (fp_0 + tn_0) - tn_1 / (fp_1 + tn_1))
+
+cdef double dem_ppv(double* sum_fair) nogil:
+
+    cdef double tp_0
+    cdef double fp_0
+    cdef double tp_1 
+    cdef double fp_1
+    cdef double ppv_0
+    cdef double ppv_1
+    cdef double dem
+    cdef double den
+    cdef double prob_1_0
+    cdef double prob_1_1
+
+    if (sum_fair[0] + sum_fair[2]) == 0:
+        prob_1_0 = 0.5      # This value does not matter
+    else:
+        prob_1_0 = sum_fair[2] / (sum_fair[0] + sum_fair[2])
+    
+    if (sum_fair[1] + sum_fair[3]) == 0:
+        prob_1_1 = 0.5      # This value does not matter
+    else:
+        prob_1_1 = sum_fair[3] / (sum_fair[1] + sum_fair[3])
+
+    tp_0 = sum_fair[2] * prob_1_0
+    fp_0 = sum_fair[0] * prob_1_0
+    printf("DENTRO DE PPV\n")
+    printf("TP_0: %f: \n", tp_0)
+    printf("FP_0: %f: \n", fp_0)
+
+    tp_1 = sum_fair[3] * prob_1_1
+    fp_1 = sum_fair[1] * prob_1_1
+    printf("TP_1: %f: \n", tp_1)
+    printf("FP_1: %f: \n", fp_1)
+
+    den = tp_0 + fp_0
+    if den == 0:
+        ppv_0 = 1
+    else:
+        ppv_0 = tp_0 / den
+
+    den = tp_1 + fp_1
+    if den == 0:
+        ppv_1 = 1
+    else:
+        ppv_1 = tp_1 / den
+    
+    printf("PPV_0: %f, ", ppv_0)
+    printf("PPV_1: %f\n", ppv_1)
+    dem = fabs(ppv_0 - ppv_1)
+    if(ppv_0 == 0 or ppv_1 == 0):
+        dem = 1
+    return dem
+
+
+cdef double dem_pnr(double* sum_fair) nogil:
+
+    cdef double tp_0
+    cdef double fp_0
+    cdef double tn_0
+    cdef double fn_0
+    cdef double tp_1 
+    cdef double fp_1
+    cdef double tn_1
+    cdef double fn_1
+    cdef double pnr_0
+    cdef double pnr_1
+    cdef double dem
+    cdef double den
+    cdef double prob_1_0
+    cdef double prob_1_1
+
+    if (sum_fair[0] + sum_fair[2]) == 0:
+        prob_1_0 = 0.5      # This value does not matter
+    else:
+        prob_1_0 = sum_fair[2] / (sum_fair[0] + sum_fair[2])
+    
+    if (sum_fair[1] + sum_fair[3]) == 0:
+        prob_1_1 = 0.5      # This value does not matter
+    else:
+        prob_1_1 = sum_fair[3] / (sum_fair[1] + sum_fair[3])
+
+    tp_0 = sum_fair[2] * prob_1_0
+    fn_0 = sum_fair[2] * (1-prob_1_0)
+    tn_0 = sum_fair[0] * (1-prob_1_0)
+    fp_0 = sum_fair[0] * prob_1_0
+    printf("DENTRO DE PPV\n")
+    printf("TP_0: %f: \n", tp_0)
+    printf("FP_0: %f: \n", fp_0)
+    printf("TN_0: %f: \n", tn_0)
+    printf("FN_0: %f: \n", fn_0)
+
+    tp_1 = sum_fair[3] * prob_1_1
+    fn_1 = sum_fair[3] * (1-prob_1_1)
+    tn_1 = sum_fair[1] * (1-prob_1_1)
+    fp_1 = sum_fair[1] * prob_1_1
+    printf("TP_1: %f: \n", tp_1)
+    printf("FP_1: %f: \n", fp_1)
+    printf("TN_1: %f: \n", tn_1)
+    printf("FN_1: %f: \n", fn_1)
+
+    # If the denominator is 0, then the numerator will also be, but in
+    # that case the fairness criteria will apply
+    den = tp_0 + fp_0 + tn_0 + fn_0
+    if den == 0:
+        pnr_0 = 0.5
+    else:
+        pnr_0 = (tn_0 + fn_0) / den
+    
+    den = tp_1 + fp_1 + tn_1 + fn_1
+    if den == 0:
+        pnr_1 = 0.5
+    else:
+        pnr_1 = (tn_1 + fn_1) / den
+
+    printf("PNR_0: %f, ", pnr_0)
+    printf("PNR_1: %f\n", pnr_1)
+    dem = fabs(pnr_0 - pnr_1)
+    return dem
 
 """
 
@@ -979,11 +1233,11 @@ cdef class Gini_Fair(ClassificationCriterion):
         cdef double tn 
         cdef double fp
         cdef double fn
-
         #printf("The number of samples is %f\n", self.n_samples)
         #printf("The value of self.lambda is %f\n", self.f_lambda)
         #for ind in range(self.start, self.end):
         #    printf("The value of self.prot is: %f\n",  self.prot[ind])
+        """
         printf("%f ", sum_total[0])
         printf("%f \n", sum_total[1])
         printf("%f ", sum_total_fair[0])
@@ -998,14 +1252,17 @@ cdef class Gini_Fair(ClassificationCriterion):
         fn = sum_total[1] * (sum_total[0] / self.weighted_n_node_samples)
         tn = sum_total[0] * (sum_total[0] / self.weighted_n_node_samples)
         fp = sum_total[0] * (sum_total[1] / self.weighted_n_node_samples)
-        printf("TP: %f: \n", tp)
-        printf("FN: %f: \n", fn)
-        printf("TN: %f: \n", tn)
-        printf("FP: %f: \n", fp)
-        printf("TPR: %f: \n", dem_tpr(tp, fn, tn, fp))
-        printf("FPR: %f: \n", dem_fpr(tp, fn, tn, fp))
-        printf("TNR: %f: \n", dem_tnr(tp, fn, tn, fp))
-        printf("PPV: %f: \n", dem_ppv(tp, fn, tn, fp))
+        printf("TP: %f \n", tp)
+        printf("FN: %f \n", fn)
+        printf("TN: %f \n", tn)
+        printf("FP: %f \n", fp)
+        
+        printf("TPR: %f \n", dem_tpr(sum_total_fair))
+        printf("FPR: %f \n", dem_fpr(sum_total_fair))
+        printf("TNR: %f \n", dem_tnr(sum_total_fair))
+        printf("PPV: %f \n", dem_ppv(sum_total_fair))
+        printf("PNR: %f \n", dem_pnr(sum_total_fair))
+        """
 
         for k in range(self.n_outputs):
             sq_count = 0.0
@@ -1021,7 +1278,8 @@ cdef class Gini_Fair(ClassificationCriterion):
 
             sum_total += self.sum_stride
 
-        return (gini + f_lambda * dem_tpr(tp, fn, tn, fp)) / self.n_outputs
+        # Convex combination of both gini and fairness criterion values
+        return ((1-f_lambda) * gini + f_lambda * dem_tpr(sum_total_fair)) / self.n_outputs
 
     cdef void children_impurity(self, double* impurity_left,
                                 double* impurity_right) nogil:
@@ -1042,6 +1300,7 @@ cdef class Gini_Fair(ClassificationCriterion):
         cdef double* sum_right = self.sum_right
         cdef double* sum_left_fair = self.sum_left_fair
         cdef double* sum_right_fair = self.sum_right_fair
+        cdef double f_lambda = self.f_lambda
         cdef double gini_left = 0.0
         cdef double gini_right = 0.0
         cdef double sq_count_left
@@ -1081,8 +1340,8 @@ cdef class Gini_Fair(ClassificationCriterion):
             sum_left += self.sum_stride
             sum_right += self.sum_stride
 
-        impurity_left[0] = gini_left / self.n_outputs
-        impurity_right[0] = gini_right / self.n_outputs
+        impurity_left[0] = ((1-f_lambda) * gini_left + f_lambda * dem_tpr(sum_left_fair)) / self.n_outputs
+        impurity_right[0] = ((1-f_lambda) * gini_right + f_lambda * dem_tpr(sum_right_fair)) / self.n_outputs
 
 
 cdef class RegressionCriterion(Criterion):

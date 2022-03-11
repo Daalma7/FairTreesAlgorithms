@@ -28,7 +28,7 @@ print("Atributo protegido:\n", prot)
 print("a")
 
 
-clf = DecisionTreeClassifier(random_state=0, criterion="gini_fair", f_lambda=0.0)
+clf = DecisionTreeClassifier(random_state=0, criterion="gini_fair", f_lambda=0.4)
 print("antes del fit")
 clf.fit(wc_data.to_numpy(), wc_target.to_numpy(), prot=prot.to_numpy())
 print("después del fit")
