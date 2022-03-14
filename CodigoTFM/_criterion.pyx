@@ -232,7 +232,8 @@ cdef class ClassificationCriterion(Criterion):
 
     def __cinit__(self, SIZE_t n_outputs,
                   np.ndarray[SIZE_t, ndim=1] n_classes,
-                  double f_lambda = 0.0):
+                  double f_lambda = 0.0,
+                  str fair_fun = "dem_tpr"):
         """Initialize attributes for this criterion.
 
         Parameters
@@ -246,6 +247,7 @@ cdef class ClassificationCriterion(Criterion):
             not be used for some criteria, reason why holds 0 by default
         """
         self.sample_weight = NULL
+        self.fair_fun = fair_fun
 
         self.samples = NULL
         self.start = 0
@@ -264,32 +266,6 @@ cdef class ClassificationCriterion(Criterion):
         # Count labels for each output
         self.sum_total = NULL
         self.sum_total_fair = NULL
-        self.avg_tp_0 = 0
-        self.avg_fp_0 = 0
-        self.avg_tn_0 = 0
-        self.avg_fn_0 = 0
-        self.avg_tp_1 = 0
-        self.avg_fp_1 = 0
-        self.avg_tn_1 = 0
-        self.avg_fn_1 = 0
-
-        self.avg_left_tp_0 = 0
-        self.avg_left_fp_0 = 0
-        self.avg_left_tn_0 = 0
-        self.avg_left_fn_0 = 0
-        self.avg_left_tp_1 = 0
-        self.avg_left_fp_1 = 0
-        self.avg_left_tn_1 = 0
-        self.avg_left_fn_1 = 0
-
-        self.avg_right_tp_0 = 0
-        self.avg_right_fp_0 = 0
-        self.avg_right_tn_0 = 0
-        self.avg_right_fn_0 = 0
-        self.avg_right_tp_1 = 0
-        self.avg_right_fp_1 = 0
-        self.avg_right_tn_1 = 0
-        self.avg_right_fn_1 = 0
         self.sum_left = NULL
         self.sum_right = NULL
         self.sum_left_fair = NULL
@@ -378,18 +354,6 @@ cdef class ClassificationCriterion(Criterion):
         cdef double* sum_total = self.sum_total
         cdef double* sum_total_fair = self.sum_total_fair
 
-        self.total_0 = 0
-        self.total_1 = 0
-
-        self.avg_tp_0 = 0
-        self.avg_fp_0 = 0
-        self.avg_tn_0 = 0
-        self.avg_fn_0 = 0
-        self.avg_tp_1 = 0
-        self.avg_fp_1 = 0
-        self.avg_tn_1 = 0
-        self.avg_fn_1 = 0
-
         cdef SIZE_t i
         cdef SIZE_t p
         cdef SIZE_t k
@@ -429,27 +393,6 @@ cdef class ClassificationCriterion(Criterion):
             # sum_total_fair[3]: y = 1, prot = 1
 
             self.weighted_n_node_samples += w
-        
-        """
-        printf("%f ", self.weighted_n_node_samples)
-        printf("INIT\n")
-        printf("%f ", sum_total_fair[0])
-        printf("%f ", sum_total_fair[1])
-        printf("%f ", sum_total_fair[2])
-        printf("%f ", sum_total_fair[3])
-        printf("%f ", sum_total_fair[4])
-        printf("%f ", sum_total_fair[5])
-        printf("%f \n", sum_total_fair[6])
-        
-        printf("%f ", sum_total[0])
-        printf("%f ", sum_total[1])
-        printf("%f ", sum_total[2])
-        printf("%f ", sum_total[3])
-        printf("%f ", sum_total[4])
-        printf("%f ", sum_total[5])
-        printf("%f \n", sum_total[6])
-        """
-
 
         # Reset to pos=start
         self.reset()
@@ -888,17 +831,16 @@ cdef double dem_tpr(double* sum_fair) nogil:
     else:
         prob_1_1 = sum_fair[3] / (sum_fair[1] + sum_fair[3])
 
-    # REPASAR TODO ESTO
     tp_0 = sum_fair[2] * prob_1_0
     fn_0 = sum_fair[2] * (1 - prob_1_0)
-    printf("DENTRO DE TPR\n")
-    printf("TP_0: %f: \n", tp_0)
-    printf("FN_0: %f: \n", fn_0)
+    #printf("DENTRO DE TPR\n")
+    #printf("TP_0: %f: \n", tp_0)
+    #printf("FN_0: %f: \n", fn_0)
 
     tp_1 = sum_fair[3] * prob_1_1
     fn_1 = sum_fair[3] * (1 - prob_1_1)
-    printf("TP_1: %f: \n", tp_1)
-    printf("FN_1: %f: \n", fn_1)
+    #printf("TP_1: %f: \n", tp_1)
+    #printf("FN_1: %f: \n", fn_1)
 
     den = tp_0 + fn_0
     if den == 0:
@@ -912,8 +854,8 @@ cdef double dem_tpr(double* sum_fair) nogil:
     else:
         tpr_1 = tp_1 / den
 
-    printf("TPR_0: %f, ", tpr_0)
-    printf("TPR_1: %f\n", tpr_1)
+    #printf("TPR_0: %f, ", tpr_0)
+    #printf("TPR_1: %f\n", tpr_1)
     dem = fabs(tpr_0 - tpr_1)
     if(tpr_0 == 0 or tpr_1 == 0):
         dem = 1
@@ -944,14 +886,14 @@ cdef double dem_fpr(double* sum_fair) nogil:
 
     tn_0 = sum_fair[0] * (1 - prob_1_0)
     fp_0 = sum_fair[0] * prob_1_0
-    printf("DENTRO DE FPR\n")
-    printf("TN_0: %f: \n", tn_0)
-    printf("FP_0: %f: \n", fp_0)
+    #printf("DENTRO DE FPR\n")
+    #printf("TN_0: %f: \n", tn_0)
+    #printf("FP_0: %f: \n", fp_0)
 
     tn_1 = sum_fair[1] * (1 - prob_1_1)
     fp_1 = sum_fair[1] * prob_1_1
-    printf("TN_1: %f: \n", tn_1)
-    printf("FP_1: %f: \n", fp_1)
+    #printf("TN_1: %f: \n", tn_1)
+    #printf("FP_1: %f: \n", fp_1)
 
     den = fp_0 + tn_0
     if den == 0:
@@ -965,8 +907,8 @@ cdef double dem_fpr(double* sum_fair) nogil:
     else:
         fpr_1 = fp_1 / den
     
-    printf("FPR_0: %f, ", fpr_0)
-    printf("FPR_1: %f\n", fpr_1)
+    #printf("FPR_0: %f, ", fpr_0)
+    #printf("FPR_1: %f\n", fpr_1)
     dem = fabs(fpr_0 - fpr_1)
     if(fpr_0 == 0 or fpr_1 == 0):
         dem = 1
@@ -997,16 +939,14 @@ cdef double dem_tnr(double* sum_fair) nogil:
 
     tn_0 = sum_fair[0] * (1 - prob_1_0)
     fp_0 = sum_fair[0] * prob_1_0
-    printf("DENTRO DE TNR\n")
-    printf("TN_0: %f: \n", tn_0)
-    printf("FP_0: %f: \n", fp_0)
+    #printf("DENTRO DE TNR\n")
+    #printf("TN_0: %f: \n", tn_0)
+    #printf("FP_0: %f: \n", fp_0)
 
     tn_1 = sum_fair[1] * (1 - prob_1_1)
     fp_1 = sum_fair[1] * prob_1_1
-    printf("TN_1: %f: \n", tn_1)
-    printf("FP_1: %f: \n", fp_1)
-
-    
+    #printf("TN_1: %f: \n", tn_1)
+    #printf("FP_1: %f: \n", fp_1)
 
     return fabs(tn_0 / (fp_0 + tn_0) - tn_1 / (fp_1 + tn_1))
 
@@ -1035,14 +975,14 @@ cdef double dem_ppv(double* sum_fair) nogil:
 
     tp_0 = sum_fair[2] * prob_1_0
     fp_0 = sum_fair[0] * prob_1_0
-    printf("DENTRO DE PPV\n")
-    printf("TP_0: %f: \n", tp_0)
-    printf("FP_0: %f: \n", fp_0)
+    #printf("DENTRO DE PPV\n")
+    #printf("TP_0: %f: \n", tp_0)
+    #printf("FP_0: %f: \n", fp_0)
 
     tp_1 = sum_fair[3] * prob_1_1
     fp_1 = sum_fair[1] * prob_1_1
-    printf("TP_1: %f: \n", tp_1)
-    printf("FP_1: %f: \n", fp_1)
+    #printf("TP_1: %f: \n", tp_1)
+    #printf("FP_1: %f: \n", fp_1)
 
     den = tp_0 + fp_0
     if den == 0:
@@ -1056,8 +996,8 @@ cdef double dem_ppv(double* sum_fair) nogil:
     else:
         ppv_1 = tp_1 / den
     
-    printf("PPV_0: %f, ", ppv_0)
-    printf("PPV_1: %f\n", ppv_1)
+    #printf("PPV_0: %f, ", ppv_0)
+    #printf("PPV_1: %f\n", ppv_1)
     dem = fabs(ppv_0 - ppv_1)
     if(ppv_0 == 0 or ppv_1 == 0):
         dem = 1
@@ -1095,20 +1035,20 @@ cdef double dem_pnr(double* sum_fair) nogil:
     fn_0 = sum_fair[2] * (1-prob_1_0)
     tn_0 = sum_fair[0] * (1-prob_1_0)
     fp_0 = sum_fair[0] * prob_1_0
-    printf("DENTRO DE PPV\n")
-    printf("TP_0: %f: \n", tp_0)
-    printf("FP_0: %f: \n", fp_0)
-    printf("TN_0: %f: \n", tn_0)
-    printf("FN_0: %f: \n", fn_0)
+    #printf("DENTRO DE PPV\n")
+    #printf("TP_0: %f: \n", tp_0)
+    #printf("FP_0: %f: \n", fp_0)
+    #printf("TN_0: %f: \n", tn_0)
+    #printf("FN_0: %f: \n", fn_0)
 
     tp_1 = sum_fair[3] * prob_1_1
     fn_1 = sum_fair[3] * (1-prob_1_1)
     tn_1 = sum_fair[1] * (1-prob_1_1)
     fp_1 = sum_fair[1] * prob_1_1
-    printf("TP_1: %f: \n", tp_1)
-    printf("FP_1: %f: \n", fp_1)
-    printf("TN_1: %f: \n", tn_1)
-    printf("FN_1: %f: \n", fn_1)
+    #printf("TP_1: %f: \n", tp_1)
+    #printf("FP_1: %f: \n", fp_1)
+    #printf("TN_1: %f: \n", tn_1)
+    #printf("FN_1: %f: \n", fn_1)
 
     # If the denominator is 0, then the numerator will also be, but in
     # that case the fairness criteria will apply
@@ -1124,73 +1064,10 @@ cdef double dem_pnr(double* sum_fair) nogil:
     else:
         pnr_1 = (tn_1 + fn_1) / den
 
-    printf("PNR_0: %f, ", pnr_0)
-    printf("PNR_1: %f\n", pnr_1)
+    #printf("PNR_0: %f, ", pnr_0)
+    #printf("PNR_1: %f\n", pnr_1)
     dem = fabs(pnr_0 - pnr_1)
     return dem
-
-"""
-
-#TPR: True Positive Rate: Verdaderos positivos entre todos los positivos (verdaderos positivos y falsos negativos)
-def dem_tpr(y_val_p, y_val_u, y_pred_p, y_pred_u):
-    
-    #Compute demography metric.
-    
-    tn_p, fp_p, fn_p, tp_p = confusion_matrix(y_val_p, y_pred_p).ravel()    #Matriz de confusion de los valores predichos, teniendo en cuenta los verdaderos valores y los predichos
-    tn_u, fp_u, fn_u, tp_u = confusion_matrix(y_val_u, y_pred_u).ravel()
-    tpr_p = tp_p/(tp_p + fn_p)
-    tpr_u = tp_u/(tp_u + fn_u)
-    dem = abs(tpr_p - tpr_u)
-    if(tpr_p == 0 or tpr_u == 0):
-        dem = 1
-    return dem
-
-#FPR: False Positive Rate: Falsos positivos entre todos los negativos (falsos positivos y verdaderos negativos)
-def dem_fpr(y_val_p, y_val_u, y_pred_p, y_pred_u):
-    
-    #Compute false positive rate parity.
-    
-    tn_p, fp_p, fn_p, tp_p = confusion_matrix(y_val_p, y_pred_p).ravel()
-    tn_u, fp_u, fn_u, tp_u = confusion_matrix(y_val_u, y_pred_u).ravel()
-    fpr_p = fp_p/(fp_p + tn_p)
-    fpr_u = fp_u/(fp_u + tn_u)
-    dem = abs(fpr_p - fpr_u)
-    if(fpr_p == 0 or fpr_u == 0):
-        dem = 1
-    return dem
-
-#TNR: True Negative Rate: Verdaderos negativos entre todos los negativos (verdaderos negativos y falsos positivos)
-def dem_tnr(y_val_p, y_val_u, y_pred_p, y_pred_u):
-    tn_p, fp_p, fn_p, tp_p = confusion_matrix(y_val_p, y_pred_p).ravel()
-    tn_u, fp_u, fn_u, tp_u = confusion_matrix(y_val_u, y_pred_u).ravel()
-    tnr_p = tn_p/(tn_p + fp_p)
-    tnr_u = tn_u/(tn_u + fp_u)
-    dem = abs(tnr_p - tnr_u)
-    return dem
-
-#PPV: Positive Predictive Value: Verdaderos positivos entre los predichos como positivos (verdaderos positivos y falsos positivos)
-def dem_ppv(y_val_p, y_val_u, y_pred_p, y_pred_u):
-    tn_p, fp_p, fn_p, tp_p = confusion_matrix(y_val_p, y_pred_p).ravel()
-    tn_u, fp_u, fn_u, tp_u = confusion_matrix(y_val_u, y_pred_u).ravel()
-    ppv_p = tp_p/(tp_p + fp_p)
-    ppv_u = tp_u/(tp_u + fp_u)
-    dem = abs(ppv_p - ppv_u)
-    if(tp_p == 0 or tp_u ==0):
-        dem = 1
-    return dem
-
-#PNR: Predicted Negative Rate: Predichos como negativos entre todos los valores (MEDIDA PARA DEMOGRAPHIC PARITY)
-def dem_pnr(y_val_p, y_val_u, y_pred_p, y_pred_u):
-    tn_p, fp_p, fn_p, tp_p = confusion_matrix(y_val_p, y_pred_p).ravel()
-    tn_u, fp_u, fn_u, tp_u = confusion_matrix(y_val_u, y_pred_u).ravel()
-    pnr_p = (fn_p + tn_p)/(tn_p + fp_p + fn_p + tp_p)
-    pnr_u = (fn_u + tn_u)/(tn_u + fp_u + fn_u + tp_u)
-    dem = abs(pnr_p - pnr_u)
-    
-    return dem
-
-
-"""
 
 
 
@@ -1306,9 +1183,11 @@ cdef class Gini_Fair(ClassificationCriterion):
         cdef double sq_count_left
         cdef double sq_count_right
         cdef double count_k
+        #cdef str fair_fun = self.fair_fun
         cdef SIZE_t k
         cdef SIZE_t c
 
+        """
         printf("IZQDA: ")
         printf("%f ", sum_left_fair[0])
         printf("%f ", sum_left_fair[1])
@@ -1319,6 +1198,7 @@ cdef class Gini_Fair(ClassificationCriterion):
         printf("%f ", sum_right_fair[1])
         printf("%f ", sum_right_fair[2])
         printf("%f \n", sum_right_fair[3])
+        """
 
         for k in range(self.n_outputs):
             sq_count_left = 0.0
@@ -1341,7 +1221,7 @@ cdef class Gini_Fair(ClassificationCriterion):
             sum_right += self.sum_stride
 
         impurity_left[0] = ((1-f_lambda) * gini_left + f_lambda * dem_tpr(sum_left_fair)) / self.n_outputs
-        impurity_right[0] = ((1-f_lambda) * gini_right + f_lambda * dem_tpr(sum_right_fair)) / self.n_outputs
+        impurity_right[0] = ((1-f_lambda) * gini_right + f_lambda * globals[fair_fun](sum_right_fair)) / self.n_outputs
 
 
 cdef class RegressionCriterion(Criterion):

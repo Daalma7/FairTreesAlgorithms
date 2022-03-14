@@ -81,6 +81,8 @@ DENSE_SPLITTERS = {"best": _splitter.BestSplitter,
 SPARSE_SPLITTERS = {"best": _splitter.BestSparseSplitter,
                     "random": _splitter.RandomSparseSplitter}
 
+POSSIBLE_FAIR_FUNCTIONS = ["dem_tpr", "dem_fpr", "dem_ppv", "dem_tnr", "dem_pnr"]
+
 # =============================================================================
 # Base decision tree
 # =============================================================================
@@ -106,10 +108,13 @@ class BaseDecisionTree(MultiOutputMixin, BaseEstimator, metaclass=ABCMeta):
                  random_state,              # Random state for some random processes
                  min_impurity_decrease,     # Min impurity decrease for a split to be done
                  class_weight=None,         # Weights for each class
-                 ccp_alpha=0.0,             # Cost sensitive pruning parameter
-                 f_lambda=0.0):             # Alpha parameter controlling balance between main
+                 ccp_alpha=0.0,             # Cost sensitive pruning parameter
+                 f_lambda=0.0,              # Alpha parameter controlling balance between main
                                             # criterion and fairness criterion
                                             # A value of 0 means only traditional criterion will be used
+                fair_fun="dem_tpr"          # Fair metric for the splitting criterion
+                 ):             
+
 
         self.criterion = criterion
         self.splitter = splitter
@@ -124,6 +129,7 @@ class BaseDecisionTree(MultiOutputMixin, BaseEstimator, metaclass=ABCMeta):
         self.class_weight = class_weight
         self.ccp_alpha = ccp_alpha
         self.f_lambda = f_lambda
+        self.fair_fun = fair_fun
 
     def get_depth(self):
         """Return the depth of the decision tree.
@@ -313,6 +319,9 @@ class BaseDecisionTree(MultiOutputMixin, BaseEstimator, metaclass=ABCMeta):
         if self.f_lambda > 1.0 or self.f_lambda < 0.0:
             raise ValueError("f_lambda value should be a real number "
                              "between 0 and 1")
+        
+        if self.fair_fun not in POSSIBLE_FAIR_FUNCTIONS:
+            raise ValueError("Fairness criteria not recognised")
 
         # Build tree
         criterion = self.criterion
