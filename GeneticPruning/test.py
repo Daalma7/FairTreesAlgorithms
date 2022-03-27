@@ -21,12 +21,15 @@ wc_target = wc_data.iloc[:,1].replace(["B","M"], [0,1])
 # Generamos los predictores
 wc_data = wc_data.iloc[:,2:]
 # Vamos a binarizar el primer atributo y lo vamos a considerar como protegido
-print(wc_data.shape)
-# Mostramos los datos
-print("Predictores de wisconsin:\n", wc_data)
-print("Etiquetas de wisconsin:\n", wc_target)
 
-print("a")
+wc_data = wc_data.iloc[:,2:]
+# Vamos a binarizar el primer atributo y lo vamos a considerar como protegido
+prot = wc_data.iloc[:,0]
+mean = prot.mean()
+print(mean)
+wc_data.iloc[:,0] = np.where(prot < mean, 0, 1)
+prot = wc_data.iloc[:,0]
+print(wc_data.shape)
 
 # Leemos los datos de iris
 clf = DecisionTreeClassifier(random_state=0)
@@ -44,16 +47,18 @@ graph = graphviz.Source(dot_data)
 ##############################################################################################
 
 # TODO incorporar medidas de fairness
-def aux_fitness_metrics(clf):
+def aux_fitness_metrics(clf, prot, y):
     """
     This function calculates different structures for the base classifier in order to be more
     efficient calculating each individual fitness metrics
     
     Parameters:
     - clf: Sklearn binary classification tree from which the prunings will be made
+    - prot: Protected attribute
+    - y
 
     Returns:
-    - well_dict: Dictionary indicating well classified examples inside that node
+    - fair_dict: Dictionary indicating well classified examples inside that node
     - total_samples_dict: Dictionary indicating total amount of training examples that fall in
                           that node
     - base_leaves: Leave nodes codes that the base tree has 
@@ -62,17 +67,27 @@ def aux_fitness_metrics(clf):
     children_right = clf.tree_.children_right
     values = clf.tree_.value
 
-    well_dict = {}
     total_samples_dict = {}
     base_leaves = []
+    fair_dict = {}
+
+    assoc_dict = {}         # Association dictionary to relate node_ids with our current
+                            # representation
 
     stack = [(0, [])]  # start with the root node id (0) and its depth (0)
     while len(stack) > 0:
         # `pop` ensures each node is only visited once
         node_id, repr = stack.pop()
+        assoc_dict[node_id] = repr
 
-        well_dict[tuple(repr)] = np.max(values[node_id])
         total_samples_dict[tuple(repr)] = np.sum(values[node_id])
+
+        template = []
+        for i in range(pd.unique(y).shape[0]):
+            template.append([])
+            for j in range(pd.unique(prot).shape[0]):
+                template[i].append(0)
+        fair_dict[tuple(repr)] = template
 
         # If the left and right child of a node is not the same we have a split
         # node
@@ -84,10 +99,53 @@ def aux_fitness_metrics(clf):
             stack.append((children_right[node_id], repr + [1]))
         else:
             base_leaves.append(tuple(repr))
+    
+    # We will now create the fairness structure
+        # First dimension for specifying the class
+        # Second dimension for specifying the protected attribute
+    
+    # We will update each node in the fair structure with the information of the
+    # training data
+    node_indicator = clf.decision_path(wc_data)
+    leaf_id = clf.apply(wc_data)
+    for sample_id in range(wc_data.shape[0]):
+        # obtain ids of the nodes `sample_id` goes through, i.e., row `sample_id`
+        node_index = node_indicator.indices[
+            node_indicator.indptr[sample_id] : node_indicator.indptr[sample_id + 1]
+        ]
 
-    return well_dict, total_samples_dict, set(base_leaves)
+        for node_id in node_index:
+            # continue to the next node if it is a leaf node
+            if leaf_id[sample_id] == node_id:
+                fair_dict[tuple(assoc_dict[node_id])][y[sample_id]][prot[sample_id]] += 1
+                continue
+            fair_dict[tuple(assoc_dict[node_id])][y[sample_id]][prot[sample_id]] += 1
 
-def fitness(indiv, base_leaves, well_dict, total_samples_dict,):
+    
+
+    return fair_dict, total_samples_dict, set(base_leaves)
+
+
+def node_accuracy(repr, fair_dict):
+
+    acc = []
+    for elem in fair_dict[repr]:
+        acc.append(sum(elem))
+
+    return max(acc) / number_of_indivs(repr, fair_dict)
+
+
+def number_of_indivs(repr, fair_dict):
+
+    num = 0
+    for elem in fair_dict[repr]:
+        for elem2 in elem:
+            num += elem2
+    
+    return num
+
+
+def fitness(indiv, base_leaves, fair_dict, total_samples_dict,):
     """
     Calculates the fitness value of a certain individual. For doing so, the actual
     pruning is calculated over the base classifier and its results are used.
@@ -109,13 +167,15 @@ def fitness(indiv, base_leaves, well_dict, total_samples_dict,):
 
     # We will now calculate the accuracy of this individual knowing the leaf nodes
 
-    num_sum = 0
-    den_sum = 0
+    acc = []
+    num_indivs = []
     for elem in leaf_nodes:
-        num_sum += well_dict[elem]
-        den_sum += total_samples_dict[elem]
+        num = number_of_indivs(elem, fair_dict)
+        acc.append(node_accuracy(elem, fair_dict) * num)
+        num_indivs.append(num)
     
-    return num_sum / float(den_sum)
+    print(np.sum(np.array(acc) / sum(num_indivs)))
+    return np.sum(np.array(acc) / sum(num_indivs))
 
 
 
@@ -147,7 +207,6 @@ def prunning_space(clf):
             stack.append((children_left[node_id], repr + [0]))
             stack.append((children_right[node_id], repr + [1]))
             repr_space.append(tuple(repr))
-
     
     return repr_space[1:]
 
@@ -492,14 +551,14 @@ def mutation(indiv, space, base_leaves, prob_modify, prob_new_prun):
 
 
 # TODO
-def genetic_optimization(clf, seed, num_indiv, num_gen, p_cross, p_mod, p_new):
+def genetic_optimization(clf, prot, y, seed, num_indiv, num_gen, p_cross, p_mod, p_new):
     """
     Defines the whole optimization process
     """
 
     np.random.seed(seed)
 
-    well_dict, total_samples_dict, base_leaves = aux_fitness_metrics(clf)
+    well_dict, total_samples_dict, base_leaves = aux_fitness_metrics(clf, prot, y)
     space = prunning_space(clf)
     probs = space_probs(space)
     pop = initial_population(probs, num_indiv)
@@ -520,5 +579,5 @@ def genetic_optimization(clf, seed, num_indiv, num_gen, p_cross, p_mod, p_new):
 
 
 # TESTS
-genetic_optimization(clf, 0, 50, 2000, 0.7, 0.2, 0.1)
+genetic_optimization(clf, prot, wc_target, 0, 50, 2000, 0.7, 0.2, 0.05)
 
