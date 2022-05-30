@@ -32,8 +32,9 @@ clf = DecisionTreeClassifier(random_state=0, criterion="gini_fair", f_lambda=0.1
 print("antes del fit")
 clf.fit(wc_data.to_numpy(), wc_target.to_numpy(), prot=prot.to_numpy())
 print("después del fit")
-print(clf.get_depth())
-print(clf.get_n_leaves())
+
+print("Profundidad: ", clf.get_depth())
+print("Número de hojas: ", clf.get_n_leaves())
 
 
 

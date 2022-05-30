@@ -1221,7 +1221,10 @@ cdef class Gini_Fair(ClassificationCriterion):
             sum_right += self.sum_stride
 
         impurity_left[0] = ((1-f_lambda) * gini_left + f_lambda * dem_tpr(sum_left_fair)) / self.n_outputs
-        impurity_right[0] = ((1-f_lambda) * gini_right + f_lambda * globals[fair_fun](sum_right_fair)) / self.n_outputs
+        impurity_right[0] = ((1-f_lambda) * gini_right + f_lambda * dem_tpr(sum_left_fair)) / self.n_outputs
+
+        #impurity_left[0] = ((1-f_lambda) * gini_left + f_lambda)  / self.n_outputs
+        #impurity_right[0] = ((1-f_lambda) * gini_right + f_lambda) / self.n_outputs
 
 
 cdef class RegressionCriterion(Criterion):
