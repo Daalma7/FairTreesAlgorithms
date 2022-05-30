@@ -31,8 +31,8 @@ sys.path.append(os.getcwd())
 from . import _tree
 from . import _splitter
 from . import _criterion
-from CodigoTFM._splitter import Splitter
-from CodigoTFM._criterion import Criterion
+from FairDT._splitter import Splitter
+from FairDT._criterion import Criterion
 import numbers
 import warnings
 from abc import ABCMeta

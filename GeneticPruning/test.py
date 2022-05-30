@@ -69,13 +69,13 @@ class Tree_Structure:
         self.prot = prot
         self.y = y
         self.clf = clf
-        self.fair_dict, self.total_samples_dict, self.base_leaves = self.__aux_fitness_metrics()
-        self.pruning_space = self.__calc_pruning_space()
+        self.fair_dict, self.total_samples_dict, self.base_leaves = self.aux_objectives_metrics()
+        self.pruning_space = self.calc_pruning_space()
 
-    def __aux_fitness_metrics(self):
+    def aux_objectives_metrics(self):
         """
         This function calculates different structures for the base classifier in order to be more
-        efficient calculating each individual fitness metrics
+        efficient calculating each individual objectives metrics
         
         Parameters:
         - clf: Sklearn binary classification tree from which the prunings will be made
@@ -154,7 +154,7 @@ class Tree_Structure:
         return fair_dict, total_samples_dict, set(base_leaves)
     
 
-    def __calc_pruning_space(self):
+    def calc_pruning_space(self):
         """
         This function defines the pruning (search) space. 
         
@@ -352,28 +352,28 @@ class Individual:
 
     Parameters:
     - repr: Representation of the individual
-    - fitness: Fitness value of the individual
+    - objectives: objectives values for the individual
     """
 
     def __init__(self, struc, repr):
         self.struc = struc
         self.repr = self.struc.correct_indiv(repr)   # Each individual created will be automatically corrected in order to ensure consistency
-        self.fitness = self.__fitness()     # And also its fitness value will be calculated
+        self.objectives = self.objectives()     # And also its objectives values will be calculated
 
 
-    def __fitness(self):
+    def objectives(self):
         """
-        Calculates the fitness value of a certain individual. For doing so, the actual
+        Calculates the objectives value of a certain individual. For doing so, the actual
         pruning is calculated over the base classifier and its results are used.
 
         Parameters:
-        - indiv: individual for which the fitness will be calculated
+        - indiv: individual for which the objectives will be calculated
         - base_leaves: Representation of the leaves of the tree
         - fair_dict: Fairness structure
         - total_samples_dict: Dictionary indicating total amount of training examples that fall into each node
 
         Returns:
-        - fitness_val: its fitness value
+        - objectives_val: its objectives value
         """
         
         # First of all, we will calculate the real leaf nodes of the individual, given
@@ -421,7 +421,23 @@ class Individual:
 
 
         return np.sum(np.array(acc) / sum(num_indivs)), 1-abs(fpr_0-fpr_1)         # Total accuracy
+    
+    def dominates(self, other):
+        """
+        Checks if the individual dominates another one.
 
+        Parameters:
+        - other: other individual to be checked
+
+        Returns:
+        - True if the individual dominates the other one, False otherwise
+        """
+        ret = True
+        for i in range(len(self.objectives)):
+            if self.objectives[i] < other.objectives[i]:
+                ret = False
+                break
+        return ret
 
     
     
@@ -453,6 +469,8 @@ class Genetic_Pruning_Process():
     - max_fpr: Maximum FPR
     """
 
+    indiv_class = Individual
+
     def __init__(self, struc, num_gen, num_indiv, prob_cross, prob_mutation):
         self.struc = struc
         self.num_gen = num_gen
@@ -460,12 +478,10 @@ class Genetic_Pruning_Process():
         self.prob_cross = prob_cross
         self.prob_mutation = prob_mutation
         self.population = None
-        self.__initial_population()
-    
+        self.initial_population()
 
 
-
-    def __initial_population(self):
+    def initial_population(self):
         """
         Creates the initial population. As it is defined, it may create some
         empty individuals (full tree)
@@ -488,11 +504,11 @@ class Genetic_Pruning_Process():
                 if r < space_probs[a]:           # If it is selected, append it to the representation
                     newset.append(a)
             
-            self.population.append(Individual(self.struc, newset))    # Create and append the individual
+            self.population.append(Genetic_Pruning_Process.indiv_class(self.struc, newset))    # Create and append the individual
 
 
     # TODO MEJORAR: Puede que haya cruces extremos en los que un árbol se queda virgen. Igualmente, puede que haya podas que se coman las unas a las otras.
-    def __crossover(self, indiv1, indiv2):
+    def crossover(self, indiv1, indiv2):
         """
         Crossover between 2 individuals
         
@@ -525,11 +541,11 @@ class Genetic_Pruning_Process():
             else:
                 newindiv2.append(elem)
 
-        return Individual(self.struc, newindiv1), Individual(self.struc, newindiv2)
+        return Genetic_Pruning_Process.indiv_class(self.struc, newindiv1), Genetic_Pruning_Process.indiv_class(self.struc, newindiv2)
 
 
-    # TODO torneo binario pero teniendo en cuenta únicamente una función de fitness univariable.
-    def __tournament(self):
+    # TODO torneo binario pero teniendo en cuenta únicamente una función de objectives univariable.
+    def tournament(self):
         """
         Applies tournament criterion over population, returning parents population.
 
@@ -549,13 +565,11 @@ class Genetic_Pruning_Process():
             while rand1 == rand2:
                 rand2 = np.random.randint(0, longi)
 
-            # We select the node with the greates fitness value.
-            fitness_1 = self.population[rand1].fitness
-            fitness_2 = self.population[rand2].fitness
-            print(fitness_1)
-            print(fitness_2)
-            print(fitness_1 > fitness_2)
-            if fitness_1 > fitness_2:
+            # We select the node with the greates objectives value.
+            objectives_1 = self.population[rand1].objectives
+            objectives_2 = self.population[rand2].objectives
+            print(objectives_1 > objectives_2)
+            if objectives_1 > objectives_2:
                 new_pop.append(self.population[rand1])
             else:
                 new_pop.append(self.population[rand2])
@@ -563,7 +577,7 @@ class Genetic_Pruning_Process():
         return new_pop
 
 
-    def __pop_crossover(self):
+    def pop_crossover(self):
         """
         Applies crossover over parents population
 
@@ -581,7 +595,7 @@ class Genetic_Pruning_Process():
         for i in range(int(longi/2)):       # For each pair or parents
             rand = np.random.random()       # We decide if crossover will be done
             if rand < self.prob_cross:           # If so, we apply it
-                new_indiv1, new_indiv2 = self.__crossover(self.population[2*i], self.population[(2*i)+1])
+                new_indiv1, new_indiv2 = self.crossover(self.population[2*i], self.population[(2*i)+1])
                 new_pop.append(new_indiv1)
                 new_pop.append(new_indiv2)
             else:                           # If not, we return the same parents
@@ -592,7 +606,7 @@ class Genetic_Pruning_Process():
 
 
 
-    def __aux_random_value_prob_dict(self, prob_dict, rand):
+    def aux_random_value_prob_dict(self, prob_dict, rand):
         """
         Return an element given a probability dictionary, and a random value
         This is an auxiliary function
@@ -611,18 +625,18 @@ class Genetic_Pruning_Process():
                 return k
 
 
-    def __mutation(self, indiv):
+    def mutation(self, indiv):
         """
         Applies mutations randomly over an individual. The mutations may not happen at all
 
         Parameters:
-        - indiv: individual for which the fitness will be calculated
+        - indiv: individual for which the objectives will be calculated
         - space: space of prunings
         - base_leaves: dictionary with the leaves of the base tree.
         - prob_mutation: probability of mutation
 
         Returns:
-        - fitness_val: its fitness value
+        - objectives_val: its objectives value
         """
 
         rand_modify = np.random.random()
@@ -652,13 +666,11 @@ class Genetic_Pruning_Process():
             # We will now randomly select one of those leaves. We will select it using equal probabilities
             probs = {leaf: 1/len(leaves) for leaf in leaves}
 
-            leaf = self.__aux_random_value_prob_dict(probs, np.random.random())         # Select one of the leaves
+            leaf = self.aux_random_value_prob_dict(probs, np.random.random())         # Select one of the leaves
 
             # After having selected the leaf, we will now select the mutation applied over that leaf.
 
             new_repr = indiv.repr.copy()
-            print("------")
-            print(type(new_repr))
 
             if leaf in self.struc.base_leaves:                 # If the leaf is a leaf node of the complete tree, we can only select its parent
                 if len(leaf) > 1:                       # It its parent is not the root node
@@ -682,43 +694,15 @@ class Genetic_Pruning_Process():
                 my_sum = sum(new_probs.values())                                        # Calculate sum for probability normalization
                 new_probs = {key: value/my_sum for key, value in new_probs.items()}         # Apply probability normalization
 
-                prun = self.__aux_random_value_prob_dict(new_probs, np.random.random())         # Select one of them
+                prun = self.aux_random_value_prob_dict(new_probs, np.random.random())         # Select one of them
                 new_repr.remove(leaf)                                                      # Get rid of the leaf
 
                 if prun != 'empty':                                                     # Add the pruning if necessary
                     new_repr.add(prun)
 
-            return Individual(self.struc, new_repr)
+            return Genetic_Pruning_Process.indiv_class(self.struc, new_repr)
 
         return(indiv)
-        
-
-    """
-    def fast_nondominated_sort(self, population):
-        population.fronts = [[]]
-        for individual in population:               #Establecimiento mejor frente e info de dominación para generar los demás
-            individual.domination_count = 0
-            individual.dominated_solutions = []
-            for other_individual in population:
-                if individual.dominates(other_individual):                  #Si la solución actual domina a la otra
-                    individual.dominated_solutions.append(other_individual) #Se añade a su lista de soluciones dominadas
-                elif other_individual.dominates(individual):                #Si no
-                    individual.domination_count += 1                        #Aumentamos el contador de dominación
-            if individual.domination_count == 0:                            #Si no es dominada por nadie
-                individual.rank = 0
-                population.fronts[0].append(individual)
-        i = 0
-        while len(population.fronts[i]) > 0:        #Mientras que haya soluciones en el frente actual considerado
-            temp = []
-            for individual in population.fronts[i]:
-                for other_individual in individual.dominated_solutions:     #Para cada individuo dominado por la solución actual
-                    other_individual.domination_count -= 1                  #Le quitamos 1 al contador
-                    if other_individual.domination_count == 0:              #Si llega a 0 no hay sols que las dominen y entra en el siguiente frente
-                        other_individual.rank = i+1
-                        temp.append(other_individual)
-            i = i+1
-            population.fronts.append(temp)
-    """
 
     # TODO Completar con el esquema general del algoritmo genético
     def genetic_optimization(self, seed):
@@ -731,15 +715,149 @@ class Genetic_Pruning_Process():
         print("comienzo")
         print(self.population)
         for i in range(self.num_gen):
-            new_pop = self.__tournament()
-            new_pop = self.__pop_crossover()
-            new_pop = [self.__mutation(indiv) for indiv in new_pop]
+            new_pop = self.tournament()
+            new_pop = self.pop_crossover()
+            new_pop = [self.mutation(indiv) for indiv in new_pop]
             
             print(i)
             self.population = new_pop
         print("fin")
         for indiv in self.population:
-            print(indiv.fitness)
+            print(indiv.objectives)
+
+
+
+
+
+########################################################################################################################
+########################################################################################################################
+########################################################################################################################
+########################################################################################################################
+
+
+class Individual_NSGA2(Individual):
+
+    def __init__(self, struc, repr):
+        Individual.__init__(struc, repr)
+        self.rank = None
+        self.crowding_distance = None
+
+
+
+
+class Genetic_Pruning_Process_NSGA2(Genetic_Pruning_Process):
+
+    indiv_class = Individual_NSGA2
+
+    def __init__(self, struc, num_gen, num_indiv, prob_cross, prob_mutation):
+        Genetic_Pruning_Process.__init__(self, struc, num_gen, num_indiv, prob_cross, prob_mutation)
+        self.fronts = []
+        self.domination_count = 0
+        self.dominated_solutions = []
+
+    def crowding_distance(self, front):
+        if len(front) > 0:
+            solutions_num = len(front)
+            for individual in front:
+                individual.crowding_distance = 0
+
+            for m in range(len(front[0].objectives)):
+                front.sort(key=lambda individual: individual.objectives[m])
+                front[0].crowding_distance = 10**9
+                front[solutions_num-1].crowding_distance = 10**9
+                m_values = [individual.objectives[m] for individual in front]
+                scale = max(m_values) - min(m_values)
+                if scale == 0: scale = 1
+                for i in range(1, solutions_num-1):
+                    front[i].crowding_distance += (front[i+1].objectives[m] - front[i-1].objectives[m])/scale
+
+    def fast_nondominated_sort(self):
+        self.fronts = [[]]
+        for individual in self.population:               #Establecimiento mejor frente e info de dominación para generar los demás
+            individual.domination_count = 0
+            individual.dominated_solutions = []
+            for other_individual in self.population:
+                if individual.dominates(other_individual):                  #Si la solución actual domina a la otra
+                    individual.dominated_solutions.append(other_individual) #Se añade a su lista de soluciones dominadas
+                elif other_individual.dominates(individual):                #Si no
+                    individual.domination_count += 1                        #Aumentamos el contador de dominación
+            if individual.domination_count == 0:                            #Si no es dominada por nadie
+                individual.rank = 0
+                self.fronts[0].append(individual)
+        i = 0
+        while len(self.fronts[i]) > 0:        #Mientras que haya soluciones en el frente actual considerado
+            temp = []
+            for individual in self.fronts[i]:
+                for other_individual in individual.dominated_solutions:     #Para cada individuo dominado por la solución actual
+                    other_individual.domination_count -= 1                  #Le quitamos 1 al contador
+                    if other_individual.domination_count == 0:              #Si llega a 0 no hay sols que las dominen y entra en el siguiente frente
+                        other_individual.rank = i+1
+                        temp.append(other_individual)
+            i = i+1
+            self.fronts.append(temp)
+
+    def tournament(self):
+        """
+        Applies tournament criterion over population, returning parents population.
+
+        Parameters:
+        - population: population of individuals to b
+
+        Returns:
+        - new_pop: parents population
+        """
+
+        self.fast_nondominated_sort()
+        for front in self.fronts:
+            self.crowding_distance(front)
+        
+        new_pop = []    # Population of nodes winning the tournament
+
+        longi = len(self.population)
+        for i in range(longi):                      # For each individual in the new population
+            rand1 = np.random.randint(0, longi)     # Randomly select two distinct individuals
+            rand2 = np.random.randint(0, longi)
+            while rand1 == rand2:
+                rand2 = np.random.randint(0, longi)
+
+            # We select the node with the best rank. It there is none, we select the one with the best crowding distance
+            best = None
+            if self.population[rand1].rank < self.population[rand2].rank:
+                best = self.population[rand1]
+            elif self.population[rand1].rank > self.population[rand2].rank:
+                best = self.population[rand2]
+            else:
+                if self.population[rand1].crowding_distance > self.population[rand2].crowding_distance:
+                    best = rand1
+                else:
+                    best = rand2
+            new_pop.append(best)
+
+        return new_pop
+
+    
+    def genetic_optimization(self, seed):
+        """
+        Defines the whole optimization process
+        """
+
+        np.random.seed(seed)
+
+        print("comienzo")
+        print(self.population)
+        for i in range(self.num_gen):
+            new_pop = self.tournament()
+            new_pop = self.pop_crossover()
+            new_pop = [self.mutation(indiv) for indiv in new_pop]
+            
+            print(i)
+            self.population = new_pop
+        print("fin")
+
+        self.fast_nondominated_sort()
+        for indiv in self.fronts[0]:
+            print(indiv.objectives)
+
 
 
 
@@ -747,6 +865,6 @@ class Genetic_Pruning_Process():
 # TESTS
 
 struc = Tree_Structure(wc_data, prot, wc_target, clf)
-gen_process = Genetic_Pruning_Process(struc, 2000, 50, 0.7, 0.2)
+gen_process = Genetic_Pruning_Process_NSGA2(struc, 2000, 50, 0.7, 0.2)
 gen_process.genetic_optimization(777)
 

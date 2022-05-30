@@ -1,6 +1,6 @@
 from sklearn.datasets import load_iris
 from sklearn.model_selection import cross_val_score
-from CodigoTFM._classes import DecisionTreeClassifier
+from FairDT._classes import DecisionTreeClassifier
 import pandas as pd
 import numpy as np
 

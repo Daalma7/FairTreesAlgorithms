@@ -70,7 +70,6 @@ class NSGA2Utils:
             i = i+1
             population.fronts.append(temp)
 
-
     #Cálculo de la distancia de crowding, DENTRO DE UN MISMO FRENTE.
     def calculate_crowding_distance(self, front):
         if len(front) > 0:

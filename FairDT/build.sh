@@ -9,7 +9,7 @@ cython _splitter.pyx
 python setup.py build_ext --inplace
 
 # Copy those files to the main package folder
-yes | cp -rf build/lib.macosx-10.9-x86_64-3.9/CodigoTFM/* .
+yes | cp -rf build/lib.macosx-10.9-x86_64-3.9/FairDT/* .
 
 # Remove the build folder
 rm -r build
