@@ -24,9 +24,17 @@ class NSGA2Utils:
         for k in range(self.num_of_individuals):        #There will be at least 1 Gini and 1 Entropy individuals in this initial population
             if model == "DT":
                 if k == 0:
-                    individual = self.problem.generate_default_individual_gini()
+                    individual = self.problem.generate_default_individual_gini_dt()
                 elif k == 1:
-                    individual = self.problem.generate_default_individual_entropy()
+                    individual = self.problem.generate_default_individual_entropy_dt()
+                else:
+                    individual = self.problem.generate_individual()
+            
+            if model == "FDT":
+                if k == 0:
+                    individual = self.problem.generate_default_individual_gini_fdt()
+                elif k == 1:
+                    individual = self.problem.generate_default_individual_entropy_fdt()
                 else:
                     individual = self.problem.generate_individual()
             
@@ -40,7 +48,7 @@ class NSGA2Utils:
             
             self.problem.calculate_objectives(individual, first_individual, self.problem.seed, 'nsga2')
             first_individual = False
-            population.append(individual)          
+            population.append(individual)     
 
         return population
 

@@ -1,21 +1,25 @@
 import pandas as pd
-import numpy as np
-from sklearn import preprocessing
-from sklearn.tree import DecisionTreeClassifier
 from sklearn.tree import export_graphviz
 from sklearn.linear_model import LogisticRegression
 from sklearn.model_selection import train_test_split, cross_val_score
 from sklearn.metrics import confusion_matrix, accuracy_score, f1_score
-import yaml
+import sys, os
 from math import ceil
 import collections
 from six import StringIO
-from IPython.display import Image
 import pydotplus
 from imblearn.metrics import geometric_mean_score
 from collections import Counter
 
 import pickle
+
+
+sys.path.append(os.path.abspath(os.path.join('..', 'models')))
+from FairDT._classes import DecisionTreeClassifier as FairDecisionTreeClassifier
+
+from sklearn.tree import DecisionTreeClassifier
+
+
 
 #Decoding hyperparameters
 def decode(var_range, model, **features):
@@ -39,6 +43,31 @@ def decode(var_range, model, **features):
             features['class_weight'] = int(round(features['class_weight']))
 
         hyperparameters = ['criterion', 'max_depth', 'min_samples_split', 'max_leaf_nodes', 'class_weight']
+    
+    if model == "FDT":
+        features['criterion'] = int(round(features['criterion'], 0))
+
+        if features['max_depth'] is not None:   #If a limit was specified
+            features['max_depth'] = int(round(features['max_depth']))
+        else:                                   #In other case, we use the upper predefined bound (in fairness.py)
+            features['max_depth'] = var_range[1][1]
+
+        features['min_samples_split'] = int(round(features['min_samples_split']))
+
+        if features['max_leaf_nodes'] is not None:
+            features['max_leaf_nodes'] = int(round(features['max_leaf_nodes']))
+        else:
+            features['max_leaf_nodes'] = var_range[3][1]
+
+        if features['class_weight'] is not None:        #In case it's None, all classes are supposed to have weight 1
+            features['class_weight'] = int(round(features['class_weight']))
+        
+        if features['fair_param'] is not None:
+            features['fair_param'] = int(round(features['fair_param']))
+        else:                                           #In case it's None, it is supposed that fairness will not be taken into account (classical DT)
+            features['fair_param'] = var_range[5][0]
+
+        hyperparameters = ['criterion', 'max_depth', 'min_samples_split', 'max_leaf_nodes', 'class_weight', 'fair_param']
 
     if model == "LR":
         if features['max_iter'] is not None:
@@ -58,7 +87,7 @@ def decode(var_range, model, **features):
 #Reads the dataset to work with. You have to work with preprocessed data, and to ensure it, we will only read the files ending with _preproc
 def read_data(df_name):
         
-    df = pd.read_csv('../data/' + df_name + '_preproc.csv', sep = ',')
+    df = pd.read_csv('../../data/' + df_name + '_preproc.csv', sep = ',')
     return df
 
 def score_text(v):
@@ -83,13 +112,13 @@ def get_matrices(df_name, seed):
 def write_train_val_test(df_name, seed, X_train, X_val, X_test, y_train, y_val, y_test):
     train = X_train
     train['y'] = y_train.tolist()
-    train.to_csv('../data/train_val_test/' + df_name + '_train_seed_' + str(seed) + '.csv', index = False)
+    train.to_csv('../../data/train_val_test/' + df_name + '_train_seed_' + str(seed) + '.csv', index = False)
     val = X_val
     val['y'] = y_val.tolist()
-    val.to_csv('../data/train_val_test/' + df_name + '_val_seed_' + str(seed) + '.csv', index = False)
+    val.to_csv('../../data/train_val_test/' + df_name + '_val_seed_' + str(seed) + '.csv', index = False)
     test = X_test
     test['y'] = y_test.tolist()
-    test.to_csv('../data/train_val_test/' + df_name + '_test_seed_' + str(seed) + '.csv', index = False)
+    test.to_csv('../../data/train_val_test/' + df_name + '_test_seed_' + str(seed) + '.csv', index = False)
 
 #Exports obtained decision tree to a png file
 def print_tree(classifier, features):
@@ -109,10 +138,11 @@ def print_properties_lr(learner):
     return learner.coef_
 
 #Classifier training
-def train_model(df_name, seed, model, **features):
-    train = pd.read_csv('../data/train_val_test/' + df_name + '_train_seed_' + str(seed) + '.csv')
+def train_model(df_name, variable, seed, model, **features):
+    train = pd.read_csv('../../data/train_val_test/' + df_name + '_train_seed_' + str(seed) + '.csv')
     X_train = train.iloc[:, :-1]
     y_train = train.iloc[:, -1]
+    prot = X_train[variable]
 
     #We will need to use the seed used to split into train and test also as seed for these methods, because as they are trained twice, we have to be exactly the same both times
     if model == "DT":
@@ -127,14 +157,29 @@ def train_model(df_name, seed, model, **features):
             else:
                 clf = DecisionTreeClassifier(criterion = 'entropy', max_depth = features['max_depth'], min_samples_split = features['min_samples_split'], max_leaf_nodes = features['max_leaf_nodes'], class_weight = features['class_weight'], random_state=seed)
     
+    if model == "FDT":
+        if features['class_weight'] is not None:
+            if(features['criterion'] <= 0.5):
+                clf = FairDecisionTreeClassifier(criterion = 'gini', max_depth = features['max_depth'], min_samples_split = features['min_samples_split'], max_leaf_nodes = features['max_leaf_nodes'], class_weight = {0:features['class_weight'], 1:(10-features['class_weight'])}, f_lambda = float(features['fair_param'] / 10.0), random_state=seed)
+            else:
+                clf = FairDecisionTreeClassifier(criterion = 'entropy', max_depth = features['max_depth'], min_samples_split = features['min_samples_split'], max_leaf_nodes = features['max_leaf_nodes'], class_weight = {0:features['class_weight'], 1:(10-features['class_weight'])}, f_lambda = float(features['fair_param'] / 10.0), random_state=seed)
+        else:
+            if features['criterion'] <= 0.5:
+                clf = FairDecisionTreeClassifier(criterion = 'gini', max_depth = features['max_depth'], min_samples_split = features['min_samples_split'], max_leaf_nodes = features['max_leaf_nodes'], class_weight = features['class_weight'], f_lambda = float(features['fair_param'] / 10.0), random_state=seed)
+            else:
+                clf = FairDecisionTreeClassifier(criterion = 'entropy', max_depth = features['max_depth'], min_samples_split = features['min_samples_split'], max_leaf_nodes = features['max_leaf_nodes'], class_weight = features['class_weight'], f_lambda = float(features['fair_param'] / 10.0), random_state=seed)
+    
     if model == "LR":
         if features['class_weight'] is not None:
             clf = LogisticRegression(max_iter=features['max_iter'], tol=features['tol'], C=features['lambda'], l1_ratio=features['l1_ratio'], class_weight = {0:features['class_weight'], 1:(10-features['class_weight'])}, random_state=seed)
         else:
             clf = LogisticRegression(max_iter=features['max_iter'], tol=features['tol'], C=features['lambda'], l1_ratio=features['l1_ratio'], class_weight = features['class_weight'], random_state=seed)
 
+    if model == "FDT":
+        learner = clf.fit(X_train, y_train, prot = prot.to_numpy())
+    else:
+        learner = clf.fit(X_train, y_train)
 
-    learner = clf.fit(X_train, y_train)
     return learner
 
 def save_model(learner, dataset_name, seed, variable_name, num_of_generations, num_of_individuals, individual_id, model, method, objectives):
@@ -150,7 +195,7 @@ def save_model(learner, dataset_name, seed, variable_name, num_of_generations, n
 
 #Validates the classifier (comparison with validation set)
 def val_model(df_name, learner, seed):
-    val = pd.read_csv('../data/train_val_test/' + df_name + '_val_seed_' + str(seed) + '.csv')
+    val = pd.read_csv('../../data/train_val_test/' + df_name + '_val_seed_' + str(seed) + '.csv')
     X_val = val.iloc[:, :-1]
     y_val = val.iloc[:, -1]
     y_pred = learner.predict(X_val)
@@ -158,7 +203,7 @@ def val_model(df_name, learner, seed):
 
 #Tests the classifier (comparison with test set)
 def test_model(df_name, learner, seed):
-    test = pd.read_csv('../data/train_val_test/' + df_name + '_test_seed_' + str(seed) + '.csv')
+    test = pd.read_csv('../../data/train_val_test/' + df_name + '_test_seed_' + str(seed) + '.csv')
     X_test = test.iloc[:, :-1]
     y_test = test.iloc[:, -1]
     y_pred = learner.predict(X_test)

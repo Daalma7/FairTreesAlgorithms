@@ -19,6 +19,7 @@ alg = nind = ngen = dat = var = bseed = nruns = obj = mod = extra = False       
 message = "\nExecutes a multiobjective evolutionary optimization algorithm to solve a problem, with the following parameters:\n"
 
 message += "\nThe following parameters have been given by the user:"
+
 error = False
 for i in range(1, len(sys.argv)):           #We're going to read all parameters
     valid = False
@@ -80,7 +81,7 @@ for i in range(1, len(sys.argv)):           #We're going to read all parameters
 \t- var=(variable): Name of the sensitive variable for the dataset variable. Sensitive considered variables for each of the previous datasets are: adult-race, german-age, propublica_recidivism-race, propublica_violent_recidivism-race, ricci-Race. The default is the first variable of a the dataset (It is absolutely recommendable to change)\n\n\
 \t- bseed=(integer): Base seed which will be used in the first run of the algorithm. It\'s used for train-validation-test split for the data, and other possible needs which require randomness. The default is 100.\n\n\
 \t- nruns=(integer): Number of runs for the algorithm to be executed with different seeds. Each run takes consecutive seeds with respect to the previous one, starting from the base seed. The default is 10.\n\n\
-\t- model=(model abbreviation): Model to use. Possible models are Decision Tree (DT) and Logistic Regression (LR). The default is DT.\n\n\
+\t- model=(model abbreviation): Model to use. Possible models are Decision Tree (DT), Fair Decision Trees and Logistic Regression (LR). The default is DT.\n\n\
 \t- obj=(comm separated list of objectives): List of objectives to be used. Possible objectives are: gmean_inv, dem_fpr, dem_ppv, dem_pnr, num_leaves, data_weight_avg_depth. You can add and combine them as you please. The default is gmean_inv,dem_fpr.\n\n\
 \t- extra=(comm separated list of objectives): List of objectives to not be used in optimization, but to be calculated in individuals generated. Possible values are the same as in obj. The default is None.\n\n\
 \t- help: Shows this help and ends.\n\n\
@@ -182,6 +183,32 @@ for run in range(n_runs):
         max_range_class_weight = 9
 
         variables_range = [(min_range_criterion, max_range_criterion),(min_range_max_depth, max_range_max_depth), (min_range_samples_split, max_range_samples_split), (min_range_leaf_nodes, max_range_leaf_nodes), (min_range_class_weight, max_range_class_weight)]
+    
+
+    if model == "FDT":               #If we're using Fair Decision Trees:
+        min_range_criterion = 0         #Gini
+        max_range_criterion = 1         #Entropy
+        
+        min_range_max_depth = 3
+        max_range_max_depth = None
+        
+        min_range_samples_split = 2
+        max_range_samples_split = 40
+        
+        min_range_samples_leaf = 1
+        max_range_samples_leaf = 60
+        
+        min_range_leaf_nodes = 2
+        max_range_leaf_nodes = None
+        
+        min_range_class_weight = 1
+        max_range_class_weight = 9
+
+        min_fair_param = 0
+        max_fair_param = 10
+
+        variables_range = [(min_range_criterion, max_range_criterion),(min_range_max_depth, max_range_max_depth), (min_range_samples_split, max_range_samples_split), (min_range_leaf_nodes, max_range_leaf_nodes), (min_range_class_weight, max_range_class_weight), (min_fair_param, max_fair_param)]
+
     
     if model == "LR":               #In case we've devided to use Logistic Regression
         min_range_max_iter = 20     #Maximum number of iterations taken for the solvers to converge (one stopping criteria)

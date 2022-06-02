@@ -1,22 +1,16 @@
 import pandas as pd
-from math import ceil
-import random
-import csv
 import sys
 import warnings
-import importlib
-import os
-import re
+from sklearn import preprocessing
 import numpy as np
 from collections import OrderedDict as od
 warnings.filterwarnings("ignore")
 
 sys.path.append("..")
 from general.ml import *
-from general.individual import Individual
 
 """
-This python programm does an initial preprocessing on all initial datasets given with the code.
+This python program does an initial preprocessing on all initial datasets given with the code.
 In case you want to use your own dataset, please follow a similar kind of preprocessing for your data in order to have the best possible results
 General rules for this preprocessing are:
     -All preprocessed data must be numeric data (for Decision Tree and Logistic Regression to work propperly, as they can't handle categorical data)
@@ -28,7 +22,7 @@ General rules for this preprocessing are:
 
 for df_name in ['adult', 'german', 'propublica_recidivism', 'propublica_violent_recidivism', 'ricci']:
     
-    df = pd.read_csv('../data/' + df_name + '.csv', sep = ',')
+    df = pd.read_csv('../../data/' + df_name + '.csv', sep = ',')
 
     if df_name == 'propublica_violent_recidivism' or df_name == 'propublica_recidivism':
         target = df.iloc[:, -1]
@@ -77,6 +71,6 @@ for df_name in ['adult', 'german', 'propublica_recidivism', 'propublica_violent_
     elif(df_name == 'ricci'):
         df[df.columns[-1]] =  np.where(df[df.columns[-1]] >=  70.000, 0, 1)
 
-    df.to_csv('../data/' + df_name + '_preproc.csv', sep = ',')
+    df.to_csv('../../data/' + df_name + '_preproc.csv', sep = ',')
 
-print("Execution succesful!\n------------------------------")
+print("Preprocessing execution succesful!\n------------------------------")

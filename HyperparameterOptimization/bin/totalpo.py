@@ -60,7 +60,7 @@ for i in range(1, len(sys.argv)):           #We're going to read all parameters
 \t- alg=(comm separated list of algorithms): Algorithms from which to take results. Possible algorithms are nsga2, smsemoa and grea. The default is nsga2,smsemoa,grea\n\n\
 \t- dat=(dataset): Name of the dataset in csv format. The file should be placed at the folder named data. Initial dataset are adult, german, propublica_recidivism, propublica_violent_recidivism and ricci. The default is german.\n\n\
 \t- var=(variable): Name of the sensitive variable for the dataset variable. Sensitive considered variables for each of the previous datasets are: adult-race, german-age, propublica_recidivism-race, propublica_violent_recidivism-race, ricci-Race. The default is the first variable of a the dataset (It is absolutely recommendable to change)\n\n\
-\t- model=(model abbreviation): Model to use. Possible models are Decision Tree (DT) and Logistic Regression (LR). The default is DT.\n\n\
+\t- model=(model abbreviation): Model to use. Possible models are Decision Tree (DT), Fair Decision Tree (FDT) and Logistic Regression (LR). The default is DT.\n\n\
 \t- obj=(comm separated list of objectives): List of objectives to be used. Possible objectives are: gmean_inv, dem_fpr, dem_ppv, dem_pnr, num_leaves, data_weight_avg_depth. You can add and combine them as you please. The default is gmean_inv,dem_fpr. IMPORTANT: Objectives should be written in the same order as they were written at the fairness.py execution sentence.\n\n\
 \t- extra=(comm separated list of objectives): List of objectives to not be used in optimization, but to be calculated in individuals generated. Possible values are the same as in obj. The default is None. IMPORTANT: Objectives should be written in the same order as they were written at the fairness.py execution sentence.\n\n\
 \t- help: Shows this help and ends.\n\n\
@@ -172,6 +172,12 @@ for index, row in pareto_df.iterrows():                         #We create an in
     if model == "DT":
         indiv = IndividualDT()
         indiv.features = [float(row['criterion']), row['max_depth'], row['min_samples_split'], row['max_leaf_nodes'], row['class_weight']]
+        hyperparameters = ['criterion','max_depth', 'min_samples_split', 'max_leaf_nodes', 'class_weight']
+        indiv.actual_depth = row['actual_depth']
+        indiv.actual_leaves = row['actual_leaves']
+    if model == "FDT":
+        indiv = IndividualDT()
+        indiv.features = [float(row['criterion']), row['max_depth'], row['min_samples_split'], row['max_leaf_nodes'], row['class_weight'], row['fair_param']]
         hyperparameters = ['criterion','max_depth', 'min_samples_split', 'max_leaf_nodes', 'class_weight']
         indiv.actual_depth = row['actual_depth']
         indiv.actual_leaves = row['actual_leaves']

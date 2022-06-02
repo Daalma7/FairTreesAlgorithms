@@ -1,7 +1,6 @@
 import random
 import string
 from collections import OrderedDict as od
-from collections import Counter
 import sys
 
 sys.path.append("..")
@@ -23,7 +22,7 @@ class Problem:
         self.num_of_generations = num_of_generations    #Number of generations to do
         self.num_of_individuals = num_of_individuals    #Number of individuals in a population
         self.dataset_name = dataset_name                #Dataset name
-        self.variable_name = variable_name              #Name of the variable to be predicted
+        self.variable_name = variable_name              #Name of the sensitive variable
         self.model = model                              #Model to learn
         self.seed = seed                                #Random seed
         if same_range:
@@ -49,7 +48,7 @@ class Problem:
 
     #Generates a default decision tree using gini criteria, and with low limitations on the rest of variables
     #It generates the biggest tree as possible, as it is unbounded in those control variables
-    def generate_default_individual_gini(self, kind = 'base'):
+    def generate_default_individual_gini_dt(self, kind = 'base'):
         if kind == 'base':
             individual = IndividualDT()
         if kind == 'grea':
@@ -64,7 +63,7 @@ class Problem:
 
     #Generates a default decision tree using entropy criteria, and with low limitations on the rest of variables
     #It generates the biggest tree as possible, as it is unbounded in those control variables
-    def generate_default_individual_entropy(self, kind = 'base'):
+    def generate_default_individual_entropy_dt(self, kind = 'base'):
         if kind == 'base':
             individual = IndividualDT()
         if kind == 'grea':
@@ -74,6 +73,34 @@ class Problem:
         hyperparameters = ['criterion','max_depth', 'min_samples_split', 'max_leaf_nodes', 'class_weight']
         individual.features = od(zip(hyperparameters, individual.features))
         individual.features = decode(self.variables_range, "DT", **individual.features)
+        individual.creation_mode = "inicialization"
+        return individual
+    
+    def generate_default_individual_gini_fdt(self, kind = 'base'):
+        if kind == 'base':
+            individual = IndividualDT()
+        if kind == 'grea':
+            individual = IndividualDTGrea()
+        individual.id = ''.join(random.choice(string.ascii_uppercase + string.digits) for _ in range(10))
+        individual.features = [0, None, 2, None, None, None]
+        hyperparameters = ['criterion','max_depth', 'min_samples_split', 'max_leaf_nodes', 'class_weight', 'fair_param']
+        individual.features = od(zip(hyperparameters, individual.features))
+        individual.features = decode(self.variables_range, "FDT", **individual.features)
+        individual.creation_mode = "inicialization"
+        return individual
+
+    #Generates a default decision tree using entropy criteria, and with low limitations on the rest of variables
+    #It generates the biggest tree as possible, as it is unbounded in those control variables
+    def generate_default_individual_entropy_fdt(self, kind = 'base'):
+        if kind == 'base':
+            individual = IndividualDT()
+        if kind == 'grea':
+            individual = IndividualDTGrea()
+        individual.id = ''.join(random.choice(string.ascii_uppercase + string.digits) for _ in range(10))
+        individual.features = [1, None, 2, None, None, None]
+        hyperparameters = ['criterion','max_depth', 'min_samples_split', 'max_leaf_nodes', 'class_weight', 'fair_param']
+        individual.features = od(zip(hyperparameters, individual.features))
+        individual.features = decode(self.variables_range, "FDT", **individual.features)
         individual.creation_mode = "inicialization"
         return individual
 
@@ -111,6 +138,12 @@ class Problem:
             if kind == 'grea':
                 individual = IndividualDTGrea()
             hyperparameters = ['criterion', 'max_depth', 'min_samples_split', 'max_leaf_nodes', 'class_weight']
+        if self.model == "FDT":
+            if kind == 'base':
+                individual = IndividualDT()
+            if kind == 'grea':
+                individual = IndividualDTGrea()
+            hyperparameters = ['criterion', 'max_depth', 'min_samples_split', 'max_leaf_nodes', 'class_weight', 'fair_param']
         if self.model == "LR":
             if kind == 'base':
                 individual = IndividualLR()
@@ -130,10 +163,13 @@ class Problem:
         if self.expand:
             objectives_results_dict = {'gmean_inv': 'error', 'dem_fpr': 'dem_fp', 'dem_ppv': 'dem_ppv', 'dem_pnr': 'dem_pnr', 'num_leaves': 'num_leaves', 'data_weight_avg_depth':'data_weight_avg_depth'}
             hyperparameters = individual.features
-            learner = train_model(self.dataset_name, seed, self.model, **hyperparameters) #Model training
+
+            learner = train_model(self.dataset_name, self.variable_name, self.seed, self.model, **hyperparameters) #Model training
+
             X, y, pred = val_model(self.dataset_name, learner, seed)          #Model validation
             y_fair = evaluate_fairness(X, y, pred, self.variable_name)        #For getting objectives using validation data
             individual.objectives = []
+
             for x in self.objectives:
                 if x.__name__ == 'gmean_inv':
                     individual.objectives.append(gmean_inv(y, pred))
@@ -163,10 +199,9 @@ class Problem:
                         individual.extra.append(num_leaves(learner))
                     elif x.__name__ == 'data_weight_avg_depth':
                         individual.extra.append(data_weight_avg_depth(learner, X, self.seed))
-            
             #In case we're using decision trees, as some objectives aren't initially upper bounded, we're going to use the bound defined by the values
             #of the first individual, which is unrestricted and for that reason will have the biggest possible size
-            if first_individual and self.model == "DT":
+            if first_individual and (self.model == "DT" or self.model == "FDT"):
                 depth, leaves = print_properties_tree(learner)      #Size attributes for Decision Tree individuals
                 var_range_list = list(self.variables_range)
                 var_range_list[1] = (self.variables_range[1][0], depth)
@@ -179,6 +214,13 @@ class Problem:
             if self.model == "DT":          #Depending on the model we will have different sets of hyperparameters for that model
                 criterion, max_depth, min_samples_split, max_leaf_nodes, class_weight = [item[1] for item in indiv_list]
                 dict_hyperparameters= {'criterion': [criterion], 'max_depth': [max_depth], 'min_samples_split': [min_samples_split], 'max_leaf_nodes': [max_leaf_nodes], 'class_weight': [class_weight]}
+                depth, leaves = print_properties_tree(learner)      #Size attributes for Decision Tree individuals
+                individual.actual_depth = depth
+                individual.actual_leaves = leaves
+            indiv_list = list(individual.features.items())
+            if self.model == "FDT":          #Depending on the model we will have different sets of hyperparameters for that model
+                criterion, max_depth, min_samples_split, max_leaf_nodes, class_weight, fair_param = [item[1] for item in indiv_list]
+                dict_hyperparameters= {'criterion': [criterion], 'max_depth': [max_depth], 'min_samples_split': [min_samples_split], 'max_leaf_nodes': [max_leaf_nodes], 'class_weight': [class_weight], 'fair_param':[fair_param]}
                 depth, leaves = print_properties_tree(learner)      #Size attributes for Decision Tree individuals
                 individual.actual_depth = depth
                 individual.actual_leaves = leaves
@@ -197,7 +239,6 @@ class Problem:
             individuals_aux = pd.DataFrame(dict_dataframe)
             self.individuals_df = pd.concat([self.individuals_df, individuals_aux])
             self.individuals_df.to_csv('../results/' + str(method) + '/individuals/individuals_' + self.dataset_name + '_seed_' + str(seed) + '_var_' + self.variable_name + '_gen_' + str(self.num_of_generations) + '_indiv_' + str(self.num_of_individuals) + '_model_' + self.model + '_obj_' + self.get_obj_string() + self.get_extra_string() + '.csv', index = False, header = True, columns = list(dict_dataframe.keys()))
-
     
     #Evaluates and exports to csv the pareto-optimal individuals obtained during all the execution
     def test_and_save(self, individual, first, seed, method):
@@ -205,7 +246,7 @@ class Problem:
             objectives_results_dict = {'gmean_inv': 'error_val', 'dem_fpr': 'dem_fpr_val', 'dem_ppv': 'dem_ppv_val', 'dem_pnr': 'dem_pnr_val', 'num_leaves': 'num_leaves', 'data_weight_avg_depth':'data_weight_avg_depth'}
             objectives_test_dict = {'gmean_inv': 'error_tst', 'dem_fpr': 'dem_fpr_tst', 'dem_ppv': 'dem_ppv_tst', 'dem_pnr': 'dem_pnr_tst', 'num_leaves': 'num_leaves_tst', 'data_weight_avg_depth':'data_weight_avg_depth_tst'}
             hyperparameters = individual.features
-            learner = train_model(self.dataset_name, seed, self.model, **hyperparameters)
+            learner = train_model(self.dataset_name, self.variable_name, seed, self.model, **hyperparameters)
             save_model(learner, self.dataset_name, seed, self.variable_name, self.num_of_generations, self.num_of_individuals, individual.id, self.model, method, self.objectives)
             X, y, pred = test_model(self.dataset_name, learner, seed)       #Model test (not validation as above)
             y_fair = evaluate_fairness(X, y, pred, self.variable_name)      #For getting objectives, using test data
@@ -258,6 +299,14 @@ class Problem:
                 else:
                     dict_dataframe = {**dict_general_info, **dict_objectives, **dict_actual_dimensions, **dict_test, **dict_hyperparameters}
 
+            if self.model == "FDT":          #Depending on the model we will have different sets of hyperparameters for that model
+                criterion, max_depth, min_samples_split, max_leaf_nodes, class_weight, fair_param = [item[1] for item in indiv_list]
+                dict_hyperparameters= {'criterion': [criterion], 'max_depth': [max_depth], 'min_samples_split': [min_samples_split], 'max_leaf_nodes': [max_leaf_nodes], 'class_weight': [class_weight], 'fair_param': [fair_param]}
+                dict_actual_dimensions = {'actual_depth': individual.actual_depth, 'actual_leaves': individual.actual_leaves}       #It's really instersting in case of DT to have this size measures
+                if self.extra != None:
+                    dict_dataframe = {**dict_general_info, **dict_objectives, **dict_extra, **dict_actual_dimensions, **dict_test, **dict_extra_test, **dict_hyperparameters}
+                else:
+                    dict_dataframe = {**dict_general_info, **dict_objectives, **dict_actual_dimensions, **dict_test, **dict_hyperparameters}
 
             if self.model == "LR":
                 max_iter, tol, lambd, l1_ratio, class_weight = [item[1] for item in indiv_list]
@@ -295,6 +344,11 @@ class Problem:
                 if self.model == "DT":
                     indiv = IndividualDT()
                     hyperparameters = ['criterion','max_depth', 'min_samples_split', 'max_leaf_nodes', 'class_weight']
+                    indiv.actual_depth = row['actual_depth']
+                    indiv.actual_leaves = row['actual_leaves']
+                if self.model == "FDT":
+                    indiv = IndividualDT()
+                    hyperparameters = ['criterion','max_depth', 'min_samples_split', 'max_leaf_nodes', 'class_weight', 'fair_param']
                     indiv.actual_depth = row['actual_depth']
                     indiv.actual_leaves = row['actual_leaves']
                 if self.model == "LR":

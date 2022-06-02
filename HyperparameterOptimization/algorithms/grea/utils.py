@@ -23,11 +23,19 @@ class greaUtils:
         for k in range(self.num_of_individuals):        #There will be at least 1 Gini and 1 Entropy individuals in this initial population
             if model == "DT":
                 if k == 0:
-                    individual = self.problem.generate_default_individual_gini('grea')
+                    individual = self.problem.generate_default_individual_gini_dt()
                 elif k == 1:
-                    individual = self.problem.generate_default_individual_entropy('grea')
+                    individual = self.problem.generate_default_individual_entropy_dt()
                 else:
-                    individual = self.problem.generate_individual('grea')
+                    individual = self.problem.generate_individual()
+            
+            if model == "FDT":
+                if k == 0:
+                    individual = self.problem.generate_default_individual_gini_fdt()
+                elif k == 1:
+                    individual = self.problem.generate_default_individual_entropy_fdt()
+                else:
+                    individual = self.problem.generate_individual()
             
             if model == "LR":
                 if k == 0:
