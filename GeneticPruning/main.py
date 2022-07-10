@@ -1,18 +1,13 @@
-import matplotlib.pyplot as plt
+from logging import makeLogRecord
 import pandas as pd
-from math import ceil
-import random
-import csv
 import sys
-import time
 import warnings
-import importlib
 warnings.filterwarnings("ignore")
 
-sys.path.append("..")
-from general.ml import *
-from general.problem import Problem
-from general.qualitymeasures import *
+from ml import *
+from genetic import Genetic_Pruning_Process_NSGA2
+from general import Tree_Structure
+
 
 nind = ngen = dat = var = bseed = nruns = obj = extra = False        #Possible parameters given
 
@@ -54,14 +49,20 @@ for i in range(1, len(sys.argv)):           #We're going to read all parameters
     if not valid and param[0] == 'obj':               #Objectives to take into account that we'll try to miminize
         obj = valid = True
         objectives = param[1].split(',')
-        objdict = {'gmean_inv': gmean_inv, 'dem_fpr': dem_fpr, 'dem_ppv': dem_ppv, 'dem_pnr': dem_pnr, 'num_leaves': num_leaves, 'data_weight_avg_depth': data_weight_avg_depth}
-        objectives = [objdict[x] for x in objectives]
+        for x in objectives:
+            if x not in ['accuracy', 'fpr_diff']:
+                print("You introduceded at least 1 objective which is not recognised.")
+                print("Possible objectives are: accuracy, fpr_diff")
+                sys.exit(-1)
     
     if not valid and param[0] == 'extra':               #Objectives to calculate BUT NOT to be optimized
         extra = valid = True
         extraobj = param[1].split(',')
-        objdict = {'gmean_inv': gmean_inv, 'dem_fpr': dem_fpr, 'dem_ppv': dem_ppv, 'dem_pnr': dem_pnr, 'num_leaves': num_leaves, 'data_weight_avg_depth': data_weight_avg_depth}
-        extraobj = [objdict[x] for x in extraobj]
+        for x in extraobj:
+            if x not in ['accuracy', 'fpr_diff']:
+                print("You introduceded at least 1 objective which is not recognised.")
+                print("Possible objectives are: accuracy, fpr_diff")
+                sys.exit(-1)
 
     if not valid and param[0] == 'help':              #The user wants help
         print('\nThis file contains the code for executing a multiobjective evolutionary optimisation algorithm, to a binary classification problem. Parameters accepted are:\n\n\
@@ -83,6 +84,7 @@ Results are saved into the corresponding results/(algorithm)/individuals folder.
         sys.exit(0)
     
     if not valid:
+        print(param[0])
         print('At least 1 parameter name introduced is invalid.\n\
 Please check out for mistakes there. Possible parameters are:\n\
 nind, ngen, dat, var, bseed, nruns, extra.\n\
@@ -114,10 +116,10 @@ if not nruns:
     n_runs = 10                     #Number of runs to execute the algorithm
     print("- nruns=" + str(n_runs))
 if not obj:
-    objectives = [gmean_inv, dem_fpr] #Objectives to take into account that we'll try to miminize
-    strobj = objectives[0].__name__
+    objectives = ["gmean_inv", "dem_fpr"] #Objectives to take into account that we'll try to miminize
+    strobj = objectives[0]
     for i in range(1, len(objectives)):
-        strobj += "," + objectives[i].__name__
+        strobj += "," + objectives[i]
     print("- objectives=" + strobj)
 if not extra:
     extraobj = None
@@ -135,18 +137,24 @@ for run in range(n_runs):
     # write datasets
     X_tr, X_v, X_tst, y_tr, y_v, y_tst = get_matrices(dataset, set_seed)
     write_train_val_test(dataset, set_seed, X_tr, X_v, X_tst, y_tr, y_v, y_tst)
-    
-    # number of rows in train
-    num_rows_train = get_matrices(dataset, set_seed)[0].shape[0]
 
-    #calculate_measures_save(pareto, algorithm, dataset, variable, objectives, set_seed, run, individuals, generations, ends[-1]-starts[-1], False)
-    
-    first = True
-    for p in pareto:    
-        problem.test_and_save(p,first,problem.seed, algorithm)
-        first = False
-    
+    # Base model from which we will calculate the base structure:
+    clf = train_model(dataset, set_seed)    
+    assert(X_tr.iloc[:, -1].compare(y_tr).shape[0] == 0)
+    struc = Tree_Structure(X_tr.iloc[:, :-1], X_tr[variable], y_tr, clf)
+
+    gen_process = Genetic_Pruning_Process_NSGA2(struc, objectives, generations, individuals, 0.7, 0.2)
+
+    indivs = gen_process.genetic_optimization(777)
+    for indiv in indivs:
+        print(indiv.repr)
+        print(indiv.objectives)
+
+
+
+"""
 #Calculate file with the general pareto front using all pareto fronts in every execution
 print("Calculating pareto optimal solutions using all runs...")
 pareto_optimal_exec, pareto_optimal_df = problem.calculate_pareto_optimal(set_seed_base, n_runs, algorithm)
 print("Execution succesful!\n------------------------------")
+"""

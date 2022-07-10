@@ -46,8 +46,9 @@ graph = graphviz.Source(dot_data)
 # TESTS
 
 struc = Tree_Structure(wc_data, prot, wc_target, clf)
-gen_process = Genetic_Pruning_Process_NSGA2(struc, ['accuracy'], 2000, 50, 0.7, 0.2)
+gen_process = Genetic_Pruning_Process_NSGA2(struc, ['accuracy', 'fpr_diff'], 2000, 50, 0.7, 0.2)
 indivs = gen_process.genetic_optimization(777)
 for indiv in indivs:
     print(indiv.repr)
+    print(indiv.objectives)
 

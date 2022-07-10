@@ -121,4 +121,4 @@ python calculatemeasures.py alg=nsga2 dat=ricci var=Race model=LR obj=gmean_inv,
 python calculatemeasures.py alg=nsga2,smsemoa,grea dat=ricci var=Race model=LR obj=gmean_inv,dem_fpr,dem_ppv,dem_pnr
 END_COMMENT
 
-python fairness.py nind=30 ngen=50 alg=nsga2 dat=adult var=race bseed=100 nruns=1 model=FDT obj=gmean_inv,dem_fpr
+python fairness.py nind=10 ngen=50 alg=nsga2 dat=adult var=race bseed=100 nruns=1 model=FDT obj=gmean_inv,dem_fpr

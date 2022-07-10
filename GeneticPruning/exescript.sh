@@ -1,0 +1,1 @@
+python main.py nind=30 ngen=50 dat=adult var=race bseed=100 nruns=1 obj=accuracy,fpr_diff

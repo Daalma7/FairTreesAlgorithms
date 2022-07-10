@@ -4,22 +4,26 @@ import pandas as pd
 
 from sklearn.tree._tree import TREE_LEAF
 
-# TODO comentar y realizar correctamente
+# TODO correct minor things
 class Tree_Structure:
+
     """
-    EXPLICAR
-
-    Parameters:
-    - root: Root node of the tree
-    - children: List of children nodes
-
-    Methods:
-    - 
-    -
-
+    Tree structure which is used to control the Genetic Pruning processes.
+    It contains structures in order to the process to be as time efficent as possible
     """
 
     def __init__(self, data, prot, y, clf):
+
+        """
+        Class constructor
+
+        Parameters:
+        - data: Data points with which the tree was trained.
+        - prot: Protected attribute
+        - y: Class to be predicted
+        - clf: DecisionTreeClassifier object from Scikit-learn
+        """
+
         self.data = data
         self.prot = prot
         self.y = y
@@ -31,11 +35,6 @@ class Tree_Structure:
         """
         This function calculates different structures for the base classifier in order to be more
         efficient calculating each individual objectives metrics
-        
-        Parameters:
-        - clf: Sklearn binary classification tree from which the prunings will be made
-        - prot: Protected attribute
-        - y: Target attribute
 
         Returns:
         - fair_dict: Dictionary indicating well classified examples inside that node
@@ -83,7 +82,7 @@ class Tree_Structure:
                 stack.append((children_left[node_id], repr + [0]))  # Append tree considered and our path based representations.
                 stack.append((children_right[node_id], repr + [1]))
             else:                           # If a leaf node, append the node id to `base_leaves`
-                base_leaves.append(tuple(repr))  # Append our representation to the list of leaves to return
+                base_leaves.append(repr)  # Append our representation to the list of leaves to return
         
         # We will now create the fairness structure
             # First dimension for specifying the class
@@ -92,6 +91,7 @@ class Tree_Structure:
         # We will update each node in the fair structure with the information of the training data
         node_indicator = self.clf.decision_path(self.data)             # First of all we obtain the decision path for each training example
         leaf_id = self.clf.apply(self.data)                            # And we compute where each specific instance falls.
+        
         for sample_id in range(self.data.shape[0]):               # For each training example
             # obtain ids of the nodes `sample_id` goes through, i.e., row `sample_id`
             node_index = node_indicator.indices[
@@ -102,20 +102,20 @@ class Tree_Structure:
             for node_id in node_index:
                 # end if the node is a leaf node
                 if leaf_id[sample_id] == node_id:
-                    fair_dict[tuple(assoc_dict[node_id])][self.y[sample_id]][self.prot[sample_id]] += 1
+                    fair_dict[tuple(assoc_dict[node_id])][self.y.iloc[sample_id]][self.prot.iloc[sample_id]] += 1
+                    #print(fair_dict[tuple(assoc_dict[node_id])])
                     continue
-                fair_dict[tuple(assoc_dict[node_id])][self.y[sample_id]][self.prot[sample_id]] += 1
+                
 
-        return fair_dict, total_samples_dict, set(base_leaves)
+                fair_dict[tuple(assoc_dict[node_id])][self.y.iloc[sample_id]][self.prot.iloc[sample_id]] += 1
+
+        return fair_dict, total_samples_dict, base_leaves
     
 
     def calc_pruning_space(self):
         """
         This function defines the pruning (search) space. 
         
-        Parameters:
-        - clf: Sklearn binary classification tree from which the prunings will be made
-
         Returns:
         - repr_space: Tuple containing all possible node codes from which the prunings
                     can be done
@@ -137,7 +137,7 @@ class Tree_Structure:
             if is_split_node:
                 stack.append((children_left[node_id], repr + [0]))
                 stack.append((children_right[node_id], repr + [1]))
-                repr_space.append(tuple(repr))
+                repr_space.append(repr)
         
         return repr_space[1:]
     
@@ -149,9 +149,6 @@ class Tree_Structure:
         which will be assigned to the maximum depth leaves. The value decreases by negative
         powers of 2. This means that 2 similar trees with very different maximum depth will
         have very different associated probabilities.
-
-        Parameters:
-        - space: Tuple containing all nodes where prunings might be done
 
         Returns:
         - dict_prob: Dictionary containing the probability for each node of being selected
@@ -170,18 +167,17 @@ class Tree_Structure:
 
     def node_accuracy(self, repr):
         """
-        Calculates the accuracy of a given node.
+        Calculates the accuracy of a given node of the tree.
 
         Parameters:
         - repr: Representation of the node
-        - fair_dict: Fairness structure
 
         Returns:
         - accuracy: Accuracy of the node
         """
 
         acc = []
-        for elem in self.fair_dict[repr]:
+        for elem in self.fair_dict[tuple(repr)]:
             acc.append(sum(elem))
 
         return max(acc) / self.number_of_indivs(repr)
@@ -193,14 +189,13 @@ class Tree_Structure:
 
         Parameters:
         - repr: Representation of the node
-        - fair_dict: Fairness structure
 
         Returns:
         - num: Amount of individuals in the node
         """
 
         num = 0
-        for elem in self.fair_dict[repr]:
+        for elem in self.fair_dict[tuple(repr)]:
             for elem2 in elem:
                 num += elem2
         
@@ -216,7 +211,7 @@ class Tree_Structure:
         Returns:
         - new_clf: prunned tree clasifier
         """
-        new_clf = copy.deepcopy(clf)
+        new_clf = copy.deepcopy()
 
         # For each pruning to do:
         for prun in repr:
@@ -239,16 +234,15 @@ class Tree_Structure:
         Returns which are the children nodes from a pruning space, if they exist.
 
         Parameters:
-        - pruning: the pruning code from which calculate the children nodes
-        - space: the total children space
+        - sing_prun: the pruning code from which calculate the children nodes
 
         Returns:
         - children: the children codes of the pruning, if any.
         """
 
         children = []
-        pos_0 = sing_prun + (0,)          # Codes of the possible children nodes
-        pos_1 = sing_prun + (1,)
+        pos_0 = sing_prun.copy().append(0)          # Codes of the possible children nodes
+        pos_1 = sing_prun.copy().append(1)
         if pos_0 in self.pruning_space:              # If the children node exists in the space of possible prunings, we return them
             children.append(pos_0)
         if pos_1 in self.pruning_space:
@@ -256,67 +250,36 @@ class Tree_Structure:
         
         return children
 
-    def correct_indiv(self, repr):
-        """
-        Return correct individuals. The values conforming an individual may have inconsistencies
-        due to redundant prunings done in already prunned branches. This function corrects it.
-        
-        Parameters:
-        - indiv: Set representing an individual to which correct its representation
-
-        Returns:
-        - indiv: Corrected individual
-        """
-        
-        if len(repr) > 0:                              # If at least 1 pruning is done
-            repr = list(repr)                         # Consider all prunings
-            new_repr = []                              # New correct individual to be created
-            add_list = np.zeros(len(repr)).tolist()    # Binary addition list
-
-            # Calculation of hierarchical covered prunings
-            for i in range(len(repr)):                 # For each pruning
-                for j in range(i+1, len(repr)):        # For each pruning after it
-                    if repr[i] == repr[j][:len(repr[i])]:    # Calculate if the first pruning covers the second
-                        add_list[j] = 1                 # If so, mark the second to not be included
-                    elif repr[j] == repr[i][:len(repr[j])]:  # Calculate if the second pruning covers the first
-                        add_list[i] = 1
-            
-            # Cleaning of those prunings
-            for i in range(len(repr)):
-                if add_list[i] < 1:             # If the pruning is not covered by another
-                    new_repr.append(repr[i])  # Add it to the new individual
-            repr = new_repr
-        
-        return set(repr)
 
 
-# TODO comentar y realizar correctamente
+# TODO correct
 class Individual:
     """
-    Class that represents an individual.
-
-    Parameters:
-    - repr: Representation of the individual
-    - objectives: objectives values for the individual
+    Class that represents an individual. An individual in the optimization process consist of a series
+    of prunings over the base classifier tree.
     """
+    
 
     def __init__(self, struc, objs_string, repr):
+
+        """
+        Class constructor
+
+        Parameters:
+        - struc: tree structure with all calculated metrics, from the general.Tree_Structure class
+        - objs_string: Strings defining the objective functions for the optimization process
+        - repr: Representation of the individual
+        """
         self.struc = struc
         self.objs_string = objs_string
-        self.repr = self.struc.correct_indiv(repr)   # Each individual created will be automatically corrected in order to ensure consistency
-        self.objectives = self.objectives()     # And also its objectives values will be calculated
+        self.repr = repr   # Each individual created needs to have a minimal representation
+        self.objectives = self.calc_objectives()     # And also its objectives values will be calculated
 
 
-    def objectives(self):
+    def calc_objectives(self):
         """
         Calculates the objectives value of a certain individual. For doing so, the actual
         pruning is calculated over the base classifier and its results are used.
-
-        Parameters:
-        - indiv: individual for which the objectives will be calculated
-        - base_leaves: Representation of the leaves of the tree
-        - fair_dict: Fairness structure
-        - total_samples_dict: Dictionary indicating total amount of training examples that fall into each node
 
         Returns:
         - objectives_val: its objectives value
@@ -331,16 +294,34 @@ class Individual:
             # First dimension: Actual class
             # Second dimension: Predicted class
         
+        """
         leaf_nodes = self.struc.base_leaves.copy()
+
         for elem in self.repr:
-            leaf_nodes.add(elem)
+            leaf_nodes.append(elem)
         leaf_nodes = self.struc.correct_indiv(leaf_nodes)
-        
+        """
         conf_mat_0 = [[0,0], [0,0]]
         conf_mat_1 = [[0,0], [0,0]]
 
+        # We will calculate first the leaves of the individual
+        leaf_nodes = self.repr.copy()                  # Considering the prunings which have been applied.
+        baselen = len(leaf_nodes)
+
+        for leaf in self.struc.base_leaves:     # For each one of the real leaves of the tree
+            insert = True
+            i = 0
+            while i < baselen and insert:                # For each pruning done
+                minlen = min(len(leaf_nodes[i]), len(leaf))
+                if(leaf_nodes[i][:minlen] == leaf[:minlen]):    # If the pruning goes hierachically before the leaf
+                    insert = False
+                i += 1
+            
+            if insert:
+                leaf_nodes.append(leaf)
+
         for elem in leaf_nodes:
-            cur_fair_dict = self.struc.fair_dict[elem]
+            cur_fair_dict = self.struc.fair_dict[tuple(elem)]
             if sum(cur_fair_dict[0]) > sum(cur_fair_dict[1]):
                 conf_mat_0[0][0] += cur_fair_dict[0][0]
                 conf_mat_0[1][0] += cur_fair_dict[1][0]
@@ -393,11 +374,20 @@ class Individual:
         return ret
 
 
-
-
 class Individual_NSGA2(Individual):
 
+    """
+    Class representing an individual for a NSGA2 optimization process, within this context
+    """
+
     def __init__(self, struc, repr):
+        """
+        Class constructor
+
+        Parameters:
+        - struc: tree structure with all calculated metrics, from the general.Tree_Structure class
+        - repr: Representation of the individual
+        """
         Individual.__init__(struc, repr)
         self.rank = None
         self.crowding_distance = None

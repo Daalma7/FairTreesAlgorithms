@@ -1,12 +1,9 @@
 import pandas as pd
 from sklearn.tree import DecisionTreeClassifier
 from sklearn.tree import export_graphviz
-from sklearn.linear_model import LogisticRegression
 from sklearn.model_selection import train_test_split
-from sklearn.metrics import confusion_matrix, accuracy_score, f1_score
 from six import StringIO
 import pydotplus
-from imblearn.metrics import geometric_mean_score
 from collections import Counter
 
 import pickle
@@ -58,11 +55,10 @@ def print_properties_lr(learner):
     return learner.coef_
 
 #Classifier training
-def train_model(df_name, seed, **features):
+def train_model(df_name, seed):
     train = pd.read_csv('../data/train_val_test/' + df_name + '_train_seed_' + str(seed) + '.csv')
     X_train = train.iloc[:, :-1]
     y_train = train.iloc[:, -1]
-
     clf = DecisionTreeClassifier(random_state = seed)
 
     learner = clf.fit(X_train, y_train)
