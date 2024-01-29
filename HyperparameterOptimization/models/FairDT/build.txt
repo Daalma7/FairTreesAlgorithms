@@ -1,4 +1,5 @@
 #!/bin/bash
+# CARE: Cython<3 needed
 # Build c files from pyx and pxd files
 cython _utils.pyx
 cython _tree.pyx

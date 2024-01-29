@@ -5,6 +5,8 @@ from sklearn.model_selection import train_test_split
 from six import StringIO
 import pydotplus
 from collections import Counter
+import string
+import random
 
 import pickle
 
@@ -13,6 +15,8 @@ import pickle
 def read_data(df_name):
         
     df = pd.read_csv('../data/' + df_name + '_preproc.csv', sep = ',')
+    if 'Unnamed: 0' in df.columns:
+        df = df.drop('Unnamed: 0', axis=1)
     return df
 
 
@@ -76,6 +80,7 @@ def save_model(learner, dataset_name, seed, variable_name, num_of_generations, n
     pickle.dump(learner, open(path + filename, 'wb'))
     return
 
+
 #Validates the classifier (comparison with validation set)
 def val_model(df_name, learner, seed):
     val = pd.read_csv('../data/train_val_test/' + df_name + '_val_seed_' + str(seed) + '.csv')
@@ -108,3 +113,53 @@ def data_weight_avg_depth(learner, data, seed):
         else:
             total_depth += current_depth * cnt[current_node] / float(num_data)
     return total_depth
+
+
+
+
+
+
+
+
+def generate_random_string(length):
+    letters_and_digits = string.ascii_uppercase + string.digits
+    return ''.join(random.choices(letters_and_digits, k=length))
+
+def test_and_save_results(x_test, y_test, prot_test, classifiers, objectives, generations, nind, ngen, dat, var, seed, obj, extra):
+    
+    save_name = ''
+    obj_str = '_'.join(objectives) 
+    extra_str = '_'.join(objectives)
+    if not extra is None:
+        save_name = 'results/' + dat + '__' + var + '__obj_' + obj_str + '__seed_' + str(seed) + '__extra_' + extra_str + '__nind_' + str(nind) + '__ngen_' + str(ngen) + '.csv'
+    else:
+        save_name = 'results/' + dat + '__' + var + '__obj_' + obj_str + '__seed_' + str(seed) + '__nind_' + str(nind) + '__ngen_' + str(ngen) + '.csv'
+    
+    dict_generate = {'ID': [], 'seed': [], 'creation_mode': []}
+    
+    for elem in obj:
+        dict_generate[elem + '_val'] = []
+    for elem in obj:
+        dict_generate[elem + '_test'] = []
+    
+    dict_generate['repre'] = []
+    
+    for clf in classifiers:
+        ID = generate_random_string(20)
+        dict_generate['ID'].append(ID)
+        dict_generate['seed'].append(seed)
+        dict_generate['repre'].append(clf.repre_to_node_id())
+        dict_generate['creation_mode'].append(clf.creation_mode)
+        test_objs = clf.test_tree(x_test, y_test, prot_test)
+        for i in range(len(obj)):
+            dict_generate[obj[i] + '_val'].append(clf.objectives[i])
+            dict_generate[obj[i] + '_test'].append(test_objs[i])
+        
+    df = pd.DataFrame(dict_generate)
+    
+    df.to_csv(save_name, index=False)
+        
+
+
+
+

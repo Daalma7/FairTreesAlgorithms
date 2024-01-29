@@ -197,7 +197,7 @@ class BaseDecisionTree(MultiOutputMixin, BaseEstimator, metaclass=ABCMeta):
             if self.class_weight is not None:
                 y_original = np.copy(y)
 
-            y_encoded = np.zeros(y.shape, dtype=np.int)
+            y_encoded = np.zeros(y.shape, dtype=int)
             for k in range(self.n_outputs_):
                 classes_k, y_encoded[:, k] = np.unique(y[:, k],
                                                        return_inverse=True)
@@ -368,6 +368,7 @@ class BaseDecisionTree(MultiOutputMixin, BaseEstimator, metaclass=ABCMeta):
                                            max_depth,
                                            max_leaf_nodes,
                                            self.min_impurity_decrease)
+        print(prot)
 
         builder.build(self.tree_, X, y, sample_weight, prot)
 

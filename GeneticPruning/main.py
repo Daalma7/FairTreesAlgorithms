@@ -6,7 +6,7 @@ warnings.filterwarnings("ignore")
 
 from ml import *
 from genetic import Genetic_Pruning_Process_NSGA2
-from general import Tree_Structure
+from individual import Tree_Structure
 
 
 nind = ngen = dat = var = bseed = nruns = obj = extra = False        #Possible parameters given
@@ -98,25 +98,29 @@ print(message + "\n---")
 
 print("\nThe following parameters will be set by default:")
 if not nind:
-    individuals = 50        #Default number of individuals for each population in the algorithm: 50
+    #individuals = 50        #Default number of individuals for each population in the algorithm: 50
+    individuals = 50
     print("- nind=" + str(individuals))
 if not ngen:              
-    generations = 300       #Default number of generations for the algorithm: 300
+    #generations = 300       #Default number of generations for the algorithm: 300
+    generations = 300
     print("- ngen=" + str(generations))
 if not dat:
-    dataset = 'german'      #Default dataset: german
+    dataset = 'propublica_recidivism'      #Default dataset: german
     print("- dat=" + dataset)
 if not var:
-    variable = pd.read_csv('../data/' + dataset + '.csv').columns[0]           #Default sensitive variable: First dataset variable
+    #variable = pd.read_csv('../data/' + dataset + '.csv').columns[0]           #Default sensitive variable: First dataset variable
+    variable = 'race'
     print("- var=" + variable)
 if not bseed:
     set_seed_base = 100             #Base seed for the 1st run of the algorithm
     print("- bseed=" + str(set_seed_base))
 if not nruns:
-    n_runs = 10                     #Number of runs to execute the algorithm
+    #n_runs = 10                     #Number of runs to execute the algorithm
+    n_runs = 10
     print("- nruns=" + str(n_runs))
 if not obj:
-    objectives = ["gmean_inv", "dem_fpr"] #Objectives to take into account that we'll try to miminize
+    objectives = ["gmean_inv", "fpr_diff"] #Objectives to take into account that we'll try to miminize
     strobj = objectives[0]
     for i in range(1, len(objectives)):
         strobj += "," + objectives[i]
@@ -135,20 +139,37 @@ for run in range(n_runs):
     set_seed = set_seed_base + run
 
     # write datasets
-    X_tr, X_v, X_tst, y_tr, y_v, y_tst = get_matrices(dataset, set_seed)
-    write_train_val_test(dataset, set_seed, X_tr, X_v, X_tst, y_tr, y_v, y_tst)
+    x_train, x_val, x_test, y_train, y_val, y_test = get_matrices(dataset, set_seed)
+    write_train_val_test(dataset, set_seed, x_train, x_val, x_test, y_train, y_val, y_test)
+    print(x_train)
+    x_train = x_train.iloc[:,:-1]
+    x_val = x_val.iloc[:,:-1]
+    x_test = x_test.iloc[:,:-1]
 
-    # Base model from which we will calculate the base structure:
-    clf = train_model(dataset, set_seed)    
-    assert(X_tr.iloc[:, -1].compare(y_tr).shape[0] == 0)
-    struc = Tree_Structure(X_tr.iloc[:, :-1], X_tr[variable], y_tr, clf)
+    prot_train = x_train[variable]
+    prot_val = x_val[variable]
+    prot_test = x_test[variable]
+    
+    
+    struc = Tree_Structure(x_train, y_train, prot_train, x_val, y_val, prot_val, run)
 
     gen_process = Genetic_Pruning_Process_NSGA2(struc, objectives, generations, individuals, 0.7, 0.2)
 
-    indivs = gen_process.genetic_optimization(777)
-    for indiv in indivs:
-        print(indiv.repr)
-        print(indiv.objectives)
+    indivs = gen_process.genetic_optimization(set_seed)
+    
+    print(indivs)
+    i=0
+    for front in indivs:    
+        for indiv in front:
+            print(i)
+            print(indiv.repre)
+            for i in range(len(objectives)):
+                print(objectives[i], indiv.objectives[i])
+        i = i+1
+    
+    test_and_save_results(x_test, y_test, prot_test, indivs, objectives, generations, individuals, generations, dataset, variable, set_seed, objectives, extraobj)
+        
+    
 
 
 

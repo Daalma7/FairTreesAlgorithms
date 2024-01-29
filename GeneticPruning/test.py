@@ -1,54 +1,46 @@
-from sklearn.tree import DecisionTreeClassifier
 from sklearn import tree
 import numpy as np
 import pandas as pd
 import graphviz
+from sklearn.metrics import accuracy_score
 
 
 from genetic import Genetic_Pruning_Process_NSGA2
-from general import Tree_Structure
+from individual import Tree_Structure
 
+for seed in range(100, 101):
+    train = pd.read_csv('../data/train_val_test/adult_train_seed_' + str(seed) + '.csv')
+    val = pd.read_csv('../data/train_val_test/adult_val_seed_' + str(seed) + '.csv')
+    test = pd.read_csv('../data/train_val_test/adult_test_seed_' + str(seed) + '.csv')
+    
+    y_train = train['y']
+    x_train = train.loc[:, train.columns!='y']
+    prot_train = train['race']
+    
+    y_val = val['y']
+    x_val = val.loc[:, val.columns!='y']
+    prot_val = val['race']
 
-wc_data = pd.read_csv("wdbc.data", header=None)
-# Generamos las etiquetas
-wc_target = wc_data.iloc[:,1].replace(["B","M"], [0,1])
-# Generamos los predictores
-wc_data = wc_data.iloc[:,2:]
-# Vamos a binarizar el primer atributo y lo vamos a considerar como protegido
+    y_test = test['y']
+    x_test = test.loc[:, test.columns!='y']
+    prot_test = test['race']
 
-wc_data = wc_data.iloc[:,2:]
-# Vamos a binarizar el primer atributo y lo vamos a considerar como protegido
-prot = wc_data.iloc[:,0]
-mean = prot.mean()
-print(mean)
-wc_data.iloc[:,0] = np.where(prot < mean, 0, 1)
-prot = wc_data.iloc[:,0]
-print(wc_data.shape)
+    
+    prot = train['race']
 
-print(prot)
-print(wc_data.shape[0]-sum(prot), sum(prot))
+    
+    struc = Tree_Structure(x_train, y_train, prot_train, x_val, y_val, prot_val)
+    gen_process = Genetic_Pruning_Process_NSGA2(struc, ['accuracy', 'fpr_diff'], 10, 50, 0.7, 0.2)
+    indivs = gen_process.genetic_optimization(777)
+    trees = []
+    for indiv in indivs:
+        print("-------------")
+        trees.append(indiv.get_tree())
+        print(accuracy_score(y_test, trees[-1].predict(x_test)))
 
-# Leemos los datos de iris
-clf = DecisionTreeClassifier(random_state=0)
+        
 
-clf.fit(wc_data.to_numpy(), wc_target.to_numpy())
-
-dot_data = tree.export_graphviz(clf, out_file=None)
-graph = graphviz.Source(dot_data) 
-#graph.render("iris") 
-
-##############################################################################################
-##############################################################################################
-##############################################################################################
-##############################################################################################
-##############################################################################################
-
-# TESTS
-
-struc = Tree_Structure(wc_data, prot, wc_target, clf)
-gen_process = Genetic_Pruning_Process_NSGA2(struc, ['accuracy', 'fpr_diff'], 2000, 50, 0.7, 0.2)
-indivs = gen_process.genetic_optimization(777)
-for indiv in indivs:
-    print(indiv.repr)
-    print(indiv.objectives)
-
+# FALTA CONSTRUIR VALIDACIÓN Y TEST:
+    
+# OBJETIVO, CONSTRUIR EL ÁRBOL CON EL CONJUNTO DE ENTRENAMIENTO
+# MODIFICAR LA ESTRUCTURA DE TREE_.VALUES, Y POR LO TANTO UTILIZAR ESA INFORMACIÓN

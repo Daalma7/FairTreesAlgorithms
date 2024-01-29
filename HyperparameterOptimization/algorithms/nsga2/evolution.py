@@ -39,6 +39,8 @@ class Evolution:
             self.utils.calculate_crowding_distance(front)
         children = self.utils.create_children(self.population, self.problem.model)
         for i in range(self.num_of_generations):
+            dict_dataframe = None
+
             for indiv in self.population.population:
                 dict_general_info = {'id': indiv.id, 'seed': self.problem.seed, 'creation_mode':indiv.creation_mode}
                 dict_objectives= {self.problem.objectives[j].__name__: indiv.objectives[j] for j in range(self.problem.num_of_objectives)}
@@ -57,12 +59,17 @@ class Evolution:
                     max_iter, tol, lambd, l1_ratio, class_weight = [item[1] for item in indiv_list]
                     dict_hyperparameters= {'max_iter': [max_iter], 'tol': [tol], 'lambda': [lambd], 'l1_ratio': [l1_ratio], 'class_weight': [class_weight]}
                     dict_dataframe = {**dict_general_info, **dict_objectives, **dict_hyperparameters}
+                if self.problem.model == "FLGBM":
+                    lamb, num_leaves, min_data_in_leaf, max_depth, learning_rate, n_estimators, feature_fraction = [item[1] for item in indiv_list]
+                    dict_hyperparameters= {'lamb': [lamb], 'num_leaves' : [num_leaves], 'min_data_in_leaf':[min_data_in_leaf], 'max_depth':[max_depth], 'learning_rate': [learning_rate], 'n_estimators': [n_estimators], 'feature_fraction': [feature_fraction]}
+                    dict_dataframe = {**dict_general_info, **dict_objectives, **dict_hyperparameters}
+
                 evolutions_aux = pd.DataFrame(dict_dataframe)
                 self.evolutions_df = pd.concat([self.evolutions_df, evolutions_aux])
             if i == (self.num_of_generations-1):
                 self.evolutions_df.to_csv("../results/nsga2/population/evolution_" + self.dataset_name + '_seed_' + str(self.utils.problem.seed) + "_var_" + self.protected_variable  + "_gen_" + str(self.num_of_generations) + "_indiv_" + str(self.num_of_individuals) + '_model_' + self.problem.model + '_obj_' + str_obj + ".csv", index = False, header = True, columns = list(dict_dataframe.keys()))
 
-            print("GENERATION:",i)
+            print("GENERATION:",i+1)
             self.population.extend(children)
             self.utils.fast_nondominated_sort(self.population)
             new_population = Population()

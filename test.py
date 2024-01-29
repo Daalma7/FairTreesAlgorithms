@@ -1,6 +1,8 @@
 from sklearn.datasets import load_iris
 from sklearn.model_selection import cross_val_score
 from FairDT._classes import DecisionTreeClassifier
+from sklearn import tree
+from sklearn.tree import export_graphviz
 import pandas as pd
 import numpy as np
 
@@ -27,14 +29,20 @@ print("Atributo protegido:\n", prot)
 
 print("a")
 
+for i in [.0, .2, .4, .6, .8, 1]:
+    print("---------")
+    f_lambda = i
+    print(f_lambda)
+    clf = DecisionTreeClassifier(random_state=0, criterion="gini_fair", f_lambda=f_lambda)
+    print("antes del fit")
+    clf.fit(wc_data.to_numpy(), wc_target.to_numpy(), prot=prot.to_numpy())
+    print("después del fit")
+    print("Profundidad: ", clf.get_depth())
+    print("Número de hojas: ", clf.get_n_leaves())
+    export_graphviz(clf)
+    
 
-clf = DecisionTreeClassifier(random_state=0, criterion="gini_fair", f_lambda=0.2)
-print("antes del fit")
-clf.fit(wc_data.to_numpy(), wc_target.to_numpy(), prot=prot.to_numpy())
-print("después del fit")
 
-print("Profundidad: ", clf.get_depth())
-print("Número de hojas: ", clf.get_n_leaves())
 
 
 

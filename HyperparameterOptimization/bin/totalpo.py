@@ -36,7 +36,6 @@ for i in range(1, len(sys.argv)):           #We're going to read all parameters
         dataset = param[1]
     
     if not valid and param[0] == 'var':               #Sensitive attribute name
-        var = valid = True
         variable = param[1]
     
     if not valid and param[0] == 'model':             #Number of runs to execute the algorithm

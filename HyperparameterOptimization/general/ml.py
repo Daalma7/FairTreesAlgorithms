@@ -10,18 +10,19 @@ from six import StringIO
 import pydotplus
 from imblearn.metrics import geometric_mean_score
 from collections import Counter
+import contextlib
 
 import pickle
 
 
 sys.path.append(os.path.abspath(os.path.join('..', 'models')))
 from FairDT._classes import DecisionTreeClassifier as FairDecisionTreeClassifier
-
 from sklearn.tree import DecisionTreeClassifier
-
-
+from FLGBM.FLGBM import FairLGBM
 
 #Decoding hyperparameters
+# Here we correct the values of some hyperparameters, as some of them can be unbounded
+# and when they generate, they are all continuous, and some need to be converted to integers.
 def decode(var_range, model, **features):
 
     if model == "DT":
@@ -80,6 +81,39 @@ def decode(var_range, model, **features):
         #Other parameters are float, so they haven't got to be further processed
         hyperparameters = ['max_iter', 'tol', 'lambda', 'l1_ratio', 'class_weight']
         
+    if model == "FLGBM":
+        if features['lamb'] is None:
+            features['lamb'] = var_range[0][1]
+        
+        if features['num_leaves'] is not None:
+            features['num_leaves'] = int(round(features['num_leaves']))
+        else:
+            features['num_leaves'] = var_range[1][1]
+        
+        if features['min_data_in_leaf'] is not None:
+            features['min_data_in_leaf'] = int(round(features['min_data_in_leaf']))
+        else:
+            features['min_data_in_leaf'] = var_range[2][1]
+
+        if features['max_depth'] is not None:
+            features['max_depth'] = int(round(features['max_depth']))
+        else:
+            features['max_depth'] = -1
+        
+        if features['learning_rate'] is None:
+            features['learning_rate'] = var_range[4][1]
+
+        if features['n_estimators'] is not None:
+            features['n_estimators'] = int(round(features['n_estimators']))
+        else:
+            features['n_estimators'] = var_range[5][1]
+        
+        if features['feature_fraction'] is None:
+            features['feature_fraction'] = var_range[6][1]
+            
+        
+        hyperparameters = ['lamb', 'num_leaves', 'min_data_in_leaf', 'max_depth', 'learning_rate', 'n_estimators', 'feature_fraction']
+        
     list_of_hyperparameters = [(hyperparameter, features[hyperparameter]) for hyperparameter in hyperparameters]
     features = collections.OrderedDict(list_of_hyperparameters)
     return features
@@ -88,6 +122,8 @@ def decode(var_range, model, **features):
 def read_data(df_name):
         
     df = pd.read_csv('../../data/' + df_name + '_preproc.csv', sep = ',')
+    if 'Unnamed: 0' in df.columns:
+        df = df.drop(['Unnamed: 0'], axis=1)
     return df
 
 def score_text(v):
@@ -121,11 +157,11 @@ def write_train_val_test(df_name, seed, X_train, X_val, X_test, y_train, y_val, 
     test.to_csv('../../data/train_val_test/' + df_name + '_test_seed_' + str(seed) + '.csv', index = False)
 
 #Exports obtained decision tree to a png file
-def print_tree(classifier, features):
+def print_tree(classifier, model, features):
     dot_data = StringIO()
     export_graphviz(classifier, out_file = dot_data, feature_names = features)
     graph = pydotplus.graph_from_dot_data(dot_data.getvalue())
-    graph.write_png("../results/trees/tree.png")
+    graph.write_png("../results/" + model + "/trees/tree.png")
 
 #Returns depth and leaves given a decision tree
 def print_properties_tree(learner):
@@ -137,13 +173,16 @@ def print_properties_tree(learner):
 def print_properties_lr(learner):
     return learner.coef_
 
+def print_properties_flgbm(learner):
+    pass
+
 #Classifier training
 def train_model(df_name, variable, seed, model, **features):
     train = pd.read_csv('../../data/train_val_test/' + df_name + '_train_seed_' + str(seed) + '.csv')
     X_train = train.iloc[:, :-1]
     y_train = train.iloc[:, -1]
     prot = X_train[variable]
-
+    
     #We will need to use the seed used to split into train and test also as seed for these methods, because as they are trained twice, we have to be exactly the same both times
     if model == "DT":
         if features['class_weight'] is not None:
@@ -175,6 +214,21 @@ def train_model(df_name, variable, seed, model, **features):
         else:
             clf = LogisticRegression(max_iter=features['max_iter'], tol=features['tol'], C=features['lambda'], l1_ratio=features['l1_ratio'], class_weight = features['class_weight'], random_state=seed)
 
+    if model == "FLGBM":
+        lgbm_params = {
+        'objective': 'binary',
+        'deterministic': True,
+        'random_state': seed,
+        'verbose': -1,
+        'num_leaves': features['num_leaves'],
+        'min_data_in_leaf': features['min_data_in_leaf'],
+        'max_depth': features['max_depth'],
+        'learning_rate': features['learning_rate'],
+        'n_estimators': features['n_estimators'],
+        'feature_fraction': features['feature_fraction']
+        }
+        clf = FairLGBM(lamb=features['lamb'], proc=variable, lgbm_params=lgbm_params)
+    
     if model == "FDT":
         learner = clf.fit(X_train, y_train, prot = prot.to_numpy())
     else:
@@ -182,13 +236,47 @@ def train_model(df_name, variable, seed, model, **features):
 
     return learner
 
+
+# TODO: hola
+def get_max_depth_FLGBM(df_name, variable, seed, model, **features):
+    train = pd.read_csv('../../data/train_val_test/' + df_name + '_train_seed_' + str(seed) + '.csv')
+    X_train = train.iloc[:, :-1]
+    y_train = train.iloc[:, -1]
+    prot = X_train[variable]
+    
+    lgbm_params = {
+    'objective': 'binary',
+    'deterministic': True,
+    'random_state': seed,
+    'verbose': 2,
+    'num_leaves': features['num_leaves'],
+    'min_data_in_leaf': features['min_data_in_leaf'],
+    'max_depth': features['max_depth'],
+    'learning_rate': features['learning_rate'],
+    'n_estimators': features['n_estimators'],
+    'feature_fraction': features['feature_fraction']
+    }
+    
+    clf = FairLGBM(lamb=features['lamb'], proc=variable, lgbm_params=lgbm_params)
+    
+    with open('../data/output.txt', 'w') as f, contextlib.redirect_stdout(f):
+        learner = clf.fit(X_train, y_train)
+
+    depths = []
+    with open('../data/output.txt', 'r') as f:
+        for line in f.readlines():
+            if len(line.split()) > 2 and line.split()[-3] == 'depth':
+                depths.append(int(line.split()[-1]))
+        
+    return max(depths)
+
 def save_model(learner, dataset_name, seed, variable_name, num_of_generations, num_of_individuals, individual_id, model, method, objectives):
     # save the model to disk
     str_obj = objectives[0].__name__
     for i in range(1, len(objectives)):
         str_obj += "__" + objectives[i].__name__
 
-    path = '../results/' + str(method) + '/models/' + model + '/' + dataset_name + "/"
+    path = '../results/' + str(model) + '/' + str(method) + '/models/' + dataset_name + "/"
     filename =  'model_id_' + individual_id + '_seed_' + str(seed) + '_var_' + variable_name + '_gen_' + str(num_of_generations) + '_indiv_' + str(num_of_individuals) + '_obj_' + str(str_obj) + '.sav'
     pickle.dump(learner, open(path + filename, 'wb'))
     return

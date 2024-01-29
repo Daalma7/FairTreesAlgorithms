@@ -228,6 +228,31 @@ for run in range(n_runs):
 
         variables_range = [(min_range_max_iter, max_range_max_iter),(min_range_tol, max_range_tol),(min_range_C, max_range_C),(min_range_l1_ratio, max_range_l1_ratio),(min_range_class_weight,max_range_class_weight)]
 
+    if model == "FLGBM":               #In case we've devided to use Logistic Regression
+        min_range_lamb = 0
+        max_range_lamb = 1
+        
+        min_range_num_leaves = 2
+        max_range_num_leaves = 62
+        
+        min_range_min_data_in_leaf = 2
+        max_range_min_data_in_leaf = 40
+        
+        min_range_max_depth = 2
+        max_range_max_depth = None
+        
+        min_range_learning_rate = 0.01
+        max_range_learning_rate = 0.2
+        
+        min_range_n_estimators = 50
+        max_range_n_estimators = 200
+        
+        min_range_feature_fraction = 0.1
+        max_range_feature_fraction = 1.0
+
+        variables_range = [(min_range_lamb, max_range_lamb), (min_range_num_leaves, max_range_num_leaves), (min_range_min_data_in_leaf, max_range_min_data_in_leaf),(min_range_max_depth, max_range_max_depth),(min_range_learning_rate, max_range_learning_rate),(min_range_n_estimators, max_range_n_estimators),(min_range_feature_fraction, max_range_feature_fraction)]
+    
+    
     
     problem = Problem(num_of_variables = 5,
                       objectives = objectives,

@@ -46,6 +46,13 @@ class NSGA2Utils:
                 else:
                     individual = self.problem.generate_individual()
             
+            if model == "FLGBM":
+                if k == 0:
+                    individual = self.problem.generate_first_default_flgbm()
+                elif k == 1:
+                    individual = self.problem.generate_second_default_flgbm()
+                else:
+                    individual = self.problem.generate_individual()
             self.problem.calculate_objectives(individual, first_individual, self.problem.seed, 'nsga2')
             first_individual = False
             population.append(individual)     
