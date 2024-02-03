@@ -25,9 +25,10 @@ def sigmoid(x):
 
 class FairLGBM:
     
-    def __init__(self, lamb, proc, lgbm_params):
+    def __init__(self, lamb, proc, fair_c, lgbm_params):
         self.lamb = lamb
         self.proc = proc
+        self.fair_c = fair_c
         self.lgbm_params = lgbm_params
         self.model = None
 
@@ -99,24 +100,32 @@ class FairLGBM:
         
     
         """
+        grad = 0
+        hess = 0
         y = data.get_label()
         p = data.get_data()[self.proc]
         t = self.sigmoid(z)
     
-        s01 = (np.logical_and(y==0, p==1)).astype(int)
-        s00 = (np.logical_and(y==0, p==0)).astype(int)
-        sum_s01 = np.sum(s01)
-        sum_s00 = np.sum(s00)
-        fracdiff = np.dot(sum_s00 * s01 - sum_s01 * s00, t) / (sum_s01 * sum_s00)
+        if self.fair_c == 'fpr':
+            s01 = (np.logical_and(y==1, p==1)).astype(int)
+            s00 = (np.logical_and(y==1, p==0)).astype(int)
+            sum_s01 = np.sum(s01)
+            sum_s00 = np.sum(s00)
+            fracdiff = np.dot(sum_s00 * s01 - sum_s01 * s00, t) / (sum_s01 * sum_s00)
+            
+            if not fracdiff == 0:
+                lastpart = (s01 / sum_s01 - s00 / sum_s00) * np.sign(fracdiff) 
+                grad = self.lamb * (t - y) + (1 - self.lamb) * (1 - y) * t * (1 - t) * lastpart
+                hess = self.lamb * t * (1 - t) + (1 - self.lamb) * (1 - y) * t * (1 - t) * (1 - 2*t) * lastpart
+            else:
+                grad = (t - y)
+                hess = t * (1 - t)
         
-        
-        if not fracdiff == 0:
-            lastpart = (s01 / sum_s01 - s00 / sum_s00) * np.sign(fracdiff) 
-            grad = self.lamb * (t - y) + (1 - self.lamb) * (1 - y) * t * (1 - t) * lastpart
-            hess = self.lamb * t * (1 - t) + (1 - self.lamb) * (1 - y) * t * (1 - t) * (1 - 2*t) * lastpart
-        else:
-            grad = (t - y)
-            hess = t * (1 - t)
+        if self.fair_c == 'ppv':
+            pass
+
+        if self.fair_c == 'pnr':
+            pass
         return grad, hess
     
     

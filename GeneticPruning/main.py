@@ -9,7 +9,11 @@ from genetic import Genetic_Pruning_Process_NSGA2
 from individual import Tree_Structure
 
 
-nind = ngen = dat = var = bseed = nruns = obj = extra = False        #Possible parameters given
+nind = ngen = dat = var_col = bseed = nruns = obj = extra = False        #Possible parameters given
+dataset=None
+datasetlist = ['academic','adult','arrhythmia','bank','catalunya','compas','credit','crime','default','diabetes-w','diabetes','drugs','dutch','german','heart','hrs','insurance','kdd-census','lsat','nursery','obesity', 'older-adults','oulad','parkinson','ricci','singles','student','tic','wine','synthetic-athlete','synthetic-disease','toy']
+dict_outcomes = {'academic': 'atd','adult': 'income','arrhythmia': 'arrhythmia','bank': 'Subscribed','catalunya': 'recid','compas': 'score','credit': 'NoDefault','crime': 'ViolentCrimesPerPop','default': 'default','diabetes-w': 'Outcome','diabetes': 'readmitted','drugs': 'Coke','dutch': 'status','german': 'Label','heart': 'class','hrs': 'score','insurance': 'charges','kdd-census': 'Label','lsat':'ugpa','nursery': 'class','obesity': 'NObeyesdad','older-adults': 'mistakes','oulad': 'Grade','parkinson': 'total_UPDRS','ricci': 'Combine','singles': 'income','student': 'G3','tic': 'income', 'wine': 'quality','synthetic-athlete': 'Label','synthetic-disease': 'Label','toy': 'Label'}
+dict_protected = {'academic': 'ge','adult': 'Race','arrhythmia': 'sex','bank': 'AgeGroup','catalunya': 'foreigner','compas': 'race','credit': 'sex','crime': 'race','default': 'SEX','diabetes-w': 'Age','diabetes': 'Sex','drugs': 'Gender','dutch': 'Sex','german': 'Sex','heart': 'Sex','hrs': 'gender','insurance': 'sex','kdd-census': 'Sex','lsat':'race','nursery': 'finance','obesity': 'Gender','older-adults': 'sex','oulad': 'Sex','parkinson': 'sex','ricci': 'Race','singles': 'sex','student': 'sex','tic': 'religion','wine': 'color','synthetic-athlete': 'Sex','synthetic-disease': 'Age','toy': 'sst'}
 
 message = "\nExecutes a multiobjective evolutionary optimization algorithm to solve a problem, based on prunings over a base Decision Tree Classifier, with the following parameters:\n"
 
@@ -33,10 +37,11 @@ for i in range(1, len(sys.argv)):           #We're going to read all parameters
     if not valid and param[0] == 'dat':               #Name of the dataset
         dat = valid = True
         dataset = param[1]
-    
-    if not valid and param[0] == 'var':               #Name of the sensitive variable
-        var = valid = True
-        variable = param[1]
+        assert dataset in datasetlist
+        var_col = dict_protected[dataset]
+        y_col = dict_outcomes[dataset]
+        print("\n- var=" + var_col)
+
     
     if not valid and param[0] == 'bseed':             #Base seed for the 1st run of the algorithm
         bseed = valid = True
@@ -69,7 +74,6 @@ for i in range(1, len(sys.argv)):           #We're going to read all parameters
 \t- nidn=(integer): Number of individuals to have each population during algorithm execution. The default is 50.\n\n\
 \t- ngen=(integer): Number of generations for the algorithm to be executed (stopping criteria). The default is 300\n\n\
 \t- dat=(dataset): Name of the dataset in csv format. The file should be placed at the folder named data. Initial dataset are adult, german, propublica_recidivism, propublica_violent_recidivism and ricci. The default is german.\n\n\
-\t- var=(variable): Name of the sensitive variable for the dataset variable. Sensitive considered variables for each of the previous datasets are: adult-race, german-age, propublica_recidivism-race, propublica_violent_recidivism-race, ricci-Race. The default is the first variable of a the dataset (It is absolutely recommendable to change)\n\n\
 \t- bseed=(integer): Base seed which will be used in the first run of the algorithm. It\'s used for train-validation-test split for the data, and other possible needs which require randomness. The default is 100.\n\n\
 \t- nruns=(integer): Number of runs for the algorithm to be executed with different seeds. Each run takes consecutive seeds with respect to the previous one, starting from the base seed. The default is 10.\n\n\
 \t- obj=(comm separated list of objectives): List of objectives to be used. Possible objectives are: gmean_inv, dem_fpr, dem_ppv, dem_pnr, num_leaves, data_weight_avg_depth. You can add and combine them as you please. The default is gmean_inv,dem_fpr.\n\n\
@@ -106,12 +110,9 @@ if not ngen:
     generations = 300
     print("- ngen=" + str(generations))
 if not dat:
-    dataset = 'propublica_recidivism'      #Default dataset: german
+    dataset = 'german'      #Default dataset: german
     print("- dat=" + dataset)
-if not var:
-    #variable = pd.read_csv('../data/' + dataset + '.csv').columns[0]           #Default sensitive variable: First dataset variable
-    variable = 'race'
-    print("- var=" + variable)
+    print("- var=" + dict_protected[dataset])
 if not bseed:
     set_seed_base = 100             #Base seed for the 1st run of the algorithm
     print("- bseed=" + str(set_seed_base))
@@ -139,18 +140,18 @@ for run in range(n_runs):
     set_seed = set_seed_base + run
 
     # write datasets
-    x_train, x_val, x_test, y_train, y_val, y_test = get_matrices(dataset, set_seed)
+    x_train, x_val, x_test, y_train, y_val, y_test = get_matrices(dataset, y_col, set_seed)
     write_train_val_test(dataset, set_seed, x_train, x_val, x_test, y_train, y_val, y_test)
     print(x_train)
-    x_train = x_train.iloc[:,:-1]
-    x_val = x_val.iloc[:,:-1]
-    x_test = x_test.iloc[:,:-1]
+    x_train = x_train.loc[:, x_train.columns != 'y']
+    x_val = x_val.loc[:, x_val.columns != 'y']
+    x_test = x_test.loc[:, x_test.columns != 'y']
 
-    prot_train = x_train[variable]
-    prot_val = x_val[variable]
-    prot_test = x_test[variable]
+    prot_train = x_train[var_col].astype(int)
+    prot_val = x_val[var_col].astype(int)
+    prot_test = x_test[var_col].astype(int)
     
-    
+    print(x_train, y_train, prot_train, x_val, y_val, prot_val)
     struc = Tree_Structure(x_train, y_train, prot_train, x_val, y_val, prot_val, run)
 
     gen_process = Genetic_Pruning_Process_NSGA2(struc, objectives, generations, individuals, 0.7, 0.2)
@@ -158,16 +159,13 @@ for run in range(n_runs):
     indivs = gen_process.genetic_optimization(set_seed)
     
     print(indivs)
-    i=0
-    for front in indivs:    
-        for indiv in front:
-            print(i)
-            print(indiv.repre)
-            for i in range(len(objectives)):
-                print(objectives[i], indiv.objectives[i])
-        i = i+1
+    for indiv in indivs:    
+        print(i)
+        print(indiv.repre)
+        for i in range(len(objectives)):
+            print(objectives[i], indiv.objectives[i])
     
-    test_and_save_results(x_test, y_test, prot_test, indivs, objectives, generations, individuals, generations, dataset, variable, set_seed, objectives, extraobj)
+    test_and_save_results(x_test, y_test, prot_test, indivs, objectives, generations, individuals, generations, dataset, var_col, set_seed, objectives, extraobj)
         
     
 

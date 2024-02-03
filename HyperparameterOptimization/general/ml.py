@@ -227,7 +227,7 @@ def train_model(df_name, variable, seed, model, **features):
         'n_estimators': features['n_estimators'],
         'feature_fraction': features['feature_fraction']
         }
-        clf = FairLGBM(lamb=features['lamb'], proc=variable, lgbm_params=lgbm_params)
+        clf = FairLGBM(lamb=features['lamb'], proc=variable, fair_c='fpr', lgbm_params=lgbm_params)
     
     if model == "FDT":
         learner = clf.fit(X_train, y_train, prot = prot.to_numpy())

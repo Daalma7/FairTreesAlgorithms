@@ -57,7 +57,7 @@ class Tree_Structure:
         self.fair_dict, self.total_samples_dict, self.base_leaves, self.assoc_dict = self.aux_objectives_metrics()
         self.pruning_space = self.calc_pruning_space()
 
-
+        
 
     def aux_objectives_metrics(self, verbose=False):
         """
@@ -363,6 +363,11 @@ class Individual:
         self.repre = repre   # Each individual created needs to have a minimal representation
         self.objectives = self.calc_objectives()     # And also its objectives values will be calculated
         self.creation_mode = creation_mode
+        self.num_prunings = len(repre)
+        self.depth = None
+        self.num_leaves = None
+        self.unbalance = None
+        self.mean_depth = None
 
     # MODIFIABLE
     def calc_objectives(self):
@@ -473,6 +478,8 @@ class Individual:
         new_tree = copy.deepcopy(self.struc.clf)
         children_left = new_tree.tree_.children_left
         children_right = new_tree.tree_.children_right
+        all_depths = []
+
         #values = new_tree.tree_.value
         
         stack = [(0, [])]  # start with the root node id (0) and its depth (0)
@@ -495,7 +502,16 @@ class Individual:
             else:                           # If a leaf node, or a pruning to be applied, we overwrite the values of children to be -1 (no children)
                 new_tree.tree_.children_left[node_id] = TREE_LEAF
                 new_tree.tree_.children_right[node_id] = TREE_LEAF
-                        
+                all_depths.append(len(repr))
+
+        all_depths = np.array(all_depths)
+
+        #new_tree.tree_.n_leaves = len(all_depths)
+        #new_tree.tree_.max_depth = all_depths.max()
+        self.depth = all_depths.max()
+        self.num_leaves = len(all_depths)
+        self.unbalance = float(all_depths.min()) / float(all_depths.max())
+        self.mean_depth = all_depths.mean()
         return new_tree
 
 
@@ -606,8 +622,7 @@ class Individual:
             id_repre.append(key_list[position])
         return id_repre
 
-                
-        
+
 
 class Individual_NSGA2(Individual):
     """
@@ -626,4 +641,3 @@ class Individual_NSGA2(Individual):
         Individual.__init__(struc, repre)
         self.rank = None
         self.crowding_distance = None
-

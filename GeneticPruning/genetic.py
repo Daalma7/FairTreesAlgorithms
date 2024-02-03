@@ -7,7 +7,7 @@ from sklearn.metrics import accuracy_score
 from individual import Individual
 from individual import Individual_NSGA2
 from sympy import symbols, nsolve
-import random
+import random, copy
 
 class Genetic_Pruning_Process():
 
@@ -323,7 +323,6 @@ class Genetic_Pruning_Process():
             # We will calculate the nodes from which a modification of a pruning can be done 
             # We will insert them in an ORDERED way
             leaves = indiv.repre.copy()                  # Considering the prunings which have been applied.
-            
             if len(leaves) > 0:
                 # We will now insert all the actual leaves not pruned by any already considered pruning into the representation
                 j = len(self.struc.base_leaves) - 1
@@ -359,86 +358,159 @@ class Genetic_Pruning_Process():
                     leaves.append(self.struc.base_leaves[j])
                     j = j - 1
 
-            # We will now randomly select some of those leaves. We will select it using equal probabilities
-            # TODO Modoficar para que se puedan modificar TODAS LAS HOJAS
-
+            # We will now randomly select one of those leaves. We will select it using equal probabilities
             new_repre = indiv.repre.copy()
 
-            for leaf in leaves:
+            # Select random leaf
+            leaf = copy.deepcopy(random.choice(leaves))
+            move_distance = int(self.struc.clf.tree_.max_depth / 10)
+
+            # After having selected the leaf, we will now select the mutation applied over that leaf.
+            if random.random() > 0.5:
+                # Move up
+                if len(leaf) > move_distance:                       # If we can traverse up the amount specified in move_distance
+                    leaf = leaf[:-move_distance]
+                else:                                               # In any other case, we have to move up to the root node
+                    leaf = []
+            else:
+                # Move down
+                for i in range(move_distance):                      # We will try to move down the number speficied in move_distance
+                    if random.random() > 0.5:                           # Create the random path
+                        leaf.append(1)
+                    else:
+                        leaf.append(0)
+                
+                is_prun = leaf in self.struc.pruning_space
+                while not is_prun:
+                    leaf = leaf[:-1]
+                    is_prun = leaf in self.struc.pruning_space
+            
+            # We will now insert it
+            if not leaf in new_repre:
+                # Once we've decided that we will add the new calculated leaf 
+                inserted = False
+                if len(leaf) > 1:                       # It its parent is not the root node
+                    # We will insert it in an ordered way
+                    l = 0
+                    end = False
+                    while l < len(new_repre) and not inserted:
+                        minlen = min(len(new_repre[l]), len(leaf))
+                        res = self.lex_compare(new_repre[l][:minlen], leaf[:minlen])
+                        if res == 0:                    # We need to prune that branch
+                            del new_repre[l]
+                            l = l - 1
+                        if res == 2:                    # We insert the pruning just before
+                            inserted = True
+                            new_repre.insert(l, leaf)
+                
+                        l = l+1
+                    
+                    if not inserted:
+                        new_repre.append(leaf)
+
+            
+            """
+            # for leaf in leaves:
                 #probs = {tuple(leaf): 1/len(leaves) for leaf in leaves}
                 #leaf = list(self.aux_random_value_prob_dict(probs, np.random.random()))         # Select one of the leaves
     
-                # After having selected the leaf, we will now select the mutation applied over that leaf.
-                if leaf in self.struc.base_leaves:                 # If the leaf is a leaf node of the complete tree, we can only select its parent, or leave it (equally likely)
-                    if random.random() > 0.5:                            # Equally likely to take it or not
+            # After having selected the leaf, we will now select the mutation applied over that leaf.
+            if leaf in self.struc.base_leaves:                 # If the leaf is a leaf node of the complete tree, we can only select its parent, or leave it (equally likely)
+                if random.random() > 0.5:                            # Equally likely to take it or not
+                    inserted = False
+                    if len(leaf) > 1:                       # It its parent is not the root node
+                        # We will insert it in an ordered way
+                        l = 0
+                        end = False
+                        while l < len(new_repre) and not inserted:
+                            minlen = min(len(new_repre[l]), len(leaf[:-1]))
+                            res = self.lex_compare(new_repre[l][:minlen], leaf[:minlen])
+                            if res == 0:                    # We need to prune that branch
+                                del new_repre[l]
+                                l = l - 1
+                            if res == 2:                    # We insert the pruning just before
+                                inserted = True
+                                new_repre.insert(l, leaf[:-1])                        
+                            l = l+1
+                        
+                        if not inserted:
+                            new_repre.append(leaf[:-1])
+
+
+            
+                    if leaf in new_repre:
+                        new_repre.remove(leaf)                                                      # Get rid of the leaf
+            
+                    if not prun == 'empty':
+                        # Once we've decided that we will add the new calculated leaf 
                         inserted = False
-                        if len(leaf) > 1:                       # It its parent is not the root node
+                        if len(prun) > 1:                       # It its parent is not the root node
                             # We will insert it in an ordered way
                             l = 0
                             end = False
                             while l < len(new_repre) and not inserted:
-                                minlen = min(len(new_repre[l]), len(leaf[:-1]))
-                                res = self.lex_compare(new_repre[l][:minlen], leaf[:minlen])
+                                minlen = min(len(new_repre[l]), len(prun))
+                                res = self.lex_compare(new_repre[l][:minlen], prun[:minlen])
                                 if res == 0:                    # We need to prune that branch
                                     del new_repre[l]
                                     l = l - 1
                                 if res == 2:                    # We insert the pruning just before
                                     inserted = True
-                                    new_repre.insert(l, leaf[:-1])                        
+                                    new_repre.insert(l, prun)
+                        
                                 l = l+1
                             
                             if not inserted:
-                                new_repre.append(leaf[:-1])
-                            
-    
-                else:                                   # In other case we can go up or down in the tree hierarchy.
-                    new_probs = {tuple(leaf): 1}                          # We will create a new space for the possible mutations (keeping )
-                    if len(leaf) > 1:
-                        new_probs[tuple(leaf[:-1])] = 1/2          # Parent node
-                    children = self.struc.children_nodes(list(leaf))
-                    
-                    # Children nodes. We have to take into account the possibility of removing the pruning if a children is a leaf node of the actual tree
-                    # These probabilities have to be modified into more accurate ones
-                    if len(children) == 2:
-                        new_probs[children[0]] = 1/2
-                        new_probs[children[1]] = 1/2
-                    elif len(children) == 1:
-                        new_probs['empty'] = 1/2
-                        new_probs[children[0]] = 1/2
-                    else:
-                        new_probs['empty'] = 1/2
+                                new_repre.append(prun)
+
+            else:                                   # In other case we can go up or down in the tree hierarchy.
+                new_probs = {tuple(leaf): 1}                          # We will create a new space for the possible mutations (keeping )
+                if len(leaf) > 1:
+                    new_probs[tuple(leaf[:-1])] = 1/2          # Parent node
+                children = self.struc.children_nodes(list(leaf))
                 
-                    my_sum = sum(new_probs.values())                                        # Calculate sum for probability normalization
-                    new_probs = {key: value/my_sum for key, value in new_probs.items()}         # Apply probability normalization
-    
-                    prun = self.aux_random_value_prob_dict(new_probs, np.random.random())         # Select one of them
-                    
-                    if not prun is leaf:
-                        if leaf in new_repre:
-                            new_repre.remove(leaf)                                                      # Get rid of the leaf
+                # Children nodes. We have to take into account the possibility of removing the pruning if a children is a leaf node of the actual tree
+                # These probabilities have to be modified into more accurate ones
+                if len(children) == 2:
+                    new_probs[children[0]] = 1/2
+                    new_probs[children[1]] = 1/2
+                elif len(children) == 1:
+                    new_probs['empty'] = 1/2
+                    new_probs[children[0]] = 1/2
+                else:
+                    new_probs['empty'] = 1/2
+            
+                my_sum = sum(new_probs.values())                                        # Calculate sum for probability normalization
+                new_probs = {key: value/my_sum for key, value in new_probs.items()}         # Apply probability normalization
+
+                prun = self.aux_random_value_prob_dict(new_probs, np.random.random())         # Select one of them
                 
-                        if not prun == 'empty':
-                            # Once we've decided that we will add the new calculated leaf 
-                            inserted = False
-                            if len(prun) > 1:                       # It its parent is not the root node
-                                # We will insert it in an ordered way
-                                l = 0
-                                end = False
-                                while l < len(new_repre) and not inserted:
-                                    minlen = min(len(new_repre[l]), len(prun))
-                                    res = self.lex_compare(new_repre[l][:minlen], prun[:minlen])
-                                    if res == 0:                    # We need to prune that branch
-                                        del new_repre[l]
-                                        l = l - 1
-                                    if res == 2:                    # We insert the pruning just before
-                                        inserted = True
-                                        new_repre.insert(l, prun)
+                if not prun is leaf:
+                    if leaf in new_repre:
+                        new_repre.remove(leaf)                                                      # Get rid of the leaf
+            
+                    if not prun == 'empty':
+                        # Once we've decided that we will add the new calculated leaf 
+                        inserted = False
+                        if len(prun) > 1:                       # It its parent is not the root node
+                            # We will insert it in an ordered way
+                            l = 0
+                            end = False
+                            while l < len(new_repre) and not inserted:
+                                minlen = min(len(new_repre[l]), len(prun))
+                                res = self.lex_compare(new_repre[l][:minlen], prun[:minlen])
+                                if res == 0:                    # We need to prune that branch
+                                    del new_repre[l]
+                                    l = l - 1
+                                if res == 2:                    # We insert the pruning just before
+                                    inserted = True
+                                    new_repre.insert(l, prun)
+                        
+                                l = l+1
                             
-                                    l = l+1
-                                
-                                if not inserted:
-                                    new_repre.append(prun)
-                            
+                            if not inserted:
+                                new_repre.append(prun)
+            """         
 
             return Genetic_Pruning_Process.indiv_class(self.struc, self.objs_string, list(new_repre), 'mutation')
 
@@ -616,7 +688,6 @@ class Genetic_Pruning_Process_NSGA2(Genetic_Pruning_Process):
         """
         np.random.seed(seed)
 
-
         print("Start")
         #for i in range(len(self.population)):
             #print(self.population[i].repre)
@@ -633,5 +704,5 @@ class Genetic_Pruning_Process_NSGA2(Genetic_Pruning_Process):
 
         self.fast_nondominated_sort()
         
-        return self.fronts                       # Returns the best individuals
+        return self.fronts[0]                       # Returns the best individuals
 

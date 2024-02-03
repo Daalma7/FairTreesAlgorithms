@@ -13,18 +13,29 @@ import pickle
 
 #Reads the dataset to work with. You have to work with preprocessed data, and to ensure it, we will only read the files ending with _preproc
 def read_data(df_name):
-        
-    df = pd.read_csv('../data/' + df_name + '_preproc.csv', sep = ',')
+    df = pd.read_csv('../../datasets/data/' + df_name + '.csv', sep = ',')
     if 'Unnamed: 0' in df.columns:
         df = df.drop('Unnamed: 0', axis=1)
     return df
 
 
 #Data preprocessing and splits dataframe into train and test
-def get_matrices(df_name, seed):
+def get_matrices(df_name, y_col, seed):
     df = read_data(df_name)
-    X = df.iloc[:, :-1]
-    y = df.iloc[:, -1]
+
+    if df_name == 'compas':
+        df = df.drop('decile_score', axis=1)
+    else:
+        df = df.drop(y_col, axis=1)
+    if y_col + '_binary' in df.columns:
+        df[y_col] = df[y_col + '_binary']
+        df = df.drop(y_col + '_binary', axis=1)
+    if 'binary_' + y_col in df.columns:
+        df[y_col] = df['binary_' + y_col]
+        df = df.drop('binary_' + y_col, axis=1)
+    
+    X = df.loc[:, df.columns != y_col]
+    y = df.loc[:, y_col]
     X_train, X_test, y_train, y_test = train_test_split(X, y, random_state = seed)
     X_train, X_val, y_train, y_val = train_test_split(X_train, y_train, random_state = seed)
     return X_train, X_val, X_test, y_train, y_val, y_test
@@ -131,12 +142,13 @@ def test_and_save_results(x_test, y_test, prot_test, classifiers, objectives, ge
     obj_str = '_'.join(objectives) 
     extra_str = '_'.join(objectives)
     if not extra is None:
-        save_name = 'results/' + dat + '__' + var + '__obj_' + obj_str + '__seed_' + str(seed) + '__extra_' + extra_str + '__nind_' + str(nind) + '__ngen_' + str(ngen) + '.csv'
+        save_name = '../../results/GP/' + dat + '__' + var + '__obj_' + obj_str + '__seed_' + str(seed) + '__extra_' + extra_str + '__nind_' + str(nind) + '__ngen_' + str(ngen) + '.csv'
     else:
-        save_name = 'results/' + dat + '__' + var + '__obj_' + obj_str + '__seed_' + str(seed) + '__nind_' + str(nind) + '__ngen_' + str(ngen) + '.csv'
+        save_name = '../../results/GP/' + dat + '__' + var + '__obj_' + obj_str + '__seed_' + str(seed) + '__nind_' + str(nind) + '__ngen_' + str(ngen) + '.csv'
     
-    dict_generate = {'ID': [], 'seed': [], 'creation_mode': []}
+    dict_generate = {'ID': [], 'seed': [], 'creation_mode': [], 'num_prunings': [], 'num_leaves': [], 'depth':[], 'mean_depth':[], 'unbalance':[]}
     
+
     for elem in obj:
         dict_generate[elem + '_val'] = []
     for elem in obj:
@@ -145,15 +157,24 @@ def test_and_save_results(x_test, y_test, prot_test, classifiers, objectives, ge
     dict_generate['repre'] = []
     
     for clf in classifiers:
+        print("----")
+        print(clf)
         ID = generate_random_string(20)
         dict_generate['ID'].append(ID)
         dict_generate['seed'].append(seed)
         dict_generate['repre'].append(clf.repre_to_node_id())
         dict_generate['creation_mode'].append(clf.creation_mode)
+
         test_objs = clf.test_tree(x_test, y_test, prot_test)
         for i in range(len(obj)):
             dict_generate[obj[i] + '_val'].append(clf.objectives[i])
             dict_generate[obj[i] + '_test'].append(test_objs[i])
+        
+        dict_generate['num_prunings'].append(clf.num_prunings)
+        dict_generate['num_leaves'].append(clf.num_leaves)
+        dict_generate['depth'].append(clf.depth)
+        dict_generate['mean_depth'].append(clf.mean_depth)
+        dict_generate['unbalance'].append(clf.unbalance)
         
     df = pd.DataFrame(dict_generate)
     
