@@ -25,12 +25,11 @@ randomized trees. Single and multi-output problems are both handled.
 
 import sys
 import os
-sys.path.append('.')
-sys.path.append(os.getcwd())
+sys.path.insert(1, os.path.join(os.path.dirname(__file__)))
 
-from . import _tree
-from . import _splitter
-from . import _criterion
+import _tree
+import _splitter
+import _criterion
 from FairDT._splitter import Splitter
 from FairDT._criterion import Criterion
 import numbers
@@ -368,7 +367,7 @@ class BaseDecisionTree(MultiOutputMixin, BaseEstimator, metaclass=ABCMeta):
                                            max_depth,
                                            max_leaf_nodes,
                                            self.min_impurity_decrease)
-        print(prot)
+        #print(prot)
 
         builder.build(self.tree_, X, y, sample_weight, prot)
 

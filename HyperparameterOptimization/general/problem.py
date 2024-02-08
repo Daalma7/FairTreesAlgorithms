@@ -7,6 +7,9 @@ sys.path.append("..")
 from general.individual import *
 from general.population import Population
 from general.ml import *
+import os
+
+PATH_TO_RESULTS = os.path.dirname(os.path.dirname( os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__)))))) + '/results/'
 
 #Clase que representa un problema multiobjetivo
 class Problem:
@@ -196,11 +199,12 @@ class Problem:
             objectives_results_dict = {'gmean_inv': 'error', 'dem_fpr': 'dem_fp', 'dem_ppv': 'dem_ppv', 'dem_pnr': 'dem_pnr', 'num_leaves': 'num_leaves', 'data_weight_avg_depth':'data_weight_avg_depth'}
             hyperparameters = individual.features
             learner = train_model(self.dataset_name, self.variable_name, self.seed, self.model, **hyperparameters) #Model training
-            X, y, pred = val_model(self.dataset_name, learner, seed)          #Model validation
+            X, y, pred = val_model(self.dataset_name, self.variable_name, learner, seed)          #Model validation
 
             y_fair = evaluate_fairness(X, y, pred, self.variable_name)        #For getting objectives using validation data
             individual.objectives = []
 
+            #TODO: Fallos
             for x in self.objectives:
                 if x.__name__ == 'gmean_inv':
                     individual.objectives.append(gmean_inv(y, pred))
@@ -277,7 +281,7 @@ class Problem:
 
             individuals_aux = pd.DataFrame(dict_dataframe)
             self.individuals_df = pd.concat([self.individuals_df, individuals_aux])
-            self.individuals_df.to_csv('../results/' + self.model + '/' + str(method) + '/individuals/individuals_' + self.dataset_name + '_seed_' + str(seed) + '_var_' + self.variable_name + '_gen_' + str(self.num_of_generations) + '_indiv_' + str(self.num_of_individuals) + '_model_' + self.model + '_obj_' + self.get_obj_string() + self.get_extra_string() + '.csv', index = False, header = True, columns = list(dict_dataframe.keys()))
+            self.individuals_df.to_csv(PATH_TO_RESULTS + self.model + '/' + str(method) + '/individuals/individuals_' + self.dataset_name + '_seed_' + str(seed) + '_var_' + self.variable_name + '_gen_' + str(self.num_of_generations) + '_indiv_' + str(self.num_of_individuals) + '_model_' + self.model + '_obj_' + self.get_obj_string() + self.get_extra_string() + '.csv', index = False, header = True, columns = list(dict_dataframe.keys()))
     
     #Evaluates and exports to csv the pareto-optimal individuals obtained during all the execution
     def test_and_save(self, individual, first, seed, method):
@@ -287,7 +291,7 @@ class Problem:
             hyperparameters = individual.features
             learner = train_model(self.dataset_name, self.variable_name, seed, self.model, **hyperparameters)
             save_model(learner, self.dataset_name, seed, self.variable_name, self.num_of_generations, self.num_of_individuals, individual.id, self.model, method, self.objectives)
-            X, y, pred = test_model(self.dataset_name, learner, seed)       #Model test (not validation as above)
+            X, y, pred = test_model(self.dataset_name, self.variable_name, learner, seed)       #Model test (not validation as above)
             y_fair = evaluate_fairness(X, y, pred, self.variable_name)      #For getting objectives, using test data
             objectives_test = []
             for x in self.objectives:
@@ -366,9 +370,9 @@ class Problem:
             individuals_aux = pd.DataFrame(dict_dataframe)
             self.individuals_df = pd.concat([self.individuals_df, individuals_aux])
             if (first):
-                individuals_aux.to_csv('../results/' + self.model + '/' + str(method) + '/individuals/individuals_pareto_' + self.dataset_name + '_seed_' + str(seed) + '_var_' + self.variable_name + '_gen_' + str(self.num_of_generations) + '_indiv_' + str(self.num_of_individuals) + '_model_' + self.model + '_obj_' + self.get_obj_string() + self.get_extra_string() + '.csv', index = False, header = True, columns = list(dict_dataframe.keys()))
+                individuals_aux.to_csv(PATH_TO_RESULTS + self.model + '/' + str(method) + '/individuals/individuals_pareto_' + self.dataset_name + '_seed_' + str(seed) + '_var_' + self.variable_name + '_gen_' + str(self.num_of_generations) + '_indiv_' + str(self.num_of_individuals) + '_model_' + self.model + '_obj_' + self.get_obj_string() + self.get_extra_string() + '.csv', index = False, header = True, columns = list(dict_dataframe.keys()))
             else:
-                individuals_aux.to_csv('../results/' + self.model + '/' + str(method) + '/individuals/individuals_pareto_' + self.dataset_name + '_seed_' + str(seed) + '_var_' + self.variable_name + '_gen_' + str(self.num_of_generations) + '_indiv_' + str(self.num_of_individuals) + '_model_' + self.model + '_obj_' + self.get_obj_string() + self.get_extra_string() + '.csv', index = False, mode='a', header=False, columns = list(dict_dataframe.keys()))
+                individuals_aux.to_csv(PATH_TO_RESULTS + self.model + '/' + str(method) + '/individuals/individuals_pareto_' + self.dataset_name + '_seed_' + str(seed) + '_var_' + self.variable_name + '_gen_' + str(self.num_of_generations) + '_indiv_' + str(self.num_of_individuals) + '_model_' + self.model + '_obj_' + self.get_obj_string() + self.get_extra_string() + '.csv', index = False, mode='a', header=False, columns = list(dict_dataframe.keys()))
     
     #Calculate file with the general pareto front using all pareto fronts in every execution
     def calculate_pareto_optimal(self, seed, runs, method):
@@ -381,7 +385,7 @@ class Problem:
             objectives_results_norm_dict = {'num_leaves': 'num_leaves_tst', 'data_weight_avg_depth': 'data_weight_avg_depth_tst'}
 
             for i in range(runs):
-                read = pd.read_csv('../results/' + self.model + '/' + str(method) + '/individuals/individuals_pareto_' + self.dataset_name + '_seed_' + str(seed + i) + '_var_' + self.variable_name + '_gen_' + str(self.num_of_generations) + '_indiv_' + str(self.num_of_individuals) + '_model_' + self.model + '_obj_' + self.get_obj_string() + self.get_extra_string() + '.csv')
+                read = pd.read_csv(PATH_TO_RESULTS + self.model + '/' + str(method) + '/individuals/individuals_pareto_' + self.dataset_name + '_seed_' + str(seed + i) + '_var_' + self.variable_name + '_gen_' + str(self.num_of_generations) + '_indiv_' + str(self.num_of_individuals) + '_model_' + self.model + '_obj_' + self.get_obj_string() + self.get_extra_string() + '.csv')
                 pareto_fronts.append(read)
 
             hyperparameters = []
@@ -449,6 +453,6 @@ class Problem:
             #We extract them to a file
             pareto_optimal_df = pd.concat(pareto_optimal_df)
             pareto_optimal_df = pareto_optimal_df.drop_duplicates(subset=(['seed']+hyperparameters), keep='first')
-            pareto_optimal_df.to_csv('../results/' + self.model + '/' + str(method) + '/individuals/general_individuals_pareto_' + self.dataset_name + '_baseseed_' + str(seed) + '_nruns_' + str(runs) +'_var_' + self.variable_name + '_gen_' + str(self.num_of_generations) + '_indiv_' + str(self.num_of_individuals) + '_model_' + self.model + '_obj_' + self.get_obj_string() + self.get_extra_string() + '.csv', index = False, header = True, columns = list(pareto_fronts.keys()))
+            pareto_optimal_df.to_csv(PATH_TO_RESULTS + self.model + '/' + str(method) + '/individuals/general_individuals_pareto_' + self.dataset_name + '_baseseed_' + str(seed) + '_nruns_' + str(runs) +'_var_' + self.variable_name + '_gen_' + str(self.num_of_generations) + '_indiv_' + str(self.num_of_individuals) + '_model_' + self.model + '_obj_' + self.get_obj_string() + self.get_extra_string() + '.csv', index = False, header = True, columns = list(pareto_fronts.keys()))
 
             return pareto_optimal, pareto_optimal_df                   #Population of pareto front individuals

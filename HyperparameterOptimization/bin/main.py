@@ -10,14 +10,18 @@ import importlib
 warnings.filterwarnings("ignore")
 
 sys.path.append("..")
+sys.path.append("../HyperparameterOptimization/")
 from general.ml import *
 from general.problem import Problem
 from general.qualitymeasures import *
 
-alg = nind = ngen = dat = var = bseed = nruns = obj = mod = extra = False        #Possible parameters given
+alg = nind = ngen = dat = sens_col = bseed = nruns = obj = mod = extra = False        #Possible parameters given
+dataset = None
+datasetlist = ['academic','adult','arrhythmia','bank','catalunya','compas','credit','crime','default','diabetes-w','diabetes','drugs','dutch','german','heart','hrs','insurance','kdd-census','lsat','nursery','obesity', 'older-adults','oulad','parkinson','ricci','singles','student','tic','wine','synthetic-athlete','synthetic-disease','toy']
+dict_outcomes = {'academic': 'atd','adult': 'income','arrhythmia': 'arrhythmia','bank': 'Subscribed','catalunya': 'recid','compas': 'score','credit': 'NoDefault','crime': 'ViolentCrimesPerPop','default': 'default','diabetes-w': 'Outcome','diabetes': 'readmitted','drugs': 'Coke','dutch': 'status','german': 'Label','heart': 'class','hrs': 'score','insurance': 'charges','kdd-census': 'Label','lsat':'ugpa','nursery': 'class','obesity': 'NObeyesdad','older-adults': 'mistakes','oulad': 'Grade','parkinson': 'total_UPDRS','ricci': 'Combine','singles': 'income','student': 'G3','tic': 'income', 'wine': 'quality','synthetic-athlete': 'Label','synthetic-disease': 'Label','toy': 'Label'}
+dict_protected = {'academic': 'ge','adult': 'Race','arrhythmia': 'sex','bank': 'AgeGroup','catalunya': 'foreigner','compas': 'race','credit': 'sex','crime': 'race','default': 'SEX','diabetes-w': 'Age','diabetes': 'Sex','drugs': 'Gender','dutch': 'Sex','german': 'Sex','heart': 'Sex','hrs': 'gender','insurance': 'sex','kdd-census': 'Sex','lsat':'race','nursery': 'finance','obesity': 'Gender','older-adults': 'sex','oulad': 'Sex','parkinson': 'sex','ricci': 'Race','singles': 'sex','student': 'sex','tic': 'religion','wine': 'color','synthetic-athlete': 'Sex','synthetic-disease': 'Age','toy': 'sst'}
 
 message = "\nExecutes a multiobjective evolutionary optimization algorithm to solve a problem, with the following parameters:\n"
-
 message += "\nThe following parameters have been given by the user:"
 
 error = False
@@ -43,10 +47,11 @@ for i in range(1, len(sys.argv)):           #We're going to read all parameters
     if not valid and param[0] == 'dat':               #Name of the dataset
         dat = valid = True
         dataset = param[1]
-    
-    if not valid and param[0] == 'var':               #Name of the sensitive variable
-        var = valid = True
-        variable = param[1]
+        assert dataset in datasetlist
+        sens_col = dict_protected[dataset]
+        y_col = dict_outcomes[dataset]
+        message += "\n- y=" + y_col
+        message += "\n- prot=" + sens_col
     
     if not valid and param[0] == 'bseed':             #Base seed for the 1st run of the algorithm
         bseed = valid = True
@@ -78,7 +83,6 @@ for i in range(1, len(sys.argv)):           #We're going to read all parameters
 \t- nidn=(integer): Number of individuals to have each population during algorithm execution. The default is 50.\n\n\
 \t- ngen=(integer): Number of generations for the algorithm to be executed (stopping criteria). The default is 300\n\n\
 \t- dat=(dataset): Name of the dataset in csv format. The file should be placed at the folder named data. Initial dataset are adult, german, propublica_recidivism, propublica_violent_recidivism and ricci. The default is german.\n\n\
-\t- var=(variable): Name of the sensitive variable for the dataset variable. Sensitive considered variables for each of the previous datasets are: adult-race, german-age, propublica_recidivism-race, propublica_violent_recidivism-race, ricci-Race. The default is the first variable of a the dataset (It is absolutely recommendable to change)\n\n\
 \t- bseed=(integer): Base seed which will be used in the first run of the algorithm. It\'s used for train-validation-test split for the data, and other possible needs which require randomness. The default is 100.\n\n\
 \t- nruns=(integer): Number of runs for the algorithm to be executed with different seeds. Each run takes consecutive seeds with respect to the previous one, starting from the base seed. The default is 10.\n\n\
 \t- model=(model abbreviation): Model to use. Possible models are Decision Tree (DT), Fair Decision Trees and Logistic Regression (LR). The default is DT.\n\n\
@@ -86,7 +90,7 @@ for i in range(1, len(sys.argv)):           #We're going to read all parameters
 \t- extra=(comm separated list of objectives): List of objectives to not be used in optimization, but to be calculated in individuals generated. Possible values are the same as in obj. The default is None.\n\n\
 \t- help: Shows this help and ends.\n\n\
 An example sentence for execute this file could be:\n\n\
-\tpython fairness.py nind=60 ngen=300 alg=nsga2 dat=propublica_recidivism var=race bseed=100 nruns=10 model=DT obj=gmean_inv,dem_fpr,dem_ppv,num_leaves\n\n\
+\tpython fairness.py nind=60 ngen=300 alg=nsga2 dat=propublica_recidivism bseed=100 nruns=10 model=DT obj=gmean_inv,dem_fpr,dem_ppv,num_leaves\n\n\
 Results are saved into the corresponding results/(algorithm)/individuals folder. There are 2 kind of files:\n\n\
 \t- individuals_... files: contain all individuals generated by the algorithm for a specific run.\n\n\
 \t- individuals_pareto_... files: contain all Pareto optimal individuals generated by the algorithm for a specific run.\n\n')
@@ -96,7 +100,7 @@ Results are saved into the corresponding results/(algorithm)/individuals folder.
     if not valid:
         print('At least 1 parameter name introduced is invalid.\n\
 Please check out for mistakes there. Possible parameters are:\n\
-alg, nind, ngen, dat, var, bseed, nruns, extra.\n\
+alg, nind, ngen, dat, bseed, nruns, extra.\n\
 Type: \"python fairness.py help\" for help. Aborting\n')
         sys.exit(1)
 
@@ -118,10 +122,11 @@ if not ngen:
     print("- ngen=" + str(generations))
 if not dat:
     dataset = 'german'      #Default dataset: german
+    sens_col = dict_protected[dataset]
+    y_col = dict_outcomes[dataset]
     print("- dat=" + dataset)
-if not var:
-    variable = pd.read_csv('../data/' + dataset + '.csv').columns[0]           #Default sensitive variable: First dataset variable
-    print("- var=" + variable)
+    print("- y=" + y_col)
+    print("- prot=" + sens_col)
 if not bseed:
     set_seed_base = 100             #Base seed for the 1st run of the algorithm
     print("- bseed=" + str(set_seed_base))
@@ -156,11 +161,24 @@ for run in range(n_runs):
     set_seed = set_seed_base + run
 
     # write datasets
-    X_tr, X_v, X_tst, y_tr, y_v, y_tst = get_matrices(dataset, set_seed)
-    write_train_val_test(dataset, set_seed, X_tr, X_v, X_tst, y_tr, y_v, y_tst)
+    X_tr, X_v, X_tst, y_tr, y_v, y_tst = get_matrices(dataset, y_col, set_seed)
+    write_train_val_test(dataset, sens_col, set_seed, X_tr, X_v, X_tst, y_tr, y_v, y_tst)
+
+    print("X train:", X_tr)
+    print("X val:", X_v)
+    print("X test:", X_tst)
+
+    print("y train:", y_tr)
+    print("y val:", y_v)
+    print("y test:", y_tst)
+
+    print("prot train:", X_tr[sens_col])
+    print("prot val:", X_v[sens_col])
+    print("prot test:", X_tst[sens_col])
+
     
     # number of rows in train
-    num_rows_train = get_matrices(dataset, set_seed)[0].shape[0]
+    num_rows_train = get_matrices(dataset, y_col, set_seed)[0].shape[0]
     
     # RANGE OF HYPERPARAMETERS
     if model == "DT":               #If we're using Decision Trees:
@@ -252,7 +270,7 @@ for run in range(n_runs):
 
         variables_range = [(min_range_lamb, max_range_lamb), (min_range_num_leaves, max_range_num_leaves), (min_range_min_data_in_leaf, max_range_min_data_in_leaf),(min_range_max_depth, max_range_max_depth),(min_range_learning_rate, max_range_learning_rate),(min_range_n_estimators, max_range_n_estimators),(min_range_feature_fraction, max_range_feature_fraction)]
     
-    
+    print(sens_col)
     
     problem = Problem(num_of_variables = 5,
                       objectives = objectives,
@@ -262,7 +280,7 @@ for run in range(n_runs):
                       num_of_generations = generations,
                       num_of_individuals = individuals,
                       dataset_name = dataset,
-                      variable_name = variable,
+                      variable_name = sens_col,
                       model = model,
                       seed = set_seed)
 
@@ -271,7 +289,7 @@ for run in range(n_runs):
     evo = Evomodule.Evolution(problem,
                     evolutions_df = pd.DataFrame(),
                     dataset_name = dataset,
-                    protected_variable = variable,
+                    protected_variable = sens_col,
                     num_of_generations = generations,
                     num_of_individuals = individuals)
     
@@ -288,3 +306,8 @@ for run in range(n_runs):
 print("Calculating pareto optimal solutions using all runs...")
 pareto_optimal_exec, pareto_optimal_df = problem.calculate_pareto_optimal(set_seed_base, n_runs, algorithm)
 print("Execution succesful!\n------------------------------")
+
+
+# binary_test_seed_x.csv
+# binary_train_seed_x.csv
+# binary_val_seed_x.csv

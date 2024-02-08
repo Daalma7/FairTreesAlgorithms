@@ -11,14 +11,19 @@ import pydotplus
 from imblearn.metrics import geometric_mean_score
 from collections import Counter
 import contextlib
-
+import os
+import re
 import pickle
 
 
-sys.path.append(os.path.abspath(os.path.join('..', 'models')))
+PATH_TO_RESULTS = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__)))) + '/results/'
+PATH_TO_DATA = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__)))))) + '/datasets/data/'
+
+sys.path.insert(1, os.path.abspath(os.path.join('..', 'models')))
 from FairDT._classes import DecisionTreeClassifier as FairDecisionTreeClassifier
 from sklearn.tree import DecisionTreeClassifier
 from FLGBM.FLGBM import FairLGBM
+
 
 #Decoding hyperparameters
 # Here we correct the values of some hyperparameters, as some of them can be unbounded
@@ -120,8 +125,7 @@ def decode(var_range, model, **features):
 
 #Reads the dataset to work with. You have to work with preprocessed data, and to ensure it, we will only read the files ending with _preproc
 def read_data(df_name):
-        
-    df = pd.read_csv('../../data/' + df_name + '_preproc.csv', sep = ',')
+    df = pd.read_csv(PATH_TO_DATA + df_name + '.csv', sep = ',')
     if 'Unnamed: 0' in df.columns:
         df = df.drop(['Unnamed: 0'], axis=1)
     return df
@@ -136,25 +140,37 @@ def score_text(v):
 
 
 #Data preprocessing and splits dataframe into train and test
-def get_matrices(df_name, seed):
+def get_matrices(df_name, y_col, seed):
     df = read_data(df_name)
-    X = df.iloc[:, :-1]
-    y = df.iloc[:, -1]
+
+    if df_name == 'compas':
+        df = df.drop('decile_score', axis=1)
+    else:
+        df = df.drop(y_col, axis=1)
+    if y_col + '_binary' in df.columns:
+        df[y_col] = df[y_col + '_binary']
+        df = df.drop(y_col + '_binary', axis=1)
+    if 'binary_' + y_col in df.columns:
+        df[y_col] = df['binary_' + y_col]
+        df = df.drop('binary_' + y_col, axis=1)
+    
+    X = df.loc[:, df.columns != y_col]
+    y = df.loc[:, y_col]
     X_train, X_test, y_train, y_test = train_test_split(X, y, random_state = seed)
     X_train, X_val, y_train, y_val = train_test_split(X_train, y_train, random_state = seed)
     return X_train, X_val, X_test, y_train, y_val, y_test
 
 #Exports to csv files train, validation and test sets
-def write_train_val_test(df_name, seed, X_train, X_val, X_test, y_train, y_val, y_test):
+def write_train_val_test(df_name, prot_col, seed, X_train, X_val, X_test, y_train, y_val, y_test):
     train = X_train
     train['y'] = y_train.tolist()
-    train.to_csv('../../data/train_val_test/' + df_name + '_train_seed_' + str(seed) + '.csv', index = False)
+    train.to_csv(PATH_TO_DATA + 'train_val_test_standard/' + df_name + '/' + df_name + '_' + prot_col + '_train_seed_' + str(seed) + '.csv', index = False)
     val = X_val
     val['y'] = y_val.tolist()
-    val.to_csv('../../data/train_val_test/' + df_name + '_val_seed_' + str(seed) + '.csv', index = False)
+    val.to_csv(PATH_TO_DATA + 'train_val_test_standard/' + df_name + '/' + df_name + '_' + prot_col + '_val_seed_' + str(seed) + '.csv', index = False)
     test = X_test
     test['y'] = y_test.tolist()
-    test.to_csv('../../data/train_val_test/' + df_name + '_test_seed_' + str(seed) + '.csv', index = False)
+    test.to_csv(PATH_TO_DATA + 'train_val_test_standard/' + df_name + '/' + df_name + '_' + prot_col + '_test_seed_' + str(seed) + '.csv', index = False)
 
 #Exports obtained decision tree to a png file
 def print_tree(classifier, model, features):
@@ -176,9 +192,15 @@ def print_properties_lr(learner):
 def print_properties_flgbm(learner):
     pass
 
+#TODO Revisar que se ha hecho bien
 #Classifier training
 def train_model(df_name, variable, seed, model, **features):
-    train = pd.read_csv('../../data/train_val_test/' + df_name + '_train_seed_' + str(seed) + '.csv')
+    #path = PATH_TO_DATA + 'train_val_test_standard/' + df_name
+    #pattern = r'.*binary_train_seed_%s\.csv' % seed
+    #print(os.path.abspath(__file__))
+    #matching_files = [file for file in os.listdir(path) if re.match(pattern, file)]
+    #pd.read_csv(path + '/' + matching_files[0])
+    train = pd.read_csv(PATH_TO_DATA + 'train_val_test_standard/' + df_name + '/' + df_name + '_' + variable + '_train_seed_' + str(seed) + '.csv')
     X_train = train.iloc[:, :-1]
     y_train = train.iloc[:, -1]
     prot = X_train[variable]
@@ -239,7 +261,7 @@ def train_model(df_name, variable, seed, model, **features):
 
 # TODO: hola
 def get_max_depth_FLGBM(df_name, variable, seed, model, **features):
-    train = pd.read_csv('../../data/train_val_test/' + df_name + '_train_seed_' + str(seed) + '.csv')
+    train = pd.read_csv(PATH_TO_DATA + 'train_val_test_standard/' + df_name + '/' + df_name + '_' + variable + '_train_seed_' + str(seed) + '.csv')
     X_train = train.iloc[:, :-1]
     y_train = train.iloc[:, -1]
     prot = X_train[variable]
@@ -276,22 +298,24 @@ def save_model(learner, dataset_name, seed, variable_name, num_of_generations, n
     for i in range(1, len(objectives)):
         str_obj += "__" + objectives[i].__name__
 
-    path = '../results/' + str(model) + '/' + str(method) + '/models/' + dataset_name + "/"
+    path = PATH_TO_RESULTS + str(model) + '/' + str(method) + '/models/' + dataset_name + "/"
     filename =  'model_id_' + individual_id + '_seed_' + str(seed) + '_var_' + variable_name + '_gen_' + str(num_of_generations) + '_indiv_' + str(num_of_individuals) + '_obj_' + str(str_obj) + '.sav'
     pickle.dump(learner, open(path + filename, 'wb'))
     return
 
+#TODO Revisar que se ha hecho bien
 #Validates the classifier (comparison with validation set)
-def val_model(df_name, learner, seed):
-    val = pd.read_csv('../../data/train_val_test/' + df_name + '_val_seed_' + str(seed) + '.csv')
+def val_model(df_name, variable, learner, seed):
+    val = pd.read_csv(PATH_TO_DATA + 'train_val_test_standard/' + df_name + '/' + df_name + '_' + variable + '_val_seed_' + str(seed) + '.csv')
     X_val = val.iloc[:, :-1]
     y_val = val.iloc[:, -1]
     y_pred = learner.predict(X_val)
     return X_val, y_val, y_pred
 
+#TODO Revisar que se ha hecho bien
 #Tests the classifier (comparison with test set)
-def test_model(df_name, learner, seed):
-    test = pd.read_csv('../../data/train_val_test/' + df_name + '_test_seed_' + str(seed) + '.csv')
+def test_model(df_name, variable, learner, seed):
+    test = pd.read_csv(PATH_TO_DATA + 'train_val_test_standard/' + df_name + '/' + df_name + '_' + variable + '_test_seed_' + str(seed) + '.csv')
     X_test = test.iloc[:, :-1]
     y_test = test.iloc[:, -1]
     y_pred = learner.predict(X_test)
@@ -301,8 +325,8 @@ def test_model(df_name, learner, seed):
     #y_val_p values belonging to privileged class
 def split_protected(X, y, pred, protected_variable, protected_value = 1):
     df = pd.DataFrame({protected_variable: X[protected_variable], 'y_val': y, 'y_pred': pred})
-    df_p = df.loc[df[protected_variable] == protected_value]        #p variables represent data belonging to privileged class
-    df_u = df.loc[df[protected_variable] != protected_value]        #u variables represent data belonging to unprivileged class
+    df_p = df.loc[df[protected_variable] == protected_value, :]        #p variables represent data belonging to privileged class
+    df_u = df.loc[df[protected_variable] != protected_value, :]        #u variables represent data belonging to unprivileged class
     y_val_p = df_p['y_val']
     y_val_u = df_u['y_val']
     y_pred_p = df_p['y_pred']

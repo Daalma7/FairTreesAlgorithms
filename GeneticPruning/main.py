@@ -9,8 +9,8 @@ from genetic import Genetic_Pruning_Process_NSGA2
 from individual import Tree_Structure
 
 
-nind = ngen = dat = var_col = bseed = nruns = obj = extra = False        #Possible parameters given
-dataset=None
+nind = ngen = dat = sens_col = bseed = nruns = obj = extra = False        #Possible parameters given
+dataset = None
 datasetlist = ['academic','adult','arrhythmia','bank','catalunya','compas','credit','crime','default','diabetes-w','diabetes','drugs','dutch','german','heart','hrs','insurance','kdd-census','lsat','nursery','obesity', 'older-adults','oulad','parkinson','ricci','singles','student','tic','wine','synthetic-athlete','synthetic-disease','toy']
 dict_outcomes = {'academic': 'atd','adult': 'income','arrhythmia': 'arrhythmia','bank': 'Subscribed','catalunya': 'recid','compas': 'score','credit': 'NoDefault','crime': 'ViolentCrimesPerPop','default': 'default','diabetes-w': 'Outcome','diabetes': 'readmitted','drugs': 'Coke','dutch': 'status','german': 'Label','heart': 'class','hrs': 'score','insurance': 'charges','kdd-census': 'Label','lsat':'ugpa','nursery': 'class','obesity': 'NObeyesdad','older-adults': 'mistakes','oulad': 'Grade','parkinson': 'total_UPDRS','ricci': 'Combine','singles': 'income','student': 'G3','tic': 'income', 'wine': 'quality','synthetic-athlete': 'Label','synthetic-disease': 'Label','toy': 'Label'}
 dict_protected = {'academic': 'ge','adult': 'Race','arrhythmia': 'sex','bank': 'AgeGroup','catalunya': 'foreigner','compas': 'race','credit': 'sex','crime': 'race','default': 'SEX','diabetes-w': 'Age','diabetes': 'Sex','drugs': 'Gender','dutch': 'Sex','german': 'Sex','heart': 'Sex','hrs': 'gender','insurance': 'sex','kdd-census': 'Sex','lsat':'race','nursery': 'finance','obesity': 'Gender','older-adults': 'sex','oulad': 'Sex','parkinson': 'sex','ricci': 'Race','singles': 'sex','student': 'sex','tic': 'religion','wine': 'color','synthetic-athlete': 'Sex','synthetic-disease': 'Age','toy': 'sst'}
@@ -38,9 +38,10 @@ for i in range(1, len(sys.argv)):           #We're going to read all parameters
         dat = valid = True
         dataset = param[1]
         assert dataset in datasetlist
-        var_col = dict_protected[dataset]
+        sens_col = dict_protected[dataset]
         y_col = dict_outcomes[dataset]
-        print("\n- var=" + var_col)
+        print("\n- y=" + y_col)
+        print("\n- prot=" + sens_col)
 
     
     if not valid and param[0] == 'bseed':             #Base seed for the 1st run of the algorithm
@@ -111,8 +112,12 @@ if not ngen:
     print("- ngen=" + str(generations))
 if not dat:
     dataset = 'german'      #Default dataset: german
+    sens_col = dict_protected[dataset]
+    y_col = dict_outcomes[dataset]
     print("- dat=" + dataset)
-    print("- var=" + dict_protected[dataset])
+    print("- y=" + dict_outcomes[dataset])
+    print("- prot=" + dict_protected[dataset])
+    
 if not bseed:
     set_seed_base = 100             #Base seed for the 1st run of the algorithm
     print("- bseed=" + str(set_seed_base))
@@ -147,16 +152,16 @@ for run in range(n_runs):
     x_val = x_val.loc[:, x_val.columns != 'y']
     x_test = x_test.loc[:, x_test.columns != 'y']
 
-    prot_train = x_train[var_col].astype(int)
-    prot_val = x_val[var_col].astype(int)
-    prot_test = x_test[var_col].astype(int)
+    prot_train = x_train[sens_col].astype(int)
+    prot_val = x_val[sens_col].astype(int)
+    prot_test = x_test[sens_col].astype(int)
     
     print(x_train, y_train, prot_train, x_val, y_val, prot_val)
     struc = Tree_Structure(x_train, y_train, prot_train, x_val, y_val, prot_val, run)
 
     gen_process = Genetic_Pruning_Process_NSGA2(struc, objectives, generations, individuals, 0.7, 0.2)
 
-    indivs = gen_process.genetic_optimization(set_seed)
+    indivs, store_df = gen_process.genetic_optimization(set_seed)
     
     print(indivs)
     for indiv in indivs:    
@@ -165,7 +170,7 @@ for run in range(n_runs):
         for i in range(len(objectives)):
             print(objectives[i], indiv.objectives[i])
     
-    test_and_save_results(x_test, y_test, prot_test, indivs, objectives, generations, individuals, generations, dataset, var_col, set_seed, objectives, extraobj)
+    test_and_save_results(x_test, y_test, prot_test, indivs, objectives, generations, individuals, generations, dataset, sens_col, set_seed, objectives, extraobj, store_df)
         
     
 

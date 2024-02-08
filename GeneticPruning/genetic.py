@@ -8,6 +8,7 @@ from individual import Individual
 from individual import Individual_NSGA2
 from sympy import symbols, nsolve
 import random, copy
+import pandas as pd
 
 class Genetic_Pruning_Process():
 
@@ -682,11 +683,20 @@ class Genetic_Pruning_Process_NSGA2(Genetic_Pruning_Process):
 
         return new_pop
 
-    def genetic_optimization(self, seed):
+    def genetic_optimization(self, seed, store=True):
         """
         Defines the whole optimization process
         """
         np.random.seed(seed)
+
+        if store:
+            df_avg_num_leaves = []
+            df_max_num_leaves = []
+            df_min_num_leaves = []
+            df_avg_mean_depth = []
+            df_min_mean_depth = []
+            df_max_mean_depth = []
+
 
         print("Start")
         #for i in range(len(self.population)):
@@ -694,15 +704,47 @@ class Genetic_Pruning_Process_NSGA2(Genetic_Pruning_Process):
         for i in range(self.num_gen):
             new_pop = self.tournament()
             new_pop = self.pop_crossover()
-            new_pop = [self.mutation(indiv) for indiv in new_pop]
+            new_pop = [self.mutation(indiv) for indiv in new_pop]        
+            df_num_leaves = []
+            df_mean_depth = []
             for elem in new_pop:
-                print(elem.objectives)
-            
+                elem.get_tree()
+                if store:
+                    df_num_leaves.append(elem.num_leaves)
+                    df_mean_depth.append(elem.mean_depth)
+            if store:
+                df_num_leaves = np.array(df_num_leaves)
+                df_mean_depth = np.array(df_mean_depth)
+                df_avg_num_leaves.append(df_num_leaves.mean())
+                df_max_num_leaves.append(df_num_leaves.max())
+                df_min_num_leaves.append(df_num_leaves.min())
+                df_avg_mean_depth.append(df_mean_depth.mean())
+                df_min_mean_depth.append(df_mean_depth.min())
+                df_max_mean_depth.append(df_mean_depth.max())
+          
             print(i)
             self.population = new_pop
-        print("End")
 
         self.fast_nondominated_sort()
-        
+        print("End")
+
+        if store:
+            store_df = pd.DataFrame({
+                'avg_num_leaves': df_avg_num_leaves,
+                'max_num_leaves': df_max_num_leaves,
+                'min_num_leaves': df_min_num_leaves,
+                'avg_mean_depth': df_avg_mean_depth,
+                'min_mean_depth': df_min_mean_depth,
+                'max_mean_depth': df_max_mean_depth
+                })
+            return self.fronts[0], store_df
+
+
+
+
+
+
+
+
         return self.fronts[0]                       # Returns the best individuals
 

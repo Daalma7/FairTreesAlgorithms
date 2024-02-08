@@ -7,13 +7,15 @@ import pydotplus
 from collections import Counter
 import string
 import random
-
 import pickle
+import os
 
+PATH_TO_RESULTS = os.path.dirname(os.path.dirname(os.path.dirname(__file__))) + '/results/GP/'
+PATH_TO_DATA = os.path.dirname(os.path.dirname(os.path.dirname(__file__))) + '/datasets/data/'
 
 #Reads the dataset to work with. You have to work with preprocessed data, and to ensure it, we will only read the files ending with _preproc
 def read_data(df_name):
-    df = pd.read_csv('../../datasets/data/' + df_name + '.csv', sep = ',')
+    df = pd.read_csv(PATH_TO_DATA + df_name + '.csv', sep = ',')
     if 'Unnamed: 0' in df.columns:
         df = df.drop('Unnamed: 0', axis=1)
     return df
@@ -44,13 +46,13 @@ def get_matrices(df_name, y_col, seed):
 def write_train_val_test(df_name, seed, X_train, X_val, X_test, y_train, y_val, y_test):
     train = X_train
     train['y'] = y_train.tolist()
-    train.to_csv('../data/train_val_test/' + df_name + '_train_seed_' + str(seed) + '.csv', index = False)
+    train.to_csv(PATH_TO_DATA + 'train_val_test/' + df_name + '_train_seed_' + str(seed) + '.csv', index = False)
     val = X_val
     val['y'] = y_val.tolist()
-    val.to_csv('../data/train_val_test/' + df_name + '_val_seed_' + str(seed) + '.csv', index = False)
+    val.to_csv(PATH_TO_DATA + 'train_val_test/' + df_name + '_val_seed_' + str(seed) + '.csv', index = False)
     test = X_test
     test['y'] = y_test.tolist()
-    test.to_csv('../data/train_val_test/' + df_name + '_test_seed_' + str(seed) + '.csv', index = False)
+    test.to_csv(PATH_TO_DATA + 'train_val_test/' + df_name + '_test_seed_' + str(seed) + '.csv', index = False)
 
 #Exports obtained decision tree to a png file
 def print_tree(classifier, features):
@@ -69,9 +71,10 @@ def print_properties_tree(learner):
 def print_properties_lr(learner):
     return learner.coef_
 
+#TODO Revisar que se ha hecho bien
 #Classifier training
 def train_model(df_name, seed):
-    train = pd.read_csv('../data/train_val_test/' + df_name + '_train_seed_' + str(seed) + '.csv')
+    train = pd.read_csv(PATH_TO_DATA +'train_val_test/' + df_name + '_train_seed_' + str(seed) + '.csv')
     X_train = train.iloc[:, :-1]
     y_train = train.iloc[:, -1]
     clf = DecisionTreeClassifier(random_state = seed)
@@ -91,18 +94,19 @@ def save_model(learner, dataset_name, seed, variable_name, num_of_generations, n
     pickle.dump(learner, open(path + filename, 'wb'))
     return
 
-
+#TODO Revisar que se ha hecho bien
 #Validates the classifier (comparison with validation set)
 def val_model(df_name, learner, seed):
-    val = pd.read_csv('../data/train_val_test/' + df_name + '_val_seed_' + str(seed) + '.csv')
+    val = pd.read_csv(PATH_TO_DATA + 'train_val_test/' + df_name + '_val_seed_' + str(seed) + '.csv')
     X_val = val.iloc[:, :-1]
     y_val = val.iloc[:, -1]
     y_pred = learner.predict(X_val)
     return X_val, y_val, y_pred
 
+#TODO Revisar que se ha hecho bien
 #Tests the classifier (comparison with test set)
 def test_model(df_name, learner, seed):
-    test = pd.read_csv('../data/train_val_test/' + df_name + '_test_seed_' + str(seed) + '.csv')
+    test = pd.read_csv(PATH_TO_DATA + 'train_val_test/' + df_name + '_test_seed_' + str(seed) + '.csv')
     X_test = test.iloc[:, :-1]
     y_test = test.iloc[:, -1]
     y_pred = learner.predict(X_test)
@@ -136,19 +140,21 @@ def generate_random_string(length):
     letters_and_digits = string.ascii_uppercase + string.digits
     return ''.join(random.choices(letters_and_digits, k=length))
 
-def test_and_save_results(x_test, y_test, prot_test, classifiers, objectives, generations, nind, ngen, dat, var, seed, obj, extra):
+def test_and_save_results(x_test, y_test, prot_test, classifiers, objectives, generations, nind, ngen, dat, var, seed, obj, extra, store_df=None):
     
     save_name = ''
+    save_store_name = ''
     obj_str = '_'.join(objectives) 
     extra_str = '_'.join(objectives)
     if not extra is None:
-        save_name = '../../results/GP/' + dat + '__' + var + '__obj_' + obj_str + '__seed_' + str(seed) + '__extra_' + extra_str + '__nind_' + str(nind) + '__ngen_' + str(ngen) + '.csv'
+        save_name = PATH_TO_RESULTS + dat + '__' + var + '__obj_' + obj_str + '__seed_' + str(seed) + '__extra_' + extra_str + '__nind_' + str(nind) + '__ngen_' + str(ngen) + '.csv'
+        save_store_name = PATH_TO_RESULTS + 'train_' + dat + '__' + var + '__obj_' + obj_str + '__seed_' + str(seed) + '__extra_' + extra_str + '__nind_' + str(nind) + '__ngen_' + str(ngen) + '.csv'
     else:
-        save_name = '../../results/GP/' + dat + '__' + var + '__obj_' + obj_str + '__seed_' + str(seed) + '__nind_' + str(nind) + '__ngen_' + str(ngen) + '.csv'
-    
+        save_name = PATH_TO_RESULTS + dat + '__' + var + '__obj_' + obj_str + '__seed_' + str(seed) + '__nind_' + str(nind) + '__ngen_' + str(ngen) + '.csv'
+        save_store_name = PATH_TO_RESULTS + 'train_' + dat + '__' + var + '__obj_' + obj_str + '__seed_' + str(seed) + '__nind_' + str(nind) + '__ngen_' + str(ngen) + '.csv'
+
     dict_generate = {'ID': [], 'seed': [], 'creation_mode': [], 'num_prunings': [], 'num_leaves': [], 'depth':[], 'mean_depth':[], 'unbalance':[]}
     
-
     for elem in obj:
         dict_generate[elem + '_val'] = []
     for elem in obj:
@@ -179,6 +185,8 @@ def test_and_save_results(x_test, y_test, prot_test, classifiers, objectives, ge
     df = pd.DataFrame(dict_generate)
     
     df.to_csv(save_name, index=False)
+    if not store_df is None:
+        store_df.to_csv(save_store_name, index=False)
         
 
 

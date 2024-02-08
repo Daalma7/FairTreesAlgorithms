@@ -478,7 +478,9 @@ class Individual:
         new_tree = copy.deepcopy(self.struc.clf)
         children_left = new_tree.tree_.children_left
         children_right = new_tree.tree_.children_right
+        values = new_tree.tree_.value
         all_depths = []
+        all_samples = []
 
         #values = new_tree.tree_.value
         
@@ -503,15 +505,17 @@ class Individual:
                 new_tree.tree_.children_left[node_id] = TREE_LEAF
                 new_tree.tree_.children_right[node_id] = TREE_LEAF
                 all_depths.append(len(repr))
+                all_samples.append(np.sum(values[node_id]))
 
         all_depths = np.array(all_depths)
+        all_samples = np.array(all_samples)
 
         #new_tree.tree_.n_leaves = len(all_depths)
         #new_tree.tree_.max_depth = all_depths.max()
         self.depth = all_depths.max()
         self.num_leaves = len(all_depths)
         self.unbalance = float(all_depths.min()) / float(all_depths.max())
-        self.mean_depth = all_depths.mean()
+        self.mean_depth = np.dot(all_depths, all_samples) / float(np.sum(all_samples)) # Mean depth weighted by samples
         return new_tree
 
 
