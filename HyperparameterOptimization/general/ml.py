@@ -16,10 +16,10 @@ import re
 import pickle
 
 
-PATH_TO_RESULTS = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__)))) + '/results/'
+PATH_TO_RESULTS = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__)))))) + '/results/'
 PATH_TO_DATA = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__)))))) + '/datasets/data/'
 
-sys.path.insert(1, os.path.abspath(os.path.join('..', 'models')))
+sys.path.insert(1, os.path.abspath(os.path.join(os.path.dirname(os.path.dirname(__file__)), 'models')))
 from FairDT._classes import DecisionTreeClassifier as FairDecisionTreeClassifier
 from sklearn.tree import DecisionTreeClassifier
 from FLGBM.FLGBM import FairLGBM
@@ -183,7 +183,8 @@ def print_tree(classifier, model, features):
 def print_properties_tree(learner):
     depth = learner.get_depth()
     leaves = learner.get_n_leaves()
-    return depth, leaves
+    w_avg_depth = data_weight_avg_depth(learner)
+    return depth, leaves, w_avg_depth
 
 #Returns coefficients of the given logistic regression
 def print_properties_lr(learner):
@@ -279,7 +280,7 @@ def get_max_depth_FLGBM(df_name, variable, seed, model, **features):
     'feature_fraction': features['feature_fraction']
     }
     
-    clf = FairLGBM(lamb=features['lamb'], proc=variable, lgbm_params=lgbm_params)
+    clf = FairLGBM(lamb=features['lamb'], proc=variable, fair_c='fpr', lgbm_params=lgbm_params)
     
     with open('../data/output.txt', 'w') as f, contextlib.redirect_stdout(f):
         learner = clf.fit(X_train, y_train)
@@ -422,17 +423,52 @@ def num_leaves(learner):
 
 #Second complexity measure, that complements the first one.
 #Return the weighted average of the depth of all leaves nodes, considering the number of training samples that fell on each one.
-def data_weight_avg_depth(learner, data, seed):
-    leaves_index = learner.apply(data)          #We get the leaf indices where data examples ended.
-    cnt = Counter(leaves_index)                 #We count the number of element of each leaf
-    num_data = len(data.index)              #Total number of train examples
+def data_weight_avg_depth(learner):
     stack = [(0,0)]                     #Root node id and its depth
-    total_depth = 0.0
+    total_w_depth = 0.0
+    tree = learner.tree_
+    total_samples = 0.0
     while len(stack) > 0:
         current_node, current_depth = stack.pop()
         if(learner.tree_.children_left[current_node] != learner.tree_.children_right[current_node]):    #If it's not a leaf
             stack.append((learner.tree_.children_left[current_node], current_depth + 1))    #Append both children with their depth increased
             stack.append((learner.tree_.children_right[current_node], current_depth + 1))
         else:
-            total_depth += current_depth * cnt[current_node] / float(num_data)
-    return total_depth
+            weighted_samples = tree.weighted_n_node_samples[current_node]
+            total_w_depth += weighted_samples * current_depth
+            total_samples += weighted_samples
+    return total_w_depth / total_samples
+
+
+def create_generation_stats(model):
+    if model == 'FDT' or model == 'DT':
+        return pd.DataFrame(data={'min_depth':[], 'mean_depth':[], 'max_depth':[], 'std_depth':[], 'min_leaves': [], 'mean_leaves': [], 'max_leaves':[], 'std_leaves': [], 'min_data_avg_depth': [], 'mean_data_avg_depth':[], 'max_data_avg_depth':[], 'std_data_avg_depth':[], 'process_time':[]})
+    elif model == 'FLGBM':
+        return pd.DataFrame(data={})
+
+def save_generation_stats(generations_df, generation_indivs, model, newtime):
+    if model == 'FDT' or model == 'DT':
+        new_row ={
+        'min_depth':generation_indivs['actual_depth'].min(),
+        'mean_depth':generation_indivs['actual_depth'].mean(),
+        'max_depth':generation_indivs['actual_depth'].max(),
+        'std_depth':generation_indivs['actual_depth'].std(),
+
+        'min_leaves':generation_indivs['actual_leaves'].min(),
+        'mean_leaves':generation_indivs['actual_leaves'].mean(),
+        'max_leaves':generation_indivs['actual_leaves'].max(),
+        'std_leaves':generation_indivs['actual_leaves'].std(),
+
+        'min_data_avg_depth':generation_indivs['actual_data_avg_depth'].min(),
+        'mean_data_avg_depth':generation_indivs['actual_data_avg_depth'].mean(),
+        'max_data_avg_depth':generation_indivs['actual_data_avg_depth'].max(),
+        'std_data_avg_depth':generation_indivs['actual_data_avg_depth'].std(),
+
+        'process_time': newtime
+        }
+
+        return generations_df.append(new_row, ignore_index=True)
+
+        
+    elif model== 'FLGBM':
+        return None

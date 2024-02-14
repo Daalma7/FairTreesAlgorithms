@@ -164,18 +164,6 @@ for run in range(n_runs):
     X_tr, X_v, X_tst, y_tr, y_v, y_tst = get_matrices(dataset, y_col, set_seed)
     write_train_val_test(dataset, sens_col, set_seed, X_tr, X_v, X_tst, y_tr, y_v, y_tst)
 
-    print("X train:", X_tr)
-    print("X val:", X_v)
-    print("X test:", X_tst)
-
-    print("y train:", y_tr)
-    print("y val:", y_v)
-    print("y test:", y_tst)
-
-    print("prot train:", X_tr[sens_col])
-    print("prot val:", X_v[sens_col])
-    print("prot test:", X_tst[sens_col])
-
     
     # number of rows in train
     num_rows_train = get_matrices(dataset, y_col, set_seed)[0].shape[0]
@@ -269,9 +257,7 @@ for run in range(n_runs):
         max_range_feature_fraction = 1.0
 
         variables_range = [(min_range_lamb, max_range_lamb), (min_range_num_leaves, max_range_num_leaves), (min_range_min_data_in_leaf, max_range_min_data_in_leaf),(min_range_max_depth, max_range_max_depth),(min_range_learning_rate, max_range_learning_rate),(min_range_n_estimators, max_range_n_estimators),(min_range_feature_fraction, max_range_feature_fraction)]
-    
-    print(sens_col)
-    
+        
     problem = Problem(num_of_variables = 5,
                       objectives = objectives,
                       extra=extraobj,
@@ -289,6 +275,7 @@ for run in range(n_runs):
     evo = Evomodule.Evolution(problem,
                     evolutions_df = pd.DataFrame(),
                     dataset_name = dataset,
+                    model_name = model,
                     protected_variable = sens_col,
                     num_of_generations = generations,
                     num_of_individuals = individuals)

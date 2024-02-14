@@ -47,6 +47,7 @@ class IndividualDT(Individual):
         super().__init__()
         self.actual_depth = None
         self.actual_leaves = None
+        self.actual_data_avg_depth = None
 
     def dominates(self, other_individual):
         and_condition = True
@@ -138,6 +139,10 @@ class IndividualFDT(Individual):
 
     def __init__(self):
         super().__init__()
+        self.actual_depth = None
+        self.actual_leaves = None
+        self.actual_data_avg_depth = None
+
 
     def dominates(self, other_individual):
         super().dominates_standard(other_individual)

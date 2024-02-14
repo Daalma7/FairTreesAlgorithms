@@ -43,16 +43,16 @@ def get_matrices(df_name, y_col, seed):
     return X_train, X_val, X_test, y_train, y_val, y_test
 
 #Exports to csv files train, validation and test sets
-def write_train_val_test(df_name, seed, X_train, X_val, X_test, y_train, y_val, y_test):
+def write_train_val_test(df_name, prot_col, seed, X_train, X_val, X_test, y_train, y_val, y_test):
     train = X_train
     train['y'] = y_train.tolist()
-    train.to_csv(PATH_TO_DATA + 'train_val_test/' + df_name + '_train_seed_' + str(seed) + '.csv', index = False)
+    train.to_csv(PATH_TO_DATA + 'train_val_test_standard/' + df_name + '/' + df_name + '_' + prot_col + '_train_seed_' + str(seed) + '.csv', index = False)
     val = X_val
     val['y'] = y_val.tolist()
-    val.to_csv(PATH_TO_DATA + 'train_val_test/' + df_name + '_val_seed_' + str(seed) + '.csv', index = False)
+    val.to_csv(PATH_TO_DATA + 'train_val_test_standard/' + df_name + '/' + df_name + '_' + prot_col + '_val_seed_' + str(seed) + '.csv', index = False)
     test = X_test
     test['y'] = y_test.tolist()
-    test.to_csv(PATH_TO_DATA + 'train_val_test/' + df_name + '_test_seed_' + str(seed) + '.csv', index = False)
+    test.to_csv(PATH_TO_DATA + 'train_val_test_standard/' + df_name + '/' + df_name + '_' + prot_col + '_test_seed_' + str(seed) + '.csv', index = False)
 
 #Exports obtained decision tree to a png file
 def print_tree(classifier, features):
@@ -65,7 +65,8 @@ def print_tree(classifier, features):
 def print_properties_tree(learner):
     depth = learner.get_depth()
     leaves = learner.get_n_leaves()
-    return depth, leaves
+    w_avg_depth = data_weight_avg_depth(learner)
+    return depth, leaves, w_avg_depth
 
 #Returns coefficients of the given logistic regression
 def print_properties_lr(learner):
@@ -73,8 +74,8 @@ def print_properties_lr(learner):
 
 #TODO Revisar que se ha hecho bien
 #Classifier training
-def train_model(df_name, seed):
-    train = pd.read_csv(PATH_TO_DATA +'train_val_test/' + df_name + '_train_seed_' + str(seed) + '.csv')
+def train_model(df_name, variable, seed):
+    train = pd.read_csv(PATH_TO_DATA + 'train_val_test_standard/' + df_name + '/' + df_name + '_' + variable + '_train_seed_' + str(seed) + '.csv')
     X_train = train.iloc[:, :-1]
     y_train = train.iloc[:, -1]
     clf = DecisionTreeClassifier(random_state = seed)
@@ -96,8 +97,8 @@ def save_model(learner, dataset_name, seed, variable_name, num_of_generations, n
 
 #TODO Revisar que se ha hecho bien
 #Validates the classifier (comparison with validation set)
-def val_model(df_name, learner, seed):
-    val = pd.read_csv(PATH_TO_DATA + 'train_val_test/' + df_name + '_val_seed_' + str(seed) + '.csv')
+def val_model(df_name, variable, learner, seed):
+    val = pd.read_csv(PATH_TO_DATA + 'train_val_test_standard/' + df_name + '/' + df_name + '_' + variable + '_val_seed_' + str(seed) + '.csv')
     X_val = val.iloc[:, :-1]
     y_val = val.iloc[:, -1]
     y_pred = learner.predict(X_val)
@@ -105,8 +106,8 @@ def val_model(df_name, learner, seed):
 
 #TODO Revisar que se ha hecho bien
 #Tests the classifier (comparison with test set)
-def test_model(df_name, learner, seed):
-    test = pd.read_csv(PATH_TO_DATA + 'train_val_test/' + df_name + '_test_seed_' + str(seed) + '.csv')
+def test_model(df_name, variable, learner, seed):
+    test = pd.read_csv(PATH_TO_DATA + 'train_val_test_standard/' + df_name + '/' + df_name + '_' + variable + '_test_seed_' + str(seed) + '.csv')
     X_test = test.iloc[:, :-1]
     y_test = test.iloc[:, -1]
     y_pred = learner.predict(X_test)
@@ -114,20 +115,19 @@ def test_model(df_name, learner, seed):
 
 #Second complexity measure, that complements the first one.
 #Return the weighted average of the depth of all leaves nodes, considering the number of training samples that fell on each one.
-def data_weight_avg_depth(learner, data, seed):
-    leaves_index = learner.apply(data)          #We get the leaf indices where data examples ended.
-    cnt = Counter(leaves_index)                 #We count the number of element of each leaf
-    num_data = len(data.index)              #Total number of train examples
+def data_weight_avg_depth(learner):
     stack = [(0,0)]                     #Root node id and its depth
-    total_depth = 0.0
+    total_w_depth = 0.0
+    tree = learner.tree_
     while len(stack) > 0:
         current_node, current_depth = stack.pop()
         if(learner.tree_.children_left[current_node] != learner.tree_.children_right[current_node]):    #If it's not a leaf
             stack.append((learner.tree_.children_left[current_node], current_depth + 1))    #Append both children with their depth increased
             stack.append((learner.tree_.children_right[current_node], current_depth + 1))
         else:
-            total_depth += current_depth * cnt[current_node] / float(num_data)
-    return total_depth
+            weighted_samples = tree.weighted_n_node_samples[current_node]
+            total_w_depth += weighted_samples * current_depth
+    return total_w_depth
 
 
 

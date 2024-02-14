@@ -4,10 +4,11 @@ from collections import OrderedDict as od
 import sys
 
 sys.path.append("..")
-from general.individual import *
+from general.individual import IndividualDT, IndividualDTGrea, IndividualLR, IndividualLRGrea, IndividualFDT, IndividualFLGBM, IndividualFLGBMGrea
 from general.population import Population
-from general.ml import *
+from general.ml import decode, train_model, evaluate_fairness, val_model, save_model, test_model, gmean_inv, dem_fpr, dem_ppv, dem_pnr, data_weight_avg_depth, print_properties_tree, get_max_depth_FLGBM
 import os
+import pandas as pd
 
 PATH_TO_RESULTS = os.path.dirname(os.path.dirname( os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__)))))) + '/results/'
 
@@ -217,7 +218,7 @@ class Problem:
                 elif x.__name__ == 'num_leaves':
                     individual.objectives.append(num_leaves(learner))
                 elif x.__name__ == 'data_weight_avg_depth':
-                    individual.objectives.append(data_weight_avg_depth(learner, X, self.seed))
+                    individual.objectives.append(data_weight_avg_depth(learner))
 
             individual.extra = []
             if self.extra != None:
@@ -233,11 +234,11 @@ class Problem:
                     elif x.__name__ == 'num_leaves':
                         individual.extra.append(num_leaves(learner))
                     elif x.__name__ == 'data_weight_avg_depth':
-                        individual.extra.append(data_weight_avg_depth(learner, X, self.seed))
+                        individual.extra.append(data_weight_avg_depth(learner))
             #In case we're using decision trees, as some objectives aren't initially upper bounded, we're going to use the bound defined by the values
             #of the first individual, which is unrestricted and for that reason will have the biggest possible size
             if first_individual and (self.model == "DT" or self.model == "FDT"):
-                depth, leaves = print_properties_tree(learner)      #Size attributes for Decision Tree individuals
+                depth, leaves, _ = print_properties_tree(learner)      #Size attributes for Decision Tree individuals
                 var_range_list = list(self.variables_range)
                 var_range_list[1] = (self.variables_range[1][0], depth)
                 var_range_list[3] = (self.variables_range[3][0], leaves)
@@ -255,16 +256,19 @@ class Problem:
             if self.model == "DT":          #Depending on the model we will have different sets of hyperparameters for that model
                 criterion, max_depth, min_samples_split, max_leaf_nodes, class_weight = [item[1] for item in indiv_list]
                 dict_hyperparameters= {'criterion': [criterion], 'max_depth': [max_depth], 'min_samples_split': [min_samples_split], 'max_leaf_nodes': [max_leaf_nodes], 'class_weight': [class_weight]}
-                depth, leaves = print_properties_tree(learner)      #Size attributes for Decision Tree individuals
+                depth, leaves, data_avg_depth = print_properties_tree(learner)      #Size attributes for Decision Tree individuals
                 individual.actual_depth = depth
                 individual.actual_leaves = leaves
+                individual.actual_data_avg_depth = data_avg_depth
             indiv_list = list(individual.features.items())
             if self.model == "FDT":          #Depending on the model we will have different sets of hyperparameters for that model
                 criterion, max_depth, min_samples_split, max_leaf_nodes, class_weight, fair_param = [item[1] for item in indiv_list]
                 dict_hyperparameters= {'criterion': [criterion], 'max_depth': [max_depth], 'min_samples_split': [min_samples_split], 'max_leaf_nodes': [max_leaf_nodes], 'class_weight': [class_weight], 'fair_param':[fair_param]}
-                depth, leaves = print_properties_tree(learner)      #Size attributes for Decision Tree individuals
+                depth, leaves, data_avg_depth = print_properties_tree(learner)      #Size attributes for Decision Tree individuals
                 individual.actual_depth = depth
                 individual.actual_leaves = leaves
+                individual.actual_data_avg_depth = data_avg_depth
+
             if self.model == "LR":
                 max_iter, tol, lambd, l1_ratio, class_weight = [item[1] for item in indiv_list]
                 dict_hyperparameters= {'max_iter': [max_iter], 'tol': [tol], 'lambda': [lambd], 'l1_ratio': [l1_ratio], 'class_weight': [class_weight]}
@@ -306,7 +310,7 @@ class Problem:
                 elif x.__name__ == 'num_leaves':
                     objectives_test.append(num_leaves(learner))
                 elif x.__name__ == 'data_weight_avg_depth':
-                    objectives_test.append(data_weight_avg_depth(learner, X, self.seed))
+                    objectives_test.append(data_weight_avg_depth(learner))
 
             extra_test = []
             if self.extra != None:
@@ -322,7 +326,7 @@ class Problem:
                     elif x.__name__ == 'num_leaves':
                         extra_test.append(num_leaves(learner))
                     elif x.__name__ == 'data_weight_avg_depth':
-                        extra_test.append(data_weight_avg_depth(learner, X, self.seed))
+                        extra_test.append(data_weight_avg_depth(learner))
                 dict_extra= {objectives_results_dict.get(self.extra[i].__name__): individual.extra[i] for i in range(len(self.extra))}
                 dict_extra_test = {objectives_test_dict.get(self.extra[i].__name__): extra_test[i] for i in range(len(self.extra))}
 
@@ -336,7 +340,7 @@ class Problem:
             if self.model == "DT":          #Depending on the model we will have different sets of hyperparameters for that model
                 criterion, max_depth, min_samples_split, max_leaf_nodes, class_weight = [item[1] for item in indiv_list]
                 dict_hyperparameters= {'criterion': [criterion], 'max_depth': [max_depth], 'min_samples_split': [min_samples_split], 'max_leaf_nodes': [max_leaf_nodes], 'class_weight': [class_weight]}
-                dict_actual_dimensions = {'actual_depth': individual.actual_depth, 'actual_leaves': individual.actual_leaves}       #It's really instersting in case of DT to have this size measures
+                dict_actual_dimensions = {'actual_depth': individual.actual_depth, 'actual_leaves': individual.actual_leaves, 'actual_data_avg_depth': individual.actual_data_avg_depth}       #It's really instersting in case of DT to have this size measures
                 if self.extra != None:
                     dict_dataframe = {**dict_general_info, **dict_objectives, **dict_extra, **dict_actual_dimensions, **dict_test, **dict_extra_test, **dict_hyperparameters}
                 else:
@@ -345,7 +349,7 @@ class Problem:
             if self.model == "FDT":          #Depending on the model we will have different sets of hyperparameters for that model
                 criterion, max_depth, min_samples_split, max_leaf_nodes, class_weight, fair_param = [item[1] for item in indiv_list]
                 dict_hyperparameters= {'criterion': [criterion], 'max_depth': [max_depth], 'min_samples_split': [min_samples_split], 'max_leaf_nodes': [max_leaf_nodes], 'class_weight': [class_weight], 'fair_param': [fair_param]}
-                dict_actual_dimensions = {'actual_depth': individual.actual_depth, 'actual_leaves': individual.actual_leaves}       #It's really instersting in case of DT to have this size measures
+                dict_actual_dimensions = {'actual_depth': individual.actual_depth, 'actual_leaves': individual.actual_leaves, 'actual_data_avg_depth': individual.actual_data_avg_depth}       #It's really instersting in case of DT to have this size measures
                 if self.extra != None:
                     dict_dataframe = {**dict_general_info, **dict_objectives, **dict_extra, **dict_actual_dimensions, **dict_test, **dict_extra_test, **dict_hyperparameters}
                 else:
@@ -397,11 +401,13 @@ class Problem:
                     hyperparameters = ['criterion','max_depth', 'min_samples_split', 'max_leaf_nodes', 'class_weight']
                     indiv.actual_depth = row['actual_depth']
                     indiv.actual_leaves = row['actual_leaves']
+                    indiv.actual_data_avg_depth = row['actual_data_avg_depth']
                 if self.model == "FDT":
                     indiv = IndividualDT()
                     hyperparameters = ['criterion','max_depth', 'min_samples_split', 'max_leaf_nodes', 'class_weight', 'fair_param']
                     indiv.actual_depth = row['actual_depth']
                     indiv.actual_leaves = row['actual_leaves']
+                    indiv.actual_data_avg_depth = row['actual_data_avg_depth']
                 if self.model == "LR":
                     indiv = IndividualLR()
                     hyperparameters = ['max_iter','tol', 'lambda', 'l1_ratio', 'class_weight']

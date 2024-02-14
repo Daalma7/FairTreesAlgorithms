@@ -122,7 +122,7 @@ python calculatemeasures.py alg=nsga2,smsemoa,grea dat=ricci var=Race model=LR o
 END_COMMENT
 
 
-python main.py nind=200 ngen=300 alg=nsga2 dat=adult bseed=100 nruns=10 model=FDT obj=gmean_inv,dem_fpr
+python main.py nind=200 ngen=300 alg=nsga2 dat=adult bseed=100 nruns=10 model=FLGBM obj=gmean_inv,dem_fpr
 #python main.py nind=200 ngen=300 alg=grea dat=german var=age bseed=100 nruns=10 model=FDT obj=gmean_inv,dem_fpr,dem_ppv,num_leaves &
 #python main.py nind=200 ngen=300 alg=grea dat=propublica_recidivism var=race bseed=100 nruns=10 model=FDT obj=gmean_inv,dem_fpr,dem_ppv,num_leaves &
 #python main.py nind=200 ngen=300 alg=grea dat=propublica_violent_recidivism var=race bseed=100 nruns=10 model=FDT obj=gmean_inv,dem_fpr,dem_ppv,num_leaves &

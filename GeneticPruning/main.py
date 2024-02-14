@@ -146,7 +146,7 @@ for run in range(n_runs):
 
     # write datasets
     x_train, x_val, x_test, y_train, y_val, y_test = get_matrices(dataset, y_col, set_seed)
-    write_train_val_test(dataset, set_seed, x_train, x_val, x_test, y_train, y_val, y_test)
+    write_train_val_test(dataset, sens_col, set_seed, x_train, x_val, x_test, y_train, y_val, y_test)
     print(x_train)
     x_train = x_train.loc[:, x_train.columns != 'y']
     x_val = x_val.loc[:, x_val.columns != 'y']
