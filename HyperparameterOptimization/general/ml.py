@@ -16,10 +16,10 @@ import re
 import pickle
 
 
-PATH_TO_RESULTS = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__)))))) + '/results/'
-PATH_TO_DATA = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__)))))) + '/datasets/data/'
+PATH_TO_RESULTS = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__)))) + '/results/'
+PATH_TO_DATA = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__)))) + '/datasets/data/'
 
-sys.path.insert(1, os.path.abspath(os.path.join(os.path.dirname(os.path.dirname(__file__)), 'models')))
+sys.path.insert(1, os.path.abspath(os.path.join(os.path.join(os.path.dirname(os.path.dirname(__file__))), 'models')))
 from FairDT._classes import DecisionTreeClassifier as FairDecisionTreeClassifier
 from sklearn.tree import DecisionTreeClassifier
 from FLGBM.FLGBM import FairLGBM
@@ -469,6 +469,25 @@ def save_generation_stats(generations_df, generation_indivs, model, newtime):
 
         return generations_df.append(new_row, ignore_index=True)
 
-        
+    # TODO:Completar bien
     elif model== 'FLGBM':
-        return None
+        new_row ={
+        'min_n_estimators':generation_indivs['n_estimators'].min(),
+        'mean_n_estimators':generation_indivs['n_estimators'].mean(),
+        'min_n_estimators':generation_indivs['n_estimators'].max(),
+        'min_n_estimators':generation_indivs['n_estimators'].std(),
+
+        'min_n_features':generation_indivs['n_features'].min(),
+        'mean_n_features':generation_indivs['n_features'].mean(),
+        'max_n_features':generation_indivs['n_features'].max(),
+        'std_n_features':generation_indivs['n_features'].std(),
+
+        'min_feature_importance_std':generation_indivs['feature_importance_std'].min(),
+        'mean_feature_importance_std':generation_indivs['feature_importance_std'].mean(),
+        'max_feature_importance_std':generation_indivs['feature_importance_std'].max(),
+        'std_feature_importance_std':generation_indivs['feature_importance_std'].std(),
+
+        'process_time': newtime
+        }
+
+        return generations_df.append(new_row, ignore_index=True)

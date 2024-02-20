@@ -7,16 +7,21 @@ import sys
 import time
 import warnings
 import importlib
+import os
 warnings.filterwarnings("ignore")
 
-sys.path.append("..")
-sys.path.append("../HyperparameterOptimization/")
+
+PATH_TO_RESULTS = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname((os.path.abspath(__file__)))))) + '/results/'
+
+sys.path.insert(1, os.path.abspath(os.path.dirname(os.path.dirname(__file__))))
 from general.ml import *
 from general.problem import Problem
 from general.qualitymeasures import *
 
+
 alg = nind = ngen = dat = sens_col = bseed = nruns = obj = mod = extra = False        #Possible parameters given
 dataset = None
+str_obj = str_extra = ''
 datasetlist = ['academic','adult','arrhythmia','bank','catalunya','compas','credit','crime','default','diabetes-w','diabetes','drugs','dutch','german','heart','hrs','insurance','kdd-census','lsat','nursery','obesity', 'older-adults','oulad','parkinson','ricci','singles','student','tic','wine','synthetic-athlete','synthetic-disease','toy']
 dict_outcomes = {'academic': 'atd','adult': 'income','arrhythmia': 'arrhythmia','bank': 'Subscribed','catalunya': 'recid','compas': 'score','credit': 'NoDefault','crime': 'ViolentCrimesPerPop','default': 'default','diabetes-w': 'Outcome','diabetes': 'readmitted','drugs': 'Coke','dutch': 'status','german': 'Label','heart': 'class','hrs': 'score','insurance': 'charges','kdd-census': 'Label','lsat':'ugpa','nursery': 'class','obesity': 'NObeyesdad','older-adults': 'mistakes','oulad': 'Grade','parkinson': 'total_UPDRS','ricci': 'Combine','singles': 'income','student': 'G3','tic': 'income', 'wine': 'quality','synthetic-athlete': 'Label','synthetic-disease': 'Label','toy': 'Label'}
 dict_protected = {'academic': 'ge','adult': 'Race','arrhythmia': 'sex','bank': 'AgeGroup','catalunya': 'foreigner','compas': 'race','credit': 'sex','crime': 'race','default': 'SEX','diabetes-w': 'Age','diabetes': 'Sex','drugs': 'Gender','dutch': 'Sex','german': 'Sex','heart': 'Sex','hrs': 'gender','insurance': 'sex','kdd-census': 'Sex','lsat':'race','nursery': 'finance','obesity': 'Gender','older-adults': 'sex','oulad': 'Sex','parkinson': 'sex','ricci': 'Race','singles': 'sex','student': 'sex','tic': 'religion','wine': 'color','synthetic-athlete': 'Sex','synthetic-disease': 'Age','toy': 'sst'}
@@ -70,12 +75,18 @@ for i in range(1, len(sys.argv)):           #We're going to read all parameters
         objectives = param[1].split(',')
         objdict = {'gmean_inv': gmean_inv, 'dem_fpr': dem_fpr, 'dem_ppv': dem_ppv, 'dem_pnr': dem_pnr, 'num_leaves': num_leaves, 'data_weight_avg_depth': data_weight_avg_depth}
         objectives = [objdict[x] for x in objectives]
+        str_obj = objectives[0].__name__
+        for i in range(1, len(objectives)):
+            str_obj += "__" + objectives[i].__name__
     
     if not valid and param[0] == 'extra':               #Objectives to calculate BUT NOT to be optimized
         extra = valid = True
         extraobj = param[1].split(',')
         objdict = {'gmean_inv': gmean_inv, 'dem_fpr': dem_fpr, 'dem_ppv': dem_ppv, 'dem_pnr': dem_pnr, 'num_leaves': num_leaves, 'data_weight_avg_depth': data_weight_avg_depth}
         extraobj = [objdict[x] for x in extraobj]
+        str_extra = '_ext_' + extraobj[0].__name__
+        for i in range(1, len(extraobj)):
+            str_extra += "__" + extraobj[i].__name__
 
     if not valid and param[0] == 'help':              #The user wants help
         print('\nThis file contains the code for executing a multiobjective evolutionary optimisation algorithm, to a binary classification problem. Parameters accepted are:\n\n\
@@ -138,10 +149,10 @@ if not mod:
     print("- model=" + model)
 if not obj:
     objectives = [gmean_inv, dem_fpr] #Objectives to take into account that we'll try to miminize
-    strobj = objectives[0].__name__
+    str_obj = objectives[0].__name__
     for i in range(1, len(objectives)):
-        strobj += "," + objectives[i].__name__
-    print("- objectives=" + strobj)
+        str_obj += "_" + objectives[i].__name__
+    print("- objectives=" + str_obj)
 if not extra:
     extraobj = None
     print("- extra= None")
@@ -157,138 +168,165 @@ if len(objectives) < 2:
     print("There should be at least 2 objectives. Aborting.")
     sys.exit(1)
 
+
+# Range of hyperparameters
+variables_range = None
+
+if model == "DT":               #If we're using Decision Trees:
+    min_range_criterion = 0         #Gini
+    max_range_criterion = 1         #Entropy
+    
+    min_range_max_depth = 3
+    max_range_max_depth = None
+    
+    min_range_samples_split = 2
+    max_range_samples_split = 40
+    
+    min_range_samples_leaf = 1
+    max_range_samples_leaf = 60
+    
+    min_range_leaf_nodes = 2
+    max_range_leaf_nodes = None
+    
+    min_range_class_weight = 1
+    max_range_class_weight = 9
+
+    variables_range = [(min_range_criterion, max_range_criterion),(min_range_max_depth, max_range_max_depth), (min_range_samples_split, max_range_samples_split), (min_range_leaf_nodes, max_range_leaf_nodes), (min_range_class_weight, max_range_class_weight)]
+
+
+if model == "FDT":               #If we're using Fair Decision Trees:
+    min_range_criterion = 0         #Gini
+    max_range_criterion = 1         #Entropy
+    
+    min_range_max_depth = 3
+    max_range_max_depth = None
+    
+    min_range_samples_split = 2
+    max_range_samples_split = 40
+    
+    min_range_samples_leaf = 1
+    max_range_samples_leaf = 60
+    
+    min_range_leaf_nodes = 2
+    max_range_leaf_nodes = None
+    
+    min_range_class_weight = 1
+    max_range_class_weight = 9
+
+    min_fair_param = 0
+    max_fair_param = 10
+
+    variables_range = [(min_range_criterion, max_range_criterion),(min_range_max_depth, max_range_max_depth), (min_range_samples_split, max_range_samples_split), (min_range_leaf_nodes, max_range_leaf_nodes), (min_range_class_weight, max_range_class_weight), (min_fair_param, max_fair_param)]
+
+
+if model == "LR":               #In case we've devided to use Logistic Regression
+    min_range_max_iter = 20     #Maximum number of iterations taken for the solvers to converge (one stopping criteria)
+    max_range_max_iter = 200
+
+    min_range_tol = 0.0001
+    max_range_tol = 0.1
+
+    min_range_C = 0.001
+    max_range_C = 100000
+
+    min_range_l1_ratio = 0
+    max_range_l1_ratio = 1
+
+    min_range_class_weight = 1
+    max_range_class_weight = 9
+
+    variables_range = [(min_range_max_iter, max_range_max_iter),(min_range_tol, max_range_tol),(min_range_C, max_range_C),(min_range_l1_ratio, max_range_l1_ratio),(min_range_class_weight,max_range_class_weight)]
+
+if model == "FLGBM":               #In case we've devided to use Logistic Regression
+    min_range_lamb = 0
+    max_range_lamb = 1
+    
+    min_range_num_leaves = 2
+    max_range_num_leaves = 62
+    
+    min_range_min_data_in_leaf = 2
+    max_range_min_data_in_leaf = 40
+    
+    min_range_max_depth = 2
+    max_range_max_depth = None
+    
+    min_range_learning_rate = 0.01
+    max_range_learning_rate = 0.2
+    
+    min_range_n_estimators = 50
+    max_range_n_estimators = 200
+    
+    min_range_feature_fraction = 0.1
+    max_range_feature_fraction = 1.0
+
+    variables_range = [(min_range_lamb, max_range_lamb), (min_range_num_leaves, max_range_num_leaves), (min_range_min_data_in_leaf, max_range_min_data_in_leaf),(min_range_max_depth, max_range_max_depth),(min_range_learning_rate, max_range_learning_rate),(min_range_n_estimators, max_range_n_estimators),(min_range_feature_fraction, max_range_feature_fraction)]
+    
+
+
 for run in range(n_runs):
+
     set_seed = set_seed_base + run
+    execute = False
+    try:
+        read = pd.read_csv(f"{PATH_TO_RESULTS}{model}/{algorithm}/population/{dataset}/{dataset}_seed_{set_seed}_var_{sens_col}_gen_{generations}_indiv_{individuals}_model_{model}_obj_{str_obj}{str_extra}.csv")
+        print(f"Result file for {dataset} dataset, seed {set_seed}, and the others parameters already existed!")
+        if read.shape[0] < generations * individuals:
+            print("\tBut it lacks some individuals, so it will be executed again")
+    except FileNotFoundError:
+        execute = True
 
-    # write datasets
-    X_tr, X_v, X_tst, y_tr, y_v, y_tst = get_matrices(dataset, y_col, set_seed)
-    write_train_val_test(dataset, sens_col, set_seed, X_tr, X_v, X_tst, y_tr, y_v, y_tst)
+    if execute or read.shape[0] < generations * individuals:
 
-    
-    # number of rows in train
-    num_rows_train = get_matrices(dataset, y_col, set_seed)[0].shape[0]
-    
-    # RANGE OF HYPERPARAMETERS
-    if model == "DT":               #If we're using Decision Trees:
-        min_range_criterion = 0         #Gini
-        max_range_criterion = 1         #Entropy
+        # write datasets
+        X_tr, X_v, X_tst, y_tr, y_v, y_tst = get_matrices(dataset, y_col, set_seed)
+        write_train_val_test(dataset, sens_col, set_seed, X_tr, X_v, X_tst, y_tr, y_v, y_tst)
         
-        min_range_max_depth = 3
-        max_range_max_depth = None
+        # number of rows in train
+        num_rows_train = get_matrices(dataset, y_col, set_seed)[0].shape[0]
         
-        min_range_samples_split = 2
-        max_range_samples_split = 40
-        
-        min_range_samples_leaf = 1
-        max_range_samples_leaf = 60
-        
-        min_range_leaf_nodes = 2
-        max_range_leaf_nodes = None
-        
-        min_range_class_weight = 1
-        max_range_class_weight = 9
+        problem = Problem(num_of_variables = 5,
+                        objectives = objectives,
+                        extra=extraobj,
+                        variables_range = variables_range,
+                        individuals_df = pd.DataFrame(),
+                        num_of_generations = generations,
+                        num_of_individuals = individuals,
+                        dataset_name = dataset,
+                        variable_name = sens_col,
+                        model = model,
+                        seed = set_seed)
 
-        variables_range = [(min_range_criterion, max_range_criterion),(min_range_max_depth, max_range_max_depth), (min_range_samples_split, max_range_samples_split), (min_range_leaf_nodes, max_range_leaf_nodes), (min_range_class_weight, max_range_class_weight)]
-    
-
-    if model == "FDT":               #If we're using Fair Decision Trees:
-        min_range_criterion = 0         #Gini
-        max_range_criterion = 1         #Entropy
+        print("------------RUN:",run)
         
-        min_range_max_depth = 3
-        max_range_max_depth = None
+        evo = Evomodule.Evolution(problem,
+                        evolutions_df = pd.DataFrame(),
+                        dataset_name = dataset,
+                        model_name = model,
+                        protected_variable = sens_col,
+                        num_of_generations = generations,
+                        num_of_individuals = individuals)
         
-        min_range_samples_split = 2
-        max_range_samples_split = 40
+        pareto = evo.evolve()
+
+        #calculate_measures_save(pareto, algorithm, dataset, variable, objectives, set_seed, run, individuals, generations, ends[-1]-starts[-1], False)
         
-        min_range_samples_leaf = 1
-        max_range_samples_leaf = 60
-        
-        min_range_leaf_nodes = 2
-        max_range_leaf_nodes = None
-        
-        min_range_class_weight = 1
-        max_range_class_weight = 9
+        first = True
+        for p in pareto:    
+            problem.test_and_save(p,first,problem.seed, algorithm)
+            first = False
 
-        min_fair_param = 0
-        max_fair_param = 10
 
-        variables_range = [(min_range_criterion, max_range_criterion),(min_range_max_depth, max_range_max_depth), (min_range_samples_split, max_range_samples_split), (min_range_leaf_nodes, max_range_leaf_nodes), (min_range_class_weight, max_range_class_weight), (min_fair_param, max_fair_param)]
-
-    
-    if model == "LR":               #In case we've devided to use Logistic Regression
-        min_range_max_iter = 20     #Maximum number of iterations taken for the solvers to converge (one stopping criteria)
-        max_range_max_iter = 200
-
-        min_range_tol = 0.0001
-        max_range_tol = 0.1
-
-        min_range_C = 0.001
-        max_range_C = 100000
-
-        min_range_l1_ratio = 0
-        max_range_l1_ratio = 1
-
-        min_range_class_weight = 1
-        max_range_class_weight = 9
-
-        variables_range = [(min_range_max_iter, max_range_max_iter),(min_range_tol, max_range_tol),(min_range_C, max_range_C),(min_range_l1_ratio, max_range_l1_ratio),(min_range_class_weight,max_range_class_weight)]
-
-    if model == "FLGBM":               #In case we've devided to use Logistic Regression
-        min_range_lamb = 0
-        max_range_lamb = 1
-        
-        min_range_num_leaves = 2
-        max_range_num_leaves = 62
-        
-        min_range_min_data_in_leaf = 2
-        max_range_min_data_in_leaf = 40
-        
-        min_range_max_depth = 2
-        max_range_max_depth = None
-        
-        min_range_learning_rate = 0.01
-        max_range_learning_rate = 0.2
-        
-        min_range_n_estimators = 50
-        max_range_n_estimators = 200
-        
-        min_range_feature_fraction = 0.1
-        max_range_feature_fraction = 1.0
-
-        variables_range = [(min_range_lamb, max_range_lamb), (min_range_num_leaves, max_range_num_leaves), (min_range_min_data_in_leaf, max_range_min_data_in_leaf),(min_range_max_depth, max_range_max_depth),(min_range_learning_rate, max_range_learning_rate),(min_range_n_estimators, max_range_n_estimators),(min_range_feature_fraction, max_range_feature_fraction)]
-        
-    problem = Problem(num_of_variables = 5,
-                      objectives = objectives,
-                      extra=extraobj,
-                      variables_range = variables_range,
-                      individuals_df = pd.DataFrame(),
-                      num_of_generations = generations,
-                      num_of_individuals = individuals,
-                      dataset_name = dataset,
-                      variable_name = sens_col,
-                      model = model,
-                      seed = set_seed)
-
-    print("------------RUN:",run)
-    
-    evo = Evomodule.Evolution(problem,
-                    evolutions_df = pd.DataFrame(),
-                    dataset_name = dataset,
-                    model_name = model,
-                    protected_variable = sens_col,
-                    num_of_generations = generations,
-                    num_of_individuals = individuals)
-    
-    pareto = evo.evolve()
-
-    #calculate_measures_save(pareto, algorithm, dataset, variable, objectives, set_seed, run, individuals, generations, ends[-1]-starts[-1], False)
-    
-    first = True
-    for p in pareto:    
-        problem.test_and_save(p,first,problem.seed, algorithm)
-        first = False
-    
+problem = Problem(num_of_variables = 5,
+                objectives = objectives,
+                extra=extraobj,
+                variables_range = variables_range,
+                individuals_df = pd.DataFrame(),
+                num_of_generations = generations,
+                num_of_individuals = individuals,
+                dataset_name = dataset,
+                variable_name = sens_col,
+                model = model,
+                seed = set_seed)
 #Calculate file with the general pareto front using all pareto fronts in every execution
 print("Calculating pareto optimal solutions using all runs...")
 pareto_optimal_exec, pareto_optimal_df = problem.calculate_pareto_optimal(set_seed_base, n_runs, algorithm)

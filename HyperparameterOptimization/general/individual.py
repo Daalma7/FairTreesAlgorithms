@@ -5,6 +5,7 @@ import abc
 # Base individual, don't represent any particular ML classification method #
 ############################################################################
 
+# TODO: Optimizar objetivos calculados
 class Individual(object):
 
     def __init__(self):
@@ -15,6 +16,7 @@ class Individual(object):
         self.dominated_solutions = None
         self.features = None
         self.objectives = None
+        self.calc_objectives = False
         self.extra = None
         self.creation_mode = None
 

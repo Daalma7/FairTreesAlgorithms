@@ -65,9 +65,6 @@ class Genetic_Pruning_Process():
         for i in range(self.num_indiv):          # For each individual to be created
 
             newset = []                 # representation of the new individual.
-
-            
-
             stack = [(0, [], 0, 0, False)]  # start with the root node id (0) and its repreesentation, the probability
                                                           # for each of its children to be pruned, the next child to explore, and if the current node must be pruned
 
@@ -259,6 +256,11 @@ class Genetic_Pruning_Process():
                 new_pop.append(self.population[rand2])
 
         return new_pop
+
+
+    # TODO: Parallelize
+    def parallel_pop_crossover():
+        pass
 
     # MODIFIABLE
     def pop_crossover(self):
@@ -537,6 +539,7 @@ class Genetic_Pruning_Process():
         for i in range(self.num_gen):       # For each generation
             new_pop = self.tournament()     # We select the parent inidividuals
             new_pop = self.pop_crossover()  # We apply crossover operator
+            # TODO: Parallelize
             new_pop = [self.mutation(indiv) for indiv in new_pop] # We apply mutation over individuals
             
             #print(i)
@@ -683,6 +686,8 @@ class Genetic_Pruning_Process_NSGA2(Genetic_Pruning_Process):
 
         return new_pop
 
+    # TODO: Añadir std
+    # TODO: Comprobar que se hace todo como en NSGA2 
     def genetic_optimization(self, seed, store=True):
         """
         Defines the whole optimization process

@@ -10,8 +10,8 @@ from general.ml import decode, train_model, evaluate_fairness, val_model, save_m
 import os
 import pandas as pd
 
-PATH_TO_RESULTS = os.path.dirname(os.path.dirname( os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__)))))) + '/results/'
 
+PATH_TO_RESULTS = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))) + '/results/'
 #Clase que representa un problema multiobjetivo
 class Problem:
 
@@ -195,9 +195,9 @@ class Problem:
         return individual
 
     #Validates each individual and exports its parameters and other measures to csv
-    def calculate_objectives(self, individual, first_individual, seed, method):
-        if self.expand:
-            objectives_results_dict = {'gmean_inv': 'error', 'dem_fpr': 'dem_fp', 'dem_ppv': 'dem_ppv', 'dem_pnr': 'dem_pnr', 'num_leaves': 'num_leaves', 'data_weight_avg_depth':'data_weight_avg_depth'}
+    def calculate_objectives(self, individual, first_individual, seed):
+        if self.expand and not individual.calc_objectives:
+            individual.calc_objectives=True
             hyperparameters = individual.features
             learner = train_model(self.dataset_name, self.variable_name, self.seed, self.model, **hyperparameters) #Model training
             X, y, pred = val_model(self.dataset_name, self.variable_name, learner, seed)          #Model validation
@@ -205,7 +205,7 @@ class Problem:
             y_fair = evaluate_fairness(X, y, pred, self.variable_name)        #For getting objectives using validation data
             individual.objectives = []
 
-            #TODO: Fallos
+            # TODO: Fallos
             for x in self.objectives:
                 if x.__name__ == 'gmean_inv':
                     individual.objectives.append(gmean_inv(y, pred))
@@ -235,6 +235,7 @@ class Problem:
                         individual.extra.append(num_leaves(learner))
                     elif x.__name__ == 'data_weight_avg_depth':
                         individual.extra.append(data_weight_avg_depth(learner))
+            
             #In case we're using decision trees, as some objectives aren't initially upper bounded, we're going to use the bound defined by the values
             #of the first individual, which is unrestricted and for that reason will have the biggest possible size
             if first_individual and (self.model == "DT" or self.model == "FDT"):
@@ -245,48 +246,56 @@ class Problem:
                 self.variable_range = []
                 self.variables_range = tuple(var_range_list)
                 
-            if first_individual and (self.model == "FLGBM"):
+            elif first_individual and (self.model == "FLGBM"):
                 var_range_list = list(self.variables_range)
                 var_range_list[3] = (self.variables_range[3][0], get_max_depth_FLGBM(self.dataset_name, self.variable_name, self.seed, self.model, **hyperparameters)) #Model training
                 self.variable_range = []
                 self.variables_range = tuple(var_range_list)
-
-            #Dictionaries definitions to create the dataframe representing all needed data from an individual and the execution
-            indiv_list = list(individual.features.items())
+            
             if self.model == "DT":          #Depending on the model we will have different sets of hyperparameters for that model
-                criterion, max_depth, min_samples_split, max_leaf_nodes, class_weight = [item[1] for item in indiv_list]
-                dict_hyperparameters= {'criterion': [criterion], 'max_depth': [max_depth], 'min_samples_split': [min_samples_split], 'max_leaf_nodes': [max_leaf_nodes], 'class_weight': [class_weight]}
                 depth, leaves, data_avg_depth = print_properties_tree(learner)      #Size attributes for Decision Tree individuals
                 individual.actual_depth = depth
                 individual.actual_leaves = leaves
                 individual.actual_data_avg_depth = data_avg_depth
-            indiv_list = list(individual.features.items())
-            if self.model == "FDT":          #Depending on the model we will have different sets of hyperparameters for that model
-                criterion, max_depth, min_samples_split, max_leaf_nodes, class_weight, fair_param = [item[1] for item in indiv_list]
-                dict_hyperparameters= {'criterion': [criterion], 'max_depth': [max_depth], 'min_samples_split': [min_samples_split], 'max_leaf_nodes': [max_leaf_nodes], 'class_weight': [class_weight], 'fair_param':[fair_param]}
+            elif self.model == "FDT":          #Depending on the model we will have different sets of hyperparameters for that model
                 depth, leaves, data_avg_depth = print_properties_tree(learner)      #Size attributes for Decision Tree individuals
                 individual.actual_depth = depth
                 individual.actual_leaves = leaves
                 individual.actual_data_avg_depth = data_avg_depth
 
-            if self.model == "LR":
-                max_iter, tol, lambd, l1_ratio, class_weight = [item[1] for item in indiv_list]
-                dict_hyperparameters= {'max_iter': [max_iter], 'tol': [tol], 'lambda': [lambd], 'l1_ratio': [l1_ratio], 'class_weight': [class_weight]}
-            if self.model == "FLGBM":
-                lamb, num_leaves, min_data_in_leaf, max_depth, learning_rate, n_estimators, feature_fraction = [item[1] for item in indiv_list]
-                dict_hyperparameters= {'lamb': [lamb], 'num_leaves' : [num_leaves], 'min_data_in_leaf':[min_data_in_leaf], 'max_depth':[max_depth], 'learning_rate': [learning_rate], 'n_estimators': [n_estimators], 'feature_fraction': [feature_fraction]}
-            dict_general_info = {'id': individual.id, 'creation_mode':individual.creation_mode}
-            dict_objectives= {objectives_results_dict.get(self.objectives[i].__name__): individual.objectives[i] for i in range(self.num_of_objectives)}
-            if self.extra != None: 
-                dict_extra= {objectives_results_dict.get(self.extra[i].__name__): individual.extra[i] for i in range(len(self.extra))}
-                dict_dataframe = {**dict_general_info, **dict_objectives, **dict_extra, **dict_hyperparameters} #Union
-            else:
-                dict_dataframe = {**dict_general_info, **dict_objectives, **dict_hyperparameters} #Union
+    """
+    def store_objectives(self, individual):
+        objectives_results_dict = {'gmean_inv': 'error', 'dem_fpr': 'dem_fp', 'dem_ppv': 'dem_ppv', 'dem_pnr': 'dem_pnr', 'num_leaves': 'num_leaves', 'data_weight_avg_depth':'data_weight_avg_depth'}
+        
+        #Dictionaries definitions to create the dataframe representing all needed data from an individual and the execution
+        indiv_list = list(individual.features.items())
+        if self.model == "DT":          #Depending on the model we will have different sets of hyperparameters for that model
+            criterion, max_depth, min_samples_split, max_leaf_nodes, class_weight = [item[1] for item in indiv_list]
+            dict_hyperparameters= {'criterion': [criterion], 'max_depth': [max_depth], 'min_samples_split': [min_samples_split], 'max_leaf_nodes': [max_leaf_nodes], 'class_weight': [class_weight]}
+        if self.model == "FDT":          #Depending on the model we will have different sets of hyperparameters for that model
+            criterion, max_depth, min_samples_split, max_leaf_nodes, class_weight, fair_param = [item[1] for item in indiv_list]
+            dict_hyperparameters= {'criterion': [criterion], 'max_depth': [max_depth], 'min_samples_split': [min_samples_split], 'max_leaf_nodes': [max_leaf_nodes], 'class_weight': [class_weight], 'fair_param':[fair_param]}
+        if self.model == "LR":
+            max_iter, tol, lambd, l1_ratio, class_weight = [item[1] for item in indiv_list]
+            dict_hyperparameters= {'max_iter': [max_iter], 'tol': [tol], 'lambda': [lambd], 'l1_ratio': [l1_ratio], 'class_weight': [class_weight]}
+        if self.model == "FLGBM":
+            lamb, num_leaves, min_data_in_leaf, max_depth, learning_rate, n_estimators, feature_fraction = [item[1] for item in indiv_list]
+            dict_hyperparameters= {'lamb': [lamb], 'num_leaves' : [num_leaves], 'min_data_in_leaf':[min_data_in_leaf], 'max_depth':[max_depth], 'learning_rate': [learning_rate], 'n_estimators': [n_estimators], 'feature_fraction': [feature_fraction]}
+        
+        dict_general_info = {'id': individual.id, 'creation_mode':individual.creation_mode}
+        dict_objectives= {objectives_results_dict.get(self.objectives[i].__name__): individual.objectives[i] for i in range(self.num_of_objectives)}
+        if self.extra != None: 
+            dict_extra= {objectives_results_dict.get(self.extra[i].__name__): individual.extra[i] for i in range(len(self.extra))}
+            dict_dataframe = {**dict_general_info, **dict_objectives, **dict_extra, **dict_hyperparameters} #Union
+        else:
+            dict_dataframe = {**dict_general_info, **dict_objectives, **dict_hyperparameters} #Union
 
-            individuals_aux = pd.DataFrame(dict_dataframe)
-            self.individuals_df = pd.concat([self.individuals_df, individuals_aux])
-            self.individuals_df.to_csv(PATH_TO_RESULTS + self.model + '/' + str(method) + '/individuals/individuals_' + self.dataset_name + '_seed_' + str(seed) + '_var_' + self.variable_name + '_gen_' + str(self.num_of_generations) + '_indiv_' + str(self.num_of_individuals) + '_model_' + self.model + '_obj_' + self.get_obj_string() + self.get_extra_string() + '.csv', index = False, header = True, columns = list(dict_dataframe.keys()))
-    
+        individuals_aux = pd.DataFrame(dict_dataframe)
+        self.individuals_df = pd.concat([self.individuals_df, individuals_aux])
+        self.individuals_df.to_csv(PATH_TO_RESULTS + self.model + '/' + str(method) + '/individuals/individuals_' + self.dataset_name + '_seed_' + str(seed) + '_var_' + self.variable_name + '_gen_' + str(self.num_of_generations) + '_indiv_' + str(self.num_of_individuals) + '_model_' + self.model + '_obj_' + self.get_obj_string() + self.get_extra_string() + '.csv', index = False, header = True, columns = list(dict_dataframe.keys()))
+        individuals_aux
+    """
+
     #Evaluates and exports to csv the pareto-optimal individuals obtained during all the execution
     def test_and_save(self, individual, first, seed, method):
         if self.expand:
@@ -294,7 +303,7 @@ class Problem:
             objectives_test_dict = {'gmean_inv': 'error_tst', 'dem_fpr': 'dem_fpr_tst', 'dem_ppv': 'dem_ppv_tst', 'dem_pnr': 'dem_pnr_tst', 'num_leaves': 'num_leaves_tst', 'data_weight_avg_depth':'data_weight_avg_depth_tst'}
             hyperparameters = individual.features
             learner = train_model(self.dataset_name, self.variable_name, seed, self.model, **hyperparameters)
-            save_model(learner, self.dataset_name, seed, self.variable_name, self.num_of_generations, self.num_of_individuals, individual.id, self.model, method, self.objectives)
+            #save_model(learner, self.dataset_name, seed, self.variable_name, self.num_of_generations, self.num_of_individuals, individual.id, self.model, method, self.objectives)
             X, y, pred = test_model(self.dataset_name, self.variable_name, learner, seed)       #Model test (not validation as above)
             y_fair = evaluate_fairness(X, y, pred, self.variable_name)      #For getting objectives, using test data
             objectives_test = []
@@ -374,9 +383,9 @@ class Problem:
             individuals_aux = pd.DataFrame(dict_dataframe)
             self.individuals_df = pd.concat([self.individuals_df, individuals_aux])
             if (first):
-                individuals_aux.to_csv(PATH_TO_RESULTS + self.model + '/' + str(method) + '/individuals/individuals_pareto_' + self.dataset_name + '_seed_' + str(seed) + '_var_' + self.variable_name + '_gen_' + str(self.num_of_generations) + '_indiv_' + str(self.num_of_individuals) + '_model_' + self.model + '_obj_' + self.get_obj_string() + self.get_extra_string() + '.csv', index = False, header = True, columns = list(dict_dataframe.keys()))
+                individuals_aux.to_csv(f"{PATH_TO_RESULTS}{self.model}/{method}/pareto_individuals/runs/{self.dataset_name}/{self.dataset_name}_seed_{seed}_var_{self.variable_name}_gen_{self.num_of_generations}_indiv_{self.num_of_individuals}_model_{self.model}_obj_{self.get_obj_string()}{self.get_extra_string()}.csv", index = False, header = True, columns = list(dict_dataframe.keys()))
             else:
-                individuals_aux.to_csv(PATH_TO_RESULTS + self.model + '/' + str(method) + '/individuals/individuals_pareto_' + self.dataset_name + '_seed_' + str(seed) + '_var_' + self.variable_name + '_gen_' + str(self.num_of_generations) + '_indiv_' + str(self.num_of_individuals) + '_model_' + self.model + '_obj_' + self.get_obj_string() + self.get_extra_string() + '.csv', index = False, mode='a', header=False, columns = list(dict_dataframe.keys()))
+                individuals_aux.to_csv(f"{PATH_TO_RESULTS}{self.model}/{method}/pareto_individuals/runs/{self.dataset_name}/{self.dataset_name}_seed_{seed}_var_{self.variable_name}_gen_{self.num_of_generations}_indiv_{self.num_of_individuals}_model_{self.model}_obj_{self.get_obj_string()}{self.get_extra_string()}.csv", index = False, mode='a', header=False, columns = list(dict_dataframe.keys()))
     
     #Calculate file with the general pareto front using all pareto fronts in every execution
     def calculate_pareto_optimal(self, seed, runs, method):
@@ -389,7 +398,7 @@ class Problem:
             objectives_results_norm_dict = {'num_leaves': 'num_leaves_tst', 'data_weight_avg_depth': 'data_weight_avg_depth_tst'}
 
             for i in range(runs):
-                read = pd.read_csv(PATH_TO_RESULTS + self.model + '/' + str(method) + '/individuals/individuals_pareto_' + self.dataset_name + '_seed_' + str(seed + i) + '_var_' + self.variable_name + '_gen_' + str(self.num_of_generations) + '_indiv_' + str(self.num_of_individuals) + '_model_' + self.model + '_obj_' + self.get_obj_string() + self.get_extra_string() + '.csv')
+                read = pd.read_csv(f"{PATH_TO_RESULTS}{self.model}/{method}/pareto_individuals/runs/{self.dataset_name}/{self.dataset_name}_seed_{seed}_var_{self.variable_name}_gen_{self.num_of_generations}_indiv_{self.num_of_individuals}_model_{self.model}_obj_{self.get_obj_string()}{self.get_extra_string()}.csv")
                 pareto_fronts.append(read)
 
             hyperparameters = []
@@ -459,6 +468,6 @@ class Problem:
             #We extract them to a file
             pareto_optimal_df = pd.concat(pareto_optimal_df)
             pareto_optimal_df = pareto_optimal_df.drop_duplicates(subset=(['seed']+hyperparameters), keep='first')
-            pareto_optimal_df.to_csv(PATH_TO_RESULTS + self.model + '/' + str(method) + '/individuals/general_individuals_pareto_' + self.dataset_name + '_baseseed_' + str(seed) + '_nruns_' + str(runs) +'_var_' + self.variable_name + '_gen_' + str(self.num_of_generations) + '_indiv_' + str(self.num_of_individuals) + '_model_' + self.model + '_obj_' + self.get_obj_string() + self.get_extra_string() + '.csv', index = False, header = True, columns = list(pareto_fronts.keys()))
+            pareto_optimal_df.to_csv(f"{PATH_TO_RESULTS}{self.model}/{method}/pareto_individuals/overall/{self.dataset_name}/{self.dataset_name}_baseseed_{seed}_nruns_{runs}_var_{self.variable_name}_gen_{self.num_of_generations}_indiv_{self.num_of_individuals}_model_{self.model}_obj_{self.get_obj_string()}{self.get_extra_string()}.csv", index = False, header = True, columns = list(pareto_fronts.keys()))
 
             return pareto_optimal, pareto_optimal_df                   #Population of pareto front individuals

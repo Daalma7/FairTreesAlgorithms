@@ -1,6 +1,8 @@
 from general.population import Population
 import random
 from general.ml import *
+from joblib import Parallel, delayed
+
 
 #Utility functions for the NSGA-II method
 class NSGA2Utils:
@@ -21,6 +23,7 @@ class NSGA2Utils:
     def create_initial_population(self, model):
         population = Population()
         first_individual = True
+        indivlist = []
         for k in range(self.num_of_individuals):        #There will be at least 1 Gini and 1 Entropy individuals in this initial population
             if model == "DT":
                 if k == 0:
@@ -53,16 +56,20 @@ class NSGA2Utils:
                     individual = self.problem.generate_second_default_flgbm()
                 else:
                     individual = self.problem.generate_individual()
-            self.problem.calculate_objectives(individual, first_individual, self.problem.seed, 'nsga2')
+            newindiv = self.problem.calculate_objectives(individual, first_individual, self.problem.seed)
+            indivlist.append(newindiv)
             first_individual = False
-            population.append(individual)     
+            population.append(individual)
 
         return population
+    
 
     #Ordenación de población por dominancia entre soluciones.
+    # TODO: Try to paralellize
     def fast_nondominated_sort(self, population):
         population.fronts = [[]]
-        for individual in population:               #Establecimiento mejor frente e info de dominación para generar los demás
+
+        for individual in population:
             individual.domination_count = 0
             individual.dominated_solutions = []
             for other_individual in population:
@@ -70,10 +77,13 @@ class NSGA2Utils:
                     individual.dominated_solutions.append(other_individual) #Se añade a su lista de soluciones dominadas
                 elif other_individual.dominates(individual):                #Si no
                     individual.domination_count += 1                        #Aumentamos el contador de dominación
+
+        for individual in population:
             if individual.domination_count == 0:                            #Si no es dominada por nadie
                 individual.rank = 0
                 population.fronts[0].append(individual)
         i = 0
+
         while len(population.fronts[i]) > 0:        #Mientras que haya soluciones en el frente actual considerado
             temp = []
             for individual in population.fronts[i]:
@@ -85,7 +95,7 @@ class NSGA2Utils:
             i = i+1
             population.fronts.append(temp)
 
-    #Cálculo de la distancia de crowding, DENTRO DE UN MISMO FRENTE.
+    #Calculation of crowding_distance given a front
     def calculate_crowding_distance(self, front):
         if len(front) > 0:
             solutions_num = len(front)
@@ -108,31 +118,41 @@ class NSGA2Utils:
             return 1
         else:
             return -1
+        
 
+    def parallel_create_children(self, population, model):
+        parent1 = self.__tournament(population)
+        parent2 = parent1
+        while parent1 == parent2:
+            parent2 = self.__tournament(population)
+        child1, child2 = self.__crossover(parent1, parent2, model)
+        prob_mutation_child1 = random.uniform(0,1)
+        prob_mutation_child2 = random.uniform(0,1)
+        if(prob_mutation_child1 < self.mutation_prob):
+            self.__mutate(child1, model)
+            child1.creation_mode = "mutation"
+        if(prob_mutation_child2 < self.mutation_prob):
+            self.__mutate(child2, model)
+            child2.creation_mode = "mutation"
+        child1.features = decode(self.problem.variables_range, model, **child1.features)
+        child2.features = decode(self.problem.variables_range, model, **child2.features)
+        return [child1, child2]
+    
+    def parallel_calc_objectives(self, child):
+        self.problem.calculate_objectives(child, False, self.problem.seed)
+        return child
+    
+
+    # TODO: Asegurar que funciona
     def create_children(self, population, model):
-        first_individual = False
-        children = []
-        while len(children) < len(population):
-            parent1 = self.__tournament(population)
-            parent2 = parent1
-            while parent1 == parent2:
-                parent2 = self.__tournament(population)
-            child1, child2 = self.__crossover(parent1, parent2, model)
-            prob_mutation_child1 = random.uniform(0,1)
-            prob_mutation_child2 = random.uniform(0,1)
-            if(prob_mutation_child1 < self.mutation_prob):
-                self.__mutate(child1, self.mutation_prob, model)
-                child1.creation_mode = "mutation"
-            if(prob_mutation_child2 < self.mutation_prob):
-                self.__mutate(child2, self.mutation_prob, model)
-                child2.creation_mode = "mutation"
-            child1.features = decode(self.problem.variables_range, model, **child1.features)
-            child2.features = decode(self.problem.variables_range, model, **child2.features)
-            self.problem.calculate_objectives(child1, first_individual, self.problem.seed, 'nsga2')
-            self.problem.calculate_objectives(child2, first_individual, self.problem.seed, 'nsga2')
-            children.append(child1)
-            children.append(child2)
-        return children
+        pop_size = len(population.population)
+        child_pop = Parallel(n_jobs=-1)(delayed(self.parallel_create_children)(population, model) for i in range(pop_size))
+        child_pop = [child for children in child_pop for child in children]
+        child_pop_prev = [child for child in child_pop if child.calc_objectives]
+        child_pop_new = Parallel(n_jobs=-1)(delayed(self.parallel_calc_objectives)(child) for child in child_pop if not child.calc_objectives)
+        return child_pop_prev + child_pop_new
+
+
 
     def __crossover(self, individual1, individual2, model):
         child1 = self.problem.generate_individual()
@@ -183,7 +203,7 @@ class NSGA2Utils:
         u = random.uniform(0, 0.5)
         return u
 
-    def __mutate(self, child, prob_mutation, model):
+    def __mutate(self, child, model):
         hyperparameter = random.choice(list(child.features))
         hyperparameter_index = list(child.features.keys()).index(hyperparameter)
         u, delta = self.__get_delta()
