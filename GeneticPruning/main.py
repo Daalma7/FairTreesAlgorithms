@@ -3,11 +3,13 @@ import pandas as pd
 import sys
 import warnings
 warnings.filterwarnings("ignore")
+import os
 
-from ml import *
+from ml import get_matrices, write_train_val_test, test_and_save_results, calculate_pareto_optimal
 from genetic import Genetic_Pruning_Process_NSGA2
 from individual import Tree_Structure
 
+PATH_TO_RESULTS = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))) + '/results/GP'
 
 nind = ngen = dat = sens_col = bseed = nruns = obj = extra = False        #Possible parameters given
 dataset = None
@@ -144,34 +146,58 @@ if len(objectives) < 2:
 for run in range(n_runs):
     set_seed = set_seed_base + run
 
-    # write datasets
-    x_train, x_val, x_test, y_train, y_val, y_test = get_matrices(dataset, y_col, set_seed)
-    write_train_val_test(dataset, sens_col, set_seed, x_train, x_val, x_test, y_train, y_val, y_test)
-    print(x_train)
-    x_train = x_train.loc[:, x_train.columns != 'y']
-    x_val = x_val.loc[:, x_val.columns != 'y']
-    x_test = x_test.loc[:, x_test.columns != 'y']
+    obj_str = '_'.join(objectives) 
 
-    prot_train = x_train[sens_col].astype(int)
-    prot_val = x_val[sens_col].astype(int)
-    prot_test = x_test[sens_col].astype(int)
-    
-    print(x_train, y_train, prot_train, x_val, y_val, prot_val)
-    struc = Tree_Structure(x_train, y_train, prot_train, x_val, y_val, prot_val, run)
+    execute = False
+    save_population_name = None
 
-    gen_process = Genetic_Pruning_Process_NSGA2(struc, objectives, generations, individuals, 0.7, 0.2)
+    if extraobj is None:
+        save_population_name = f"{PATH_TO_RESULTS}/population/{dataset}/{dataset}__{sens_col}__obj_{obj_str}__seed_{set_seed}__nind_{individuals}__ngen_{generations}.csv"
+    else:
+        extra_str = '_'.join(extraobj)
+        save_population_name = f"{PATH_TO_RESULTS}/population/{dataset}/{dataset}__{sens_col}__obj_{obj_str}__seed_{set_seed}__extra_{extra_str}__nind_{individuals}__ngen_{generations}.csv"
 
-    indivs, store_df = gen_process.genetic_optimization(set_seed)
-    
-    print(indivs)
-    for indiv in indivs:    
-        print(i)
-        print(indiv.repre)
-        for i in range(len(objectives)):
-            print(objectives[i], indiv.objectives[i])
-    
-    test_and_save_results(x_test, y_test, prot_test, indivs, objectives, generations, individuals, generations, dataset, sens_col, set_seed, objectives, extraobj, store_df)
+    print(save_population_name)
+    try:
+        read = pd.read_csv(save_population_name)
+        print(f"Result file for {dataset} dataset, seed {set_seed}, and the others parameters already existed!")
+        if read.shape[0] < generations * individuals:
+            execute = True
+            print("\tBut it lacks some individuals, so it will be executed again")
+    except FileNotFoundError:
+        execute = True
+
+    if execute:
+
+        # write datasets
+        x_train, x_val, x_test, y_train, y_val, y_test = get_matrices(dataset, y_col, set_seed)
+        write_train_val_test(dataset, sens_col, set_seed, x_train, x_val, x_test, y_train, y_val, y_test)
+        x_train = x_train.loc[:, x_train.columns != 'y']
+        x_val = x_val.loc[:, x_val.columns != 'y']
+        x_test = x_test.loc[:, x_test.columns != 'y']
+
+        prot_train = x_train[sens_col].astype(int)
+        prot_val = x_val[sens_col].astype(int)
+        prot_test = x_test[sens_col].astype(int)
         
+        struc = Tree_Structure(x_train, y_train, prot_train, x_val, y_val, prot_val, run)
+
+        gen_process = Genetic_Pruning_Process_NSGA2(struc, objectives, generations, individuals, 0.7, 0.2)
+
+        indivs, gen_stats_df, population_df = gen_process.genetic_optimization(set_seed)
+        
+        print(indivs)
+        for indiv in indivs:    
+            print(i)
+            print(indiv.repre)
+            for i in range(len(objectives)):
+                print(objectives[i], indiv.objectives[i])
+        
+        test_and_save_results(x_test, y_test, prot_test, indivs, gen_stats_df, population_df, objectives, individuals, generations, dataset, sens_col, set_seed, objectives, extraobj)
+
+print("Calculating pareto optimal solutions using all runs...")
+calculate_pareto_optimal(dataset, sens_col, obj_str, individuals, generations, set_seed_base, n_runs, extraobj)
+print("Execution succesful!\n------------------------------")
     
 
 

@@ -9,13 +9,16 @@ import string
 import random
 import pickle
 import os
+import numpy as np
+from collections import OrderedDict as od
+
 
 PATH_TO_RESULTS = os.path.dirname(os.path.dirname(os.path.dirname(__file__))) + '/results/GP/'
 PATH_TO_DATA = os.path.dirname(os.path.dirname(os.path.dirname(__file__))) + '/datasets/data/'
 
 #Reads the dataset to work with. You have to work with preprocessed data, and to ensure it, we will only read the files ending with _preproc
 def read_data(df_name):
-    df = pd.read_csv(PATH_TO_DATA + df_name + '.csv', sep = ',')
+    df = pd.read_csv(f"{PATH_TO_DATA}{df_name}.csv", sep = ',')
     if 'Unnamed: 0' in df.columns:
         df = df.drop('Unnamed: 0', axis=1)
     return df
@@ -46,13 +49,13 @@ def get_matrices(df_name, y_col, seed):
 def write_train_val_test(df_name, prot_col, seed, X_train, X_val, X_test, y_train, y_val, y_test):
     train = X_train
     train['y'] = y_train.tolist()
-    train.to_csv(PATH_TO_DATA + 'train_val_test_standard/' + df_name + '/' + df_name + '_' + prot_col + '_train_seed_' + str(seed) + '.csv', index = False)
+    train.to_csv(f"{PATH_TO_DATA}train_val_test_standard/{df_name}/{df_name}_{prot_col}_train_seed_{seed}.csv", index = False)
     val = X_val
     val['y'] = y_val.tolist()
-    val.to_csv(PATH_TO_DATA + 'train_val_test_standard/' + df_name + '/' + df_name + '_' + prot_col + '_val_seed_' + str(seed) + '.csv', index = False)
+    val.to_csv(f"{PATH_TO_DATA}train_val_test_standard/{df_name}/{df_name}_{prot_col}_val_seed_{seed}.csv", index = False)
     test = X_test
     test['y'] = y_test.tolist()
-    test.to_csv(PATH_TO_DATA + 'train_val_test_standard/' + df_name + '/' + df_name + '_' + prot_col + '_test_seed_' + str(seed) + '.csv', index = False)
+    test.to_csv(f"{PATH_TO_DATA}train_val_test_standard/{df_name}/{df_name}_{prot_col}_test_seed_{seed}.csv", index = False)
 
 #Exports obtained decision tree to a png file
 def print_tree(classifier, features):
@@ -68,21 +71,6 @@ def print_properties_tree(learner):
     w_avg_depth = data_weight_avg_depth(learner)
     return depth, leaves, w_avg_depth
 
-#Returns coefficients of the given logistic regression
-def print_properties_lr(learner):
-    return learner.coef_
-
-#TODO Revisar que se ha hecho bien
-#Classifier training
-def train_model(df_name, variable, seed):
-    train = pd.read_csv(PATH_TO_DATA + 'train_val_test_standard/' + df_name + '/' + df_name + '_' + variable + '_train_seed_' + str(seed) + '.csv')
-    X_train = train.iloc[:, :-1]
-    y_train = train.iloc[:, -1]
-    clf = DecisionTreeClassifier(random_state = seed)
-
-    learner = clf.fit(X_train, y_train)
-    return learner
-
 # TODO: modificar esto
 def save_model(learner, dataset_name, seed, variable_name, num_of_generations, num_of_individuals, individual_id, model, method, objectives):
     # save the model to disk
@@ -97,21 +85,13 @@ def save_model(learner, dataset_name, seed, variable_name, num_of_generations, n
 
 #TODO Revisar que se ha hecho bien
 #Validates the classifier (comparison with validation set)
-def val_model(df_name, variable, learner, seed):
-    val = pd.read_csv(PATH_TO_DATA + 'train_val_test_standard/' + df_name + '/' + df_name + '_' + variable + '_val_seed_' + str(seed) + '.csv')
-    X_val = val.iloc[:, :-1]
-    y_val = val.iloc[:, -1]
-    y_pred = learner.predict(X_val)
-    return X_val, y_val, y_pred
+def val_model(X_val, learner):
+    return learner.predict(X_val)
 
 #TODO Revisar que se ha hecho bien
 #Tests the classifier (comparison with test set)
-def test_model(df_name, variable, learner, seed):
-    test = pd.read_csv(PATH_TO_DATA + 'train_val_test_standard/' + df_name + '/' + df_name + '_' + variable + '_test_seed_' + str(seed) + '.csv')
-    X_test = test.iloc[:, :-1]
-    y_test = test.iloc[:, -1]
-    y_pred = learner.predict(X_test)
-    return X_test, y_test, y_pred
+def test_model(X_test, learner):
+    return learner.predict(X_test)
 
 #Second complexity measure, that complements the first one.
 #Return the weighted average of the depth of all leaves nodes, considering the number of training samples that fell on each one.
@@ -130,65 +110,194 @@ def data_weight_avg_depth(learner):
     return total_w_depth
 
 
-
-
-
-
-
-
 def generate_random_string(length):
     letters_and_digits = string.ascii_uppercase + string.digits
     return ''.join(random.choices(letters_and_digits, k=length))
 
-def test_and_save_results(x_test, y_test, prot_test, classifiers, objectives, generations, nind, ngen, dat, var, seed, obj, extra, store_df=None):
-    
-    save_name = ''
-    save_store_name = ''
-    obj_str = '_'.join(objectives) 
-    extra_str = '_'.join(objectives)
-    if not extra is None:
-        save_name = PATH_TO_RESULTS + dat + '__' + var + '__obj_' + obj_str + '__seed_' + str(seed) + '__extra_' + extra_str + '__nind_' + str(nind) + '__ngen_' + str(ngen) + '.csv'
-        save_store_name = PATH_TO_RESULTS + 'train_' + dat + '__' + var + '__obj_' + obj_str + '__seed_' + str(seed) + '__extra_' + extra_str + '__nind_' + str(nind) + '__ngen_' + str(ngen) + '.csv'
-    else:
-        save_name = PATH_TO_RESULTS + dat + '__' + var + '__obj_' + obj_str + '__seed_' + str(seed) + '__nind_' + str(nind) + '__ngen_' + str(ngen) + '.csv'
-        save_store_name = PATH_TO_RESULTS + 'train_' + dat + '__' + var + '__obj_' + obj_str + '__seed_' + str(seed) + '__nind_' + str(nind) + '__ngen_' + str(ngen) + '.csv'
 
-    dict_generate = {'ID': [], 'seed': [], 'creation_mode': [], 'num_prunings': [], 'num_leaves': [], 'depth':[], 'mean_depth':[], 'unbalance':[]}
+def create_gen_stats_df():
+    return pd.DataFrame({'df_min_leaves':[], 'df_avg_leaves':[], 'df_max_leaves':[], 'df_std_leaves':[],
+                  'df_min_depth':[], 'df_avg_depth':[], 'df_max_depth':[], 'df_std_depth':[],
+                  'df_min_data_avg_depth':[], 'df_mean_data_avg_depth':[], 'df_max_data_avg_depth':[], 'df_std_data_avg_depth':[],
+                  'process_time':[], 'total_time':[]})
+
+def update_gen_stats_df(store_df, newpop, p_time, t_time):
+    df_num_leaves = []
+    df_mean_depth = []
+    for elem in newpop:
+        elem.get_tree()
+        df_num_leaves.append(elem.num_leaves)
+        df_mean_depth.append(elem.mean_depth)
+
+    df_num_leaves = np.array(df_num_leaves)
+    df_mean_depth = np.array(df_mean_depth)
+
+    c_df = pd.DataFrame({'df_min_leaves':[df_num_leaves.min()], 'df_avg_leaves':[df_num_leaves.mean()], 'df_max_leaves':[df_num_leaves.max()], 'df_std_leaves':[df_num_leaves.std()],
+                  'df_min_depth':[df_mean_depth.min()], 'df_avg_depth':[df_mean_depth.mean()], 'df_max_depth':[df_mean_depth.max()], 'df_std_depth':[df_mean_depth.std()],
+                  'df_min_data_avg_depth':[0], 'df_mean_data_avg_depth':[0], 'df_max_data_avg_depth':[0], 'df_std_data_avg_depth':[0],
+                  'process_time': [p_time], 'total_time':[t_time]})
+    
+    return pd.concat([store_df,c_df], ignore_index=True)
+
+
+def create_gen_population_df(obj, seed):
+    dict_individual = {'ID': [], 'seed': [], 'creation_mode': [], 'num_prunings': [], 'num_leaves': [], 'depth':[], 'mean_depth':[], 'unbalance':[]}
+    for elem in obj:
+        dict_individual[elem + '_val'] = []
+    return pd.DataFrame(dict_individual)
+
+def update_gen_population(pop_df, new_pop, obj, seed):
+    dict_individual = {'ID': [], 'seed': [], 'creation_mode': [], 'num_prunings': [], 'num_leaves': [], 'depth':[], 'mean_depth':[], 'unbalance':[]}
+    for elem in obj:
+        dict_individual[elem + '_val'] = []
+    dict_individual['repre'] = []
+
+    for clf in new_pop:
+        # TODO: Modificar el ID para que sea una propiedad del individuo en cuestión
+        ID = generate_random_string(20)
+        dict_individual['ID'].append(ID)
+        dict_individual['seed'].append(seed)
+        dict_individual['repre'].append(clf.repre_to_node_id())
+        dict_individual['creation_mode'].append(clf.creation_mode)
+
+        for i in range(len(obj)):
+            dict_individual[obj[i] + '_val'].append(clf.objectives[i])
+        
+        dict_individual['num_prunings'].append(clf.num_prunings)
+        dict_individual['num_leaves'].append(clf.num_leaves)
+        dict_individual['depth'].append(clf.depth)
+        dict_individual['mean_depth'].append(clf.mean_depth)
+        dict_individual['unbalance'].append(clf.unbalance)
+
+    return pd.concat([pop_df, pd.DataFrame(dict_individual)], ignore_index=True)
+
+
+
+
+
+
+def test_and_save_results(x_test, y_test, prot_test, classifiers, gen_stats_df, population_df, objectives, nind, ngen, dat, var, seed, obj, extra):
+    
+    save_population_name = save_gen_name = save_pareto_run_name = ''
+    obj_str = '_'.join(objectives) 
+    if extra is None:
+        save_population_name = f"{PATH_TO_RESULTS}/population/{dat}/{dat}__{var}__obj_{obj_str}__seed_{seed}__nind_{nind}__ngen_{ngen}.csv"
+        save_gen_name = f"{PATH_TO_RESULTS}/generation_stats/{dat}/{dat}__{var}__obj_{obj_str}__seed_{seed}__nind_{nind}__ngen_{ngen}.csv"
+        save_pareto_run_name = f"{PATH_TO_RESULTS}/pareto_individuals/runs/{dat}/{dat}__{var}__obj_{obj_str}__seed_{seed}__nind_{nind}__ngen_{ngen}.csv"
+    else:
+        extra_str = '_'.join(extra)
+        save_population_name = f"{PATH_TO_RESULTS}/population/{dat}/{dat}__{var}__obj_{obj_str}__seed_{seed}__extra_{extra_str}__nind_{nind}__ngen_{ngen}.csv"
+        save_gen_name = f"{PATH_TO_RESULTS}/generation_stats/{dat}/{dat}__{var}__obj_{obj_str}__seed_{seed}__extra_{extra_str}__nind_{nind}__ngen_{ngen}.csv"
+        save_pareto_run_name = f"{PATH_TO_RESULTS}/pareto_individuals/runs/{dat}/{dat}__{var}__obj_{obj_str}__seed_{seed}__extra_{extra_str}__nind_{nind}__ngen_{ngen}.csv"
+        
+    
+    dict_individual = {'ID': [], 'seed': [], 'creation_mode': [], 'num_prunings': [], 'num_leaves': [], 'depth':[], 'mean_depth':[], 'unbalance':[]}
     
     for elem in obj:
-        dict_generate[elem + '_val'] = []
+        dict_individual[elem + '_val'] = []
     for elem in obj:
-        dict_generate[elem + '_test'] = []
+        dict_individual[elem + '_test'] = []
     
-    dict_generate['repre'] = []
+    dict_individual['repre'] = []
     
     for clf in classifiers:
         print("----")
         print(clf)
         ID = generate_random_string(20)
-        dict_generate['ID'].append(ID)
-        dict_generate['seed'].append(seed)
-        dict_generate['repre'].append(clf.repre_to_node_id())
-        dict_generate['creation_mode'].append(clf.creation_mode)
+        dict_individual['ID'].append(ID)
+        dict_individual['seed'].append(seed)
+        dict_individual['repre'].append(clf.repre_to_node_id())
+        dict_individual['creation_mode'].append(clf.creation_mode)
 
         test_objs = clf.test_tree(x_test, y_test, prot_test)
         for i in range(len(obj)):
-            dict_generate[obj[i] + '_val'].append(clf.objectives[i])
-            dict_generate[obj[i] + '_test'].append(test_objs[i])
+            dict_individual[obj[i] + '_val'].append(clf.objectives[i])
+            dict_individual[obj[i] + '_test'].append(test_objs[i])
         
-        dict_generate['num_prunings'].append(clf.num_prunings)
-        dict_generate['num_leaves'].append(clf.num_leaves)
-        dict_generate['depth'].append(clf.depth)
-        dict_generate['mean_depth'].append(clf.mean_depth)
-        dict_generate['unbalance'].append(clf.unbalance)
+        dict_individual['num_prunings'].append(clf.num_prunings)
+        dict_individual['num_leaves'].append(clf.num_leaves)
+        dict_individual['depth'].append(clf.depth)
+        dict_individual['mean_depth'].append(clf.mean_depth)
+        dict_individual['unbalance'].append(clf.unbalance)
         
-    df = pd.DataFrame(dict_generate)
+    df = pd.DataFrame(dict_individual)
     
-    df.to_csv(save_name, index=False)
-    if not store_df is None:
-        store_df.to_csv(save_store_name, index=False)
-        
+    df.to_csv(save_pareto_run_name, index=False)
+    gen_stats_df.to_csv(save_gen_name, index=False)
+    population_df.to_csv(save_population_name, index=False)
 
 
 
+def calculate_pareto_optimal(dataset, var, obj_str, nind, ngen, seed_base, runs, extra):
+    pareto_fronts = []
+    all_indivs = []
+    pareto_optimal = []
+    #ATTENTION!!! As we could want to compute the hypervolume, and for returning a structure independent from the measures we use, we should NORMALIZE HERE
+    objectives_results_dict = {'gmean_inv': 'error_tst', 'dem_fpr': 'dem_fpr_tst', 'dem_ppv': 'dem_ppv_tst', 'dem_pnr': 'dem_pnr_tst'}
+    objectives_results_norm_dict = {'num_leaves': 'num_leaves_tst', 'data_weight_avg_depth': 'data_weight_avg_depth_tst'}
+    
+    for i in range(runs):
+        save_pareto_run_name = ''
+        if extra is None:
+            save_pareto_run_name = f"{PATH_TO_RESULTS}/pareto_individuals/runs/{dataset}/{dataset}__{var}__obj_{obj_str}__seed_{seed_base + i}__nind_{nind}__ngen_{ngen}.csv"
+        else:
+            extra_str = '_'.join(extra)
+            save_pareto_run_name = f"{PATH_TO_RESULTS}/pareto_individuals/runs/{dataset}/{dataset}__{var}__obj_{obj_str}__seed_{seed_base + i}__extra_{extra_str}__nind_{nind}__ngen_{ngen}.csv"
+        read = pd.read_csv(save_pareto_run_name)
+        pareto_fronts.append(read)
 
+    hyperparameters = []
+    pareto_fronts = pd.concat(pareto_fronts)                            #Union of all pareto fronts got in each run
+    pareto_fronts.reset_index(drop=True, inplace=True)                  #Reset index because for each run all rows have repeated ones
+    for index, row in pareto_fronts.iterrows():                         #We create an individual object associated with each row
+        indiv.Individual_NSGA2()
+        hyperparameters = ['repre']
+        indiv.features = [row[x] for x in hyperparameters]
+        indiv.id = row['ID']
+        indiv.domination_count = 0
+        indiv.features = od(zip(hyperparameters, indiv.features))
+        indiv.objectives = []
+        for x in obj_str:
+            # We will insert all objectives, normalizing every objective that should be
+            obj = objectives_results_dict.get(x.__name__, "None")
+            if not obj == "None":                   #The objective doesn't need to be normalized to the range [0,1]
+                indiv.objectives.append(float(row[obj]))
+            else:                                   #In other case
+                obj = objectives_results_norm_dict.get(x.__name__)
+                indiv.objectives.append(float(row[obj]) / pareto_fronts[obj].max())
+        #The same with extra objectives
+        indiv.extra = []
+        if not extra is None: 
+            for x in extra:
+                # We will insert all objectives, normalizing every objective that should be
+                ext = objectives_results_dict.get(x.__name__, "None")
+                if not ext == "None":                   #The objective doesn't need to be normalized to the range [0,1]
+                    indiv.extra.append(float(row[ext]))
+                else:                                   #In other case
+                    ext = objectives_results_norm_dict.get(x.__name__)
+                    indiv.extra.append(float(row[ext]) / pareto_fronts[ext].max())
+        indiv.creation_mode = row['creation_mode']
+        all_indivs.append(indiv)
+    for indiv in all_indivs:                       #Now we calculate all the individuals non dominated by any other (pareto front)
+        indiv.domination_count == 0
+        for other_indiv in all_indivs:
+            if other_indiv.dominates(indiv):                
+                indiv.domination_count += 1                        #Indiv is dominated by the second
+        if indiv.domination_count == 0:                            #Could be done easily more efficiently, but could be interesting 
+            pareto_optimal.append(indiv)
+    pareto_optimal_df = []
+    for p in pareto_optimal:                #We select individuals from the files corresponding to the pareto front ones (we filter by id)
+        curr_id = p.id                      #BUT IF THERE ARE MORE THAN 1 INDIVIDUAL WITH THE SAME ID THEY WILL ALL BE ADDED, EVEN THOUGHT ONLY 1 OF THEM IS A PARETO OPTIMAL SOLUTION
+        found = False                       #Which is by the way really unlikely since there are 36^10 possibilities for an id
+        for index, row in pareto_fronts.iterrows():
+            if row['id'] == curr_id:
+                pareto_optimal_df.append(pd.DataFrame({x : row[x] for x in pareto_fronts.columns.tolist()}, index=[0])) #We introduce here the not-normalized version of them
+                found = True
+        if not found:
+            pareto_optimal.remove(p)
+    #We extract them to a file
+    pareto_optimal_df = pd.concat(pareto_optimal_df)
+    pareto_optimal_df = pareto_optimal_df.drop_duplicates(subset=(['seed']+hyperparameters), keep='first')
+    pareto_optimal_df.to_csv(f"{PATH_TO_RESULTS}/pareto_individuals/overall/{dataset}/{dataset}__{var}__obj_{obj_str}__seed_{seed_base + i}__extra_{extra_str}__nind_{nind}__ngen_{ngen}.csv", index = False, header = True, columns = list(pareto_fronts.keys()))
+
+    return pareto_optimal, pareto_optimal_df                   #Population of pareto front individuals

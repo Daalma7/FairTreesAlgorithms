@@ -8,15 +8,19 @@ import time
 import warnings
 import importlib
 import os
+import re
 warnings.filterwarnings("ignore")
 
 
 PATH_TO_RESULTS = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname((os.path.abspath(__file__)))))) + '/results/'
 
 sys.path.insert(1, os.path.abspath(os.path.dirname(os.path.dirname(__file__))))
-from general.ml import *
+from general.ml import gmean_inv, dem_fpr, dem_ppv, dem_pnr, num_leaves, data_weight_avg_depth, get_matrices, write_train_val_test
 from general.problem import Problem
-from general.qualitymeasures import *
+
+def clean_feature_name(name):
+    # Replace special characters with underscores or any other safe character
+    return name.replace('[', '_').replace(']', '_').replace('{', '_').replace('}', '_').replace('"', '_').replace(':', '_')
 
 
 alg = nind = ngen = dat = sens_col = bseed = nruns = obj = mod = extra = False        #Possible parameters given
@@ -267,18 +271,25 @@ for run in range(n_runs):
 
     set_seed = set_seed_base + run
     execute = False
+    print(f"{PATH_TO_RESULTS}{model}/{algorithm}/population/{dataset}/{dataset}_seed_{set_seed}_var_{sens_col}_gen_{generations}_indiv_{individuals}_model_{model}_obj_{str_obj}{str_extra}.csv")
     try:
         read = pd.read_csv(f"{PATH_TO_RESULTS}{model}/{algorithm}/population/{dataset}/{dataset}_seed_{set_seed}_var_{sens_col}_gen_{generations}_indiv_{individuals}_model_{model}_obj_{str_obj}{str_extra}.csv")
         print(f"Result file for {dataset} dataset, seed {set_seed}, and the others parameters already existed!")
         if read.shape[0] < generations * individuals:
+            execute = True
             print("\tBut it lacks some individuals, so it will be executed again")
     except FileNotFoundError:
         execute = True
 
-    if execute or read.shape[0] < generations * individuals:
+    if execute:
 
         # write datasets
         X_tr, X_v, X_tst, y_tr, y_v, y_tst = get_matrices(dataset, y_col, set_seed)
+        if model == 'FLGBM':
+            for dat in [X_tr, X_v, X_tst]:
+                dat.columns = [clean_feature_name(name) for name in dat.columns]
+
+
         write_train_val_test(dataset, sens_col, set_seed, X_tr, X_v, X_tst, y_tr, y_v, y_tst)
         
         # number of rows in train
@@ -331,8 +342,3 @@ problem = Problem(num_of_variables = 5,
 print("Calculating pareto optimal solutions using all runs...")
 pareto_optimal_exec, pareto_optimal_df = problem.calculate_pareto_optimal(set_seed_base, n_runs, algorithm)
 print("Execution succesful!\n------------------------------")
-
-
-# binary_test_seed_x.csv
-# binary_train_seed_x.csv
-# binary_val_seed_x.csv

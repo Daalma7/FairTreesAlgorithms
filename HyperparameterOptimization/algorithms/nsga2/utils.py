@@ -1,6 +1,6 @@
 from general.population import Population
 import random
-from general.ml import *
+from general.ml import decode
 from joblib import Parallel, delayed
 
 
@@ -19,6 +19,7 @@ class NSGA2Utils:
         self.mutation_prob = mutation_prob
         self.beta_method = beta_method
 
+    # TODO: Paralelizar
     #Initial population creation
     def create_initial_population(self, model):
         population = Population()
@@ -142,15 +143,36 @@ class NSGA2Utils:
         self.problem.calculate_objectives(child, False, self.problem.seed)
         return child
     
+    def create_children(self, population, model, parallel = True):
+        if parallel:
+            pop_size = len(population.population)
+            child_pop = Parallel(n_jobs=-1)(delayed(self.parallel_create_children)(population, model) for i in range(pop_size))
+            child_pop = [child for children in child_pop for child in children]
+            child_pop_prev = [child for child in child_pop if child.calc_objectives]
+            child_pop_new = Parallel(n_jobs=-1)(delayed(self.parallel_calc_objectives)(child) for child in child_pop if not child.calc_objectives)
+            return child_pop_prev + child_pop_new
+        else:
+            ret = []
+            for i in range(int(len(population.population)/2)):
+                parent1 = self.__tournament(population)
+                parent2 = parent1
+                while parent1 == parent2:
+                    parent2 = self.__tournament(population)
+                child1, child2 = self.__crossover(parent1, parent2, model)
+                prob_mutation_child1 = random.uniform(0,1)
+                prob_mutation_child2 = random.uniform(0,1)
+                if(prob_mutation_child1 < self.mutation_prob):
+                    self.__mutate(child1, model)
+                    child1.creation_mode = "mutation"
+                if(prob_mutation_child2 < self.mutation_prob):
+                    self.__mutate(child2, model)
+                    child2.creation_mode = "mutation"
+                child1.features = decode(self.problem.variables_range, model, **child1.features)
+                child2.features = decode(self.problem.variables_range, model, **child2.features)
+                ret.append(child1)
+                ret.append(child2)
+            return ret
 
-    # TODO: Asegurar que funciona
-    def create_children(self, population, model):
-        pop_size = len(population.population)
-        child_pop = Parallel(n_jobs=-1)(delayed(self.parallel_create_children)(population, model) for i in range(pop_size))
-        child_pop = [child for children in child_pop for child in children]
-        child_pop_prev = [child for child in child_pop if child.calc_objectives]
-        child_pop_new = Parallel(n_jobs=-1)(delayed(self.parallel_calc_objectives)(child) for child in child_pop if not child.calc_objectives)
-        return child_pop_prev + child_pop_new
 
 
 

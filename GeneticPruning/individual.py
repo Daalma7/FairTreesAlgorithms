@@ -633,7 +633,6 @@ class Individual_NSGA2(Individual):
     Class representing an individual for a NSGA2 optimization process, within this context
     """
 
-
     def __init__(self, struc, repre):
         """
         Class constructor
@@ -643,5 +642,6 @@ class Individual_NSGA2(Individual):
         - repr: Representation of the individual
         """
         Individual.__init__(struc, repre)
+        self.domination_count=0
         self.rank = None
         self.crowding_distance = None

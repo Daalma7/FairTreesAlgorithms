@@ -9,6 +9,8 @@ from individual import Individual_NSGA2
 from sympy import symbols, nsolve
 import random, copy
 import pandas as pd
+from ml import create_gen_stats_df, update_gen_stats_df, create_gen_population_df, update_gen_population
+import time
 
 class Genetic_Pruning_Process():
 
@@ -693,63 +695,32 @@ class Genetic_Pruning_Process_NSGA2(Genetic_Pruning_Process):
         Defines the whole optimization process
         """
         np.random.seed(seed)
-
-        if store:
-            df_avg_num_leaves = []
-            df_max_num_leaves = []
-            df_min_num_leaves = []
-            df_avg_mean_depth = []
-            df_min_mean_depth = []
-            df_max_mean_depth = []
-
-
+        gen_stats_df = create_gen_stats_df()
+        gen_population_df = create_gen_population_df(self.objs_string, seed)
+        
         print("Start")
         #for i in range(len(self.population)):
             #print(self.population[i].repre)
+        
+        start_p_time = time.process_time()
+        start_t_time = time.time()
         for i in range(self.num_gen):
             new_pop = self.tournament()
             new_pop = self.pop_crossover()
-            new_pop = [self.mutation(indiv) for indiv in new_pop]        
-            df_num_leaves = []
-            df_mean_depth = []
-            for elem in new_pop:
-                elem.get_tree()
-                if store:
-                    df_num_leaves.append(elem.num_leaves)
-                    df_mean_depth.append(elem.mean_depth)
-            if store:
-                df_num_leaves = np.array(df_num_leaves)
-                df_mean_depth = np.array(df_mean_depth)
-                df_avg_num_leaves.append(df_num_leaves.mean())
-                df_max_num_leaves.append(df_num_leaves.max())
-                df_min_num_leaves.append(df_num_leaves.min())
-                df_avg_mean_depth.append(df_mean_depth.mean())
-                df_min_mean_depth.append(df_mean_depth.min())
-                df_max_mean_depth.append(df_mean_depth.max())
+            new_pop = [self.mutation(indiv) for indiv in new_pop]  
           
             print(i)
             self.population = new_pop
+            gen_stats_df = update_gen_stats_df(gen_stats_df, new_pop, time.process_time() - start_p_time, time.time() - start_t_time)
+            gen_population_df = update_gen_population(gen_population_df, new_pop, self.objs_string, seed)
+            start_p_time = time.process_time()
+            start_t_time = time.time()
+
+
 
         self.fast_nondominated_sort()
         print("End")
 
-        if store:
-            store_df = pd.DataFrame({
-                'avg_num_leaves': df_avg_num_leaves,
-                'max_num_leaves': df_max_num_leaves,
-                'min_num_leaves': df_min_num_leaves,
-                'avg_mean_depth': df_avg_mean_depth,
-                'min_mean_depth': df_min_mean_depth,
-                'max_mean_depth': df_max_mean_depth
-                })
-            return self.fronts[0], store_df
-
-
-
-
-
-
-
-
-        return self.fronts[0]                       # Returns the best individuals
+        return self.fronts[0], gen_stats_df, gen_population_df
+        #return self.fronts[0]                       # Returns the best individuals
 

@@ -1,0 +1,14 @@
+conda create --name NAME conda-forge python=3.10.12
+conda activate NAME
+pip install matplotlib
+pip install pandas
+pip install scikit-learn
+pip install pydotplus
+pip install imblearn
+pip install cython=0.29.37
+# execute build.sh inside /HyperparameterOptimization/models/FairDT
+
+install lightgbm with cuda support from the lightgbm webpage
+
+pip install seaborn
+pip install pygmo

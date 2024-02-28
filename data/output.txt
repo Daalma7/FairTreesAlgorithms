@@ -1,111 +1,18 @@
-[LightGBM] [Warning] Using self-defined objective function
-[LightGBM] [Debug] Dataset::GetMultiBinFromSparseFeatures: sparse rate 0.859050
-[LightGBM] [Debug] Dataset::GetMultiBinFromAllFeatures: sparse rate 0.421258
-[LightGBM] [Debug] init for col-wise cost 0.000541 seconds, init for row-wise cost 0.000746 seconds
-[LightGBM] [Warning] Auto-choosing row-wise multi-threading, the overhead of testing was 0.000704 seconds.
-You can set `force_row_wise=true` to remove the overhead.
-And if memory is not enough, you can set `force_col_wise=true`.
-[LightGBM] [Debug] Using Sparse Multi-Val Bin
-[LightGBM] [Info] Total Bins 317
-[LightGBM] [Info] Number of data points in the train set: 25437, number of used features: 13
-[LightGBM] [Warning] Using self-defined objective function
-[LightGBM] [Debug] Trained a tree with leaves = 31 and depth = 11
-[LightGBM] [Debug] Trained a tree with leaves = 31 and depth = 11
-[LightGBM] [Debug] Trained a tree with leaves = 31 and depth = 10
-[LightGBM] [Debug] Trained a tree with leaves = 31 and depth = 10
-[LightGBM] [Debug] Trained a tree with leaves = 31 and depth = 10
-[LightGBM] [Debug] Trained a tree with leaves = 31 and depth = 10
-[LightGBM] [Debug] Trained a tree with leaves = 31 and depth = 9
-[LightGBM] [Debug] Trained a tree with leaves = 31 and depth = 10
-[LightGBM] [Debug] Trained a tree with leaves = 31 and depth = 9
-[LightGBM] [Debug] Trained a tree with leaves = 31 and depth = 15
-[LightGBM] [Debug] Trained a tree with leaves = 31 and depth = 9
-[LightGBM] [Debug] Trained a tree with leaves = 31 and depth = 13
-[LightGBM] [Debug] Trained a tree with leaves = 31 and depth = 11
-[LightGBM] [Debug] Trained a tree with leaves = 31 and depth = 17
-[LightGBM] [Debug] Trained a tree with leaves = 31 and depth = 15
-[LightGBM] [Debug] Trained a tree with leaves = 31 and depth = 16
-[LightGBM] [Debug] Trained a tree with leaves = 31 and depth = 15
-[LightGBM] [Debug] Trained a tree with leaves = 31 and depth = 12
-[LightGBM] [Debug] Trained a tree with leaves = 31 and depth = 10
-[LightGBM] [Debug] Trained a tree with leaves = 31 and depth = 12
-[LightGBM] [Debug] Trained a tree with leaves = 31 and depth = 10
-[LightGBM] [Debug] Trained a tree with leaves = 31 and depth = 17
-[LightGBM] [Debug] Trained a tree with leaves = 31 and depth = 13
-[LightGBM] [Debug] Trained a tree with leaves = 31 and depth = 10
-[LightGBM] [Debug] Trained a tree with leaves = 31 and depth = 16
-[LightGBM] [Debug] Trained a tree with leaves = 31 and depth = 12
-[LightGBM] [Debug] Trained a tree with leaves = 31 and depth = 13
-[LightGBM] [Debug] Trained a tree with leaves = 31 and depth = 13
-[LightGBM] [Debug] Trained a tree with leaves = 31 and depth = 10
-[LightGBM] [Debug] Trained a tree with leaves = 31 and depth = 12
-[LightGBM] [Debug] Trained a tree with leaves = 31 and depth = 18
-[LightGBM] [Debug] Trained a tree with leaves = 31 and depth = 10
-[LightGBM] [Debug] Trained a tree with leaves = 31 and depth = 13
-[LightGBM] [Debug] Trained a tree with leaves = 31 and depth = 14
-[LightGBM] [Debug] Trained a tree with leaves = 31 and depth = 15
-[LightGBM] [Debug] Trained a tree with leaves = 31 and depth = 17
-[LightGBM] [Debug] Trained a tree with leaves = 31 and depth = 11
-[LightGBM] [Debug] Trained a tree with leaves = 31 and depth = 13
-[LightGBM] [Debug] Trained a tree with leaves = 31 and depth = 13
-[LightGBM] [Debug] Trained a tree with leaves = 31 and depth = 9
-[LightGBM] [Debug] Trained a tree with leaves = 31 and depth = 11
-[LightGBM] [Debug] Trained a tree with leaves = 31 and depth = 14
-[LightGBM] [Debug] Trained a tree with leaves = 31 and depth = 13
-[LightGBM] [Debug] Trained a tree with leaves = 31 and depth = 12
-[LightGBM] [Debug] Trained a tree with leaves = 31 and depth = 10
-[LightGBM] [Debug] Trained a tree with leaves = 31 and depth = 11
-[LightGBM] [Debug] Trained a tree with leaves = 31 and depth = 9
-[LightGBM] [Debug] Trained a tree with leaves = 31 and depth = 21
-[LightGBM] [Debug] Trained a tree with leaves = 31 and depth = 16
-[LightGBM] [Debug] Trained a tree with leaves = 31 and depth = 12
-[LightGBM] [Debug] Trained a tree with leaves = 31 and depth = 9
-[LightGBM] [Debug] Trained a tree with leaves = 31 and depth = 11
-[LightGBM] [Debug] Trained a tree with leaves = 31 and depth = 14
-[LightGBM] [Debug] Trained a tree with leaves = 31 and depth = 10
-[LightGBM] [Debug] Trained a tree with leaves = 31 and depth = 12
-[LightGBM] [Debug] Trained a tree with leaves = 31 and depth = 13
-[LightGBM] [Debug] Trained a tree with leaves = 31 and depth = 12
-[LightGBM] [Debug] Trained a tree with leaves = 31 and depth = 13
-[LightGBM] [Debug] Trained a tree with leaves = 31 and depth = 12
-[LightGBM] [Debug] Trained a tree with leaves = 31 and depth = 9
-[LightGBM] [Debug] Trained a tree with leaves = 31 and depth = 18
-[LightGBM] [Debug] Trained a tree with leaves = 31 and depth = 15
-[LightGBM] [Debug] Trained a tree with leaves = 31 and depth = 11
-[LightGBM] [Debug] Trained a tree with leaves = 31 and depth = 12
-[LightGBM] [Debug] Trained a tree with leaves = 31 and depth = 14
-[LightGBM] [Debug] Trained a tree with leaves = 31 and depth = 11
-[LightGBM] [Debug] Trained a tree with leaves = 31 and depth = 12
-[LightGBM] [Debug] Trained a tree with leaves = 31 and depth = 15
-[LightGBM] [Debug] Trained a tree with leaves = 31 and depth = 9
-[LightGBM] [Debug] Trained a tree with leaves = 31 and depth = 13
-[LightGBM] [Debug] Trained a tree with leaves = 31 and depth = 12
-[LightGBM] [Debug] Trained a tree with leaves = 31 and depth = 12
-[LightGBM] [Debug] Trained a tree with leaves = 31 and depth = 13
-[LightGBM] [Debug] Trained a tree with leaves = 31 and depth = 13
-[LightGBM] [Debug] Trained a tree with leaves = 31 and depth = 9
-[LightGBM] [Debug] Trained a tree with leaves = 31 and depth = 9
-[LightGBM] [Debug] Trained a tree with leaves = 31 and depth = 10
-[LightGBM] [Debug] Trained a tree with leaves = 31 and depth = 18
-[LightGBM] [Debug] Trained a tree with leaves = 31 and depth = 12
-[LightGBM] [Debug] Trained a tree with leaves = 31 and depth = 11
-[LightGBM] [Debug] Trained a tree with leaves = 31 and depth = 16
-[LightGBM] [Debug] Trained a tree with leaves = 31 and depth = 10
-[LightGBM] [Debug] Trained a tree with leaves = 31 and depth = 11
-[LightGBM] [Debug] Trained a tree with leaves = 31 and depth = 16
-[LightGBM] [Debug] Trained a tree with leaves = 31 and depth = 17
-[LightGBM] [Debug] Trained a tree with leaves = 31 and depth = 10
-[LightGBM] [Debug] Trained a tree with leaves = 31 and depth = 15
-[LightGBM] [Debug] Trained a tree with leaves = 31 and depth = 12
-[LightGBM] [Debug] Trained a tree with leaves = 31 and depth = 11
-[LightGBM] [Debug] Trained a tree with leaves = 31 and depth = 14
-[LightGBM] [Debug] Trained a tree with leaves = 31 and depth = 10
-[LightGBM] [Debug] Trained a tree with leaves = 31 and depth = 14
-[LightGBM] [Debug] Trained a tree with leaves = 31 and depth = 11
-[LightGBM] [Debug] Trained a tree with leaves = 31 and depth = 20
-[LightGBM] [Debug] Trained a tree with leaves = 31 and depth = 14
-[LightGBM] [Debug] Trained a tree with leaves = 31 and depth = 8
-[LightGBM] [Debug] Trained a tree with leaves = 31 and depth = 14
-[LightGBM] [Debug] Trained a tree with leaves = 31 and depth = 14
-[LightGBM] [Debug] Trained a tree with leaves = 31 and depth = 15
-[LightGBM] [Debug] Trained a tree with leaves = 31 and depth = 17
+[LightGBM] [Info] Using self-defined objective function
+[LightGBM] [Debug] Dataset::GetMultiBinFromSparseFeatures: sparse rate 0.897594
+[LightGBM] [Debug] Dataset::GetMultiBinFromAllFeatures: sparse rate 0.476522
+[LightGBM] [Debug] init for col-wise cost 0.000162 seconds, init for row-wise cost 0.000252 seconds
+[LightGBM] [Info] Auto-choosing col-wise multi-threading, the overhead of testing was 0.000338 seconds.
+You can set `force_col_wise=true` to remove the overhead.
+[LightGBM] [Info] Total Bins 2063
+[LightGBM] [Info] Number of data points in the train set: 1187, number of used features: 20
+[LightGBM] [Info] Using self-defined objective function
+[LightGBM] [Warning] No further splits with positive gain, best gain: -inf
+[LightGBM] [Warning] No further splits with positive gain, best gain: -inf
+[LightGBM] [Warning] No further splits with positive gain, best gain: -inf
+[LightGBM] [Warning] No further splits with positive gain, best gain: -inf
+[LightGBM] [Warning] No further splits with positive gain, best gain: -inf
+[LightGBM] [Warning] No further splits with positive gain, best gain: -inf
+[LightGBM] [Warning] No further splits with positive gain, best gain: -inf
+[LightGBM] [Warning] No further splits with positive gain, best gain: -inf
+[LightGBM] [Warning] No further splits with positive gain, best gain: -inf

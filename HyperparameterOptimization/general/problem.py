@@ -4,13 +4,13 @@ from collections import OrderedDict as od
 import sys
 
 sys.path.append("..")
-from general.individual import IndividualDT, IndividualDTGrea, IndividualLR, IndividualLRGrea, IndividualFDT, IndividualFLGBM, IndividualFLGBMGrea
+from general.individual import IndividualDT, IndividualDTGrea, IndividualLR, IndividualLRGrea, IndividualFDT, IndividualFLGBM, IndividualFLGBMGrea, IndividualFDTGrea
 from general.population import Population
-from general.ml import decode, train_model, evaluate_fairness, val_model, save_model, test_model, gmean_inv, dem_fpr, dem_ppv, dem_pnr, data_weight_avg_depth, print_properties_tree, get_max_depth_FLGBM
+from general.ml import decode, print_properties_lgbm, num_leaves, train_model, evaluate_fairness, val_model, save_model, test_model, gmean_inv, dem_fpr, dem_ppv, dem_pnr, data_weight_avg_depth, print_properties_tree, get_max_depth_FLGBM
 import os
 import pandas as pd
 
-
+PATH_TO_DATA = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__)))) + '/datasets/data/'
 PATH_TO_RESULTS = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))) + '/results/'
 #Clase que representa un problema multiobjetivo
 class Problem:
@@ -28,12 +28,32 @@ class Problem:
         self.dataset_name = dataset_name                #Dataset name
         self.variable_name = variable_name              #Name of the sensitive variable
         self.model = model                              #Model to learn
-        self.seed = seed                                #Random seed
+        self.seed = seed   
+        x_train, y_train, x_val, y_val, x_test, y_test = self.read_datasets()
+        self.x_train = x_train
+        self.y_train = y_train
+        self.x_val = x_val
+        self.y_val = y_val
+        self.x_test = x_test
+        self.y_test = y_test
+        #Random seed
         if same_range:
             for _ in range(num_of_variables):
                 self.variables_range.append(variables_range[0])
         else:
             self.variables_range = variables_range
+
+    def read_datasets(self):
+        train = pd.read_csv(f"{PATH_TO_DATA}train_val_test_standard/{self.dataset_name}/{self.dataset_name}_{self.variable_name}_train_seed_{self.seed}.csv", index_col = False)
+        x_train = train.iloc[:, :-1]
+        y_train = train.iloc[:, -1]
+        val = pd.read_csv(f"{PATH_TO_DATA}train_val_test_standard/{self.dataset_name}/{self.dataset_name}_{self.variable_name}_val_seed_{self.seed}.csv", index_col = False)
+        x_val = val.iloc[:, :-1]
+        y_val = val.iloc[:, -1]
+        test = pd.read_csv(f"{PATH_TO_DATA}train_val_test_standard/{self.dataset_name}/{self.dataset_name}_{self.variable_name}_test_seed_{self.seed}.csv", index_col = False)
+        x_test = test.iloc[:, :-1]
+        y_test = test.iloc[:, -1]
+        return x_train, y_train, x_val, y_val, x_test, y_test
 
     def get_obj_string(self):
         string = self.objectives[0].__name__
@@ -170,9 +190,9 @@ class Problem:
             hyperparameters = ['criterion', 'max_depth', 'min_samples_split', 'max_leaf_nodes', 'class_weight']
         if self.model == "FDT":
             if kind == 'base':
-                individual = IndividualDT()
+                individual = IndividualFDT()
             if kind == 'grea':
-                individual = IndividualDTGrea()
+                individual = IndividualFDTGrea()
             hyperparameters = ['criterion', 'max_depth', 'min_samples_split', 'max_leaf_nodes', 'class_weight', 'fair_param']
         if self.model == "LR":
             if kind == 'base':
@@ -199,16 +219,16 @@ class Problem:
         if self.expand and not individual.calc_objectives:
             individual.calc_objectives=True
             hyperparameters = individual.features
-            learner = train_model(self.dataset_name, self.variable_name, self.seed, self.model, **hyperparameters) #Model training
-            X, y, pred = val_model(self.dataset_name, self.variable_name, learner, seed)          #Model validation
+            learner = train_model(self.x_train, self.y_train, self.variable_name, self.seed, self.model, **hyperparameters) #Model training
+            pred = val_model(self.x_val, learner)          #Model validation
 
-            y_fair = evaluate_fairness(X, y, pred, self.variable_name)        #For getting objectives using validation data
+            y_fair = evaluate_fairness(self.x_val, self.y_val, pred, self.variable_name)        #For getting objectives using validation data
             individual.objectives = []
 
             # TODO: Fallos
             for x in self.objectives:
                 if x.__name__ == 'gmean_inv':
-                    individual.objectives.append(gmean_inv(y, pred))
+                    individual.objectives.append(gmean_inv(self.y_val, pred))
                 elif x.__name__ == 'dem_fpr':
                     individual.objectives.append(dem_fpr(y_fair[0], y_fair[1], y_fair[2], y_fair[3]))
                 elif x.__name__ == 'dem_ppv':
@@ -248,20 +268,20 @@ class Problem:
                 
             elif first_individual and (self.model == "FLGBM"):
                 var_range_list = list(self.variables_range)
-                var_range_list[3] = (self.variables_range[3][0], get_max_depth_FLGBM(self.dataset_name, self.variable_name, self.seed, self.model, **hyperparameters)) #Model training
+                var_range_list[3] = (self.variables_range[3][0], get_max_depth_FLGBM(self.x_train, self.y_train, self.variable_name, self.seed, **hyperparameters)) #Model training
                 self.variable_range = []
                 self.variables_range = tuple(var_range_list)
             
-            if self.model == "DT":          #Depending on the model we will have different sets of hyperparameters for that model
+            if self.model == "DT" or self.model == "FDT":          #Depending on the model we will have different sets of hyperparameters for that model
                 depth, leaves, data_avg_depth = print_properties_tree(learner)      #Size attributes for Decision Tree individuals
                 individual.actual_depth = depth
                 individual.actual_leaves = leaves
                 individual.actual_data_avg_depth = data_avg_depth
-            elif self.model == "FDT":          #Depending on the model we will have different sets of hyperparameters for that model
-                depth, leaves, data_avg_depth = print_properties_tree(learner)      #Size attributes for Decision Tree individuals
-                individual.actual_depth = depth
-                individual.actual_leaves = leaves
-                individual.actual_data_avg_depth = data_avg_depth
+            elif self.model == "FLGBM":          #Depending on the model we will have different sets of hyperparameters for that model
+                n_estimators, n_features, feature_importance_std = print_properties_lgbm(learner)      #Size attributes for Decision Tree individuals
+                individual.actual_n_estimators = n_estimators
+                individual.actual_n_features = n_features
+                individual.actual_feature_importance_std = feature_importance_std
 
     """
     def store_objectives(self, individual):
@@ -302,14 +322,14 @@ class Problem:
             objectives_results_dict = {'gmean_inv': 'error_val', 'dem_fpr': 'dem_fpr_val', 'dem_ppv': 'dem_ppv_val', 'dem_pnr': 'dem_pnr_val', 'num_leaves': 'num_leaves', 'data_weight_avg_depth':'data_weight_avg_depth'}
             objectives_test_dict = {'gmean_inv': 'error_tst', 'dem_fpr': 'dem_fpr_tst', 'dem_ppv': 'dem_ppv_tst', 'dem_pnr': 'dem_pnr_tst', 'num_leaves': 'num_leaves_tst', 'data_weight_avg_depth':'data_weight_avg_depth_tst'}
             hyperparameters = individual.features
-            learner = train_model(self.dataset_name, self.variable_name, seed, self.model, **hyperparameters)
+            learner = train_model(self.x_train, self.y_train, self.variable_name, seed, self.model, **hyperparameters)
             #save_model(learner, self.dataset_name, seed, self.variable_name, self.num_of_generations, self.num_of_individuals, individual.id, self.model, method, self.objectives)
-            X, y, pred = test_model(self.dataset_name, self.variable_name, learner, seed)       #Model test (not validation as above)
-            y_fair = evaluate_fairness(X, y, pred, self.variable_name)      #For getting objectives, using test data
+            pred = test_model(self.x_test, learner)       #Model test (not validation as above)
+            y_fair = evaluate_fairness(self.x_test, self.y_test, pred, self.variable_name)      #For getting objectives, using test data
             objectives_test = []
             for x in self.objectives:
                 if x.__name__ == 'gmean_inv':
-                    objectives_test.append(gmean_inv(y, pred))
+                    objectives_test.append(gmean_inv(self.y_test, pred))
                 elif x.__name__ == 'dem_fpr':
                     objectives_test.append(dem_fpr(y_fair[0], y_fair[1], y_fair[2], y_fair[3]))
                 elif x.__name__ == 'dem_ppv':
@@ -325,7 +345,7 @@ class Problem:
             if self.extra != None:
                 for x in self.extra:
                     if x.__name__ == 'gmean_inv':
-                        extra_test.append(gmean_inv(y, pred))
+                        extra_test.append(gmean_inv(self.y_test, pred))
                     elif x.__name__ == 'dem_fpr':
                         extra_test.append(dem_fpr(y_fair[0], y_fair[1], y_fair[2], y_fair[3]))
                     elif x.__name__ == 'dem_ppv':

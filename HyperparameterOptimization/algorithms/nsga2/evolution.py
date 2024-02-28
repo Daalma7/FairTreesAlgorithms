@@ -8,7 +8,7 @@ import time
 
 from algorithms.nsga2.utils import NSGA2Utils
 from general.population import Population
-from general.ml import *
+from general.ml import create_generation_stats, save_generation_stats
 from joblib import Parallel, delayed
 
 
@@ -51,7 +51,8 @@ class Evolution:
         if self.problem.model == "FLGBM":
             lamb, num_leaves, min_data_in_leaf, max_depth, learning_rate, n_estimators, feature_fraction = [item[1] for item in indiv_list]
             dict_hyperparameters= {'lamb': [lamb], 'num_leaves' : [num_leaves], 'min_data_in_leaf':[min_data_in_leaf], 'max_depth':[max_depth], 'learning_rate': [learning_rate], 'n_estimators': [n_estimators], 'feature_fraction': [feature_fraction]}
-            dict_dataframe = {**dict_general_info, **dict_objectives, **dict_hyperparameters}
+            dict_actual_dimensions = {'actual_n_estimators': indiv.actual_n_estimators, 'actual_n_features': indiv.actual_n_features, 'actual_feature_importance_std': indiv.actual_feature_importance_std}
+            dict_dataframe = {**dict_general_info, **dict_objectives, **dict_actual_dimensions, **dict_hyperparameters}
         return pd.DataFrame(dict_dataframe)
     
     #NSGA-II METHOD ITSELF
@@ -68,7 +69,8 @@ class Evolution:
             self.utils.calculate_crowding_distance(front)
         children = self.utils.create_children(self.population, self.problem.model)
 
-        start_time = time.process_time()
+        start_process_time = time.process_time()
+        start_total_time = time.time()
         generations_df = create_generation_stats(self.model_name)
 
         for i in range(self.num_of_generations):
@@ -82,8 +84,9 @@ class Evolution:
             if i == (self.num_of_generations-1):
                 self.evolutions_df.to_csv(f"{PATH_TO_RESULTS}{self.model_name}/nsga2/population/{self.dataset_name}/{self.dataset_name}_seed_{self.utils.problem.seed}_var_{self.protected_variable}_gen_{self.num_of_generations}_indiv_{self.num_of_individuals}_model_{self.problem.model}_obj_{str_obj}.csv", index = False, header = True, columns = list(self.evolutions_df.keys()))
 
-            generations_df = save_generation_stats(generations_df, gen_df, self.problem.model, time.process_time() - start_time)
-            start_time = time.process_time()
+            generations_df = save_generation_stats(generations_df, gen_df, self.problem.model, time.process_time() - start_process_time, time.time() - start_total_time)
+            start_process_time = time.process_time()
+            start_total_time = time.time()
             print("GENERATION:",i+1)
             self.population.extend(children)
             self.utils.fast_nondominated_sort(self.population)

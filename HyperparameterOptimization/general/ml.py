@@ -14,6 +14,10 @@ import contextlib
 import os
 import re
 import pickle
+import warnings
+import logging
+logging.basicConfig(level=logging.ERROR)
+warnings.filterwarnings('ignore')
 
 
 PATH_TO_RESULTS = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__)))) + '/results/'
@@ -125,7 +129,7 @@ def decode(var_range, model, **features):
 
 #Reads the dataset to work with. You have to work with preprocessed data, and to ensure it, we will only read the files ending with _preproc
 def read_data(df_name):
-    df = pd.read_csv(PATH_TO_DATA + df_name + '.csv', sep = ',')
+    df = pd.read_csv(f"{PATH_TO_DATA}{df_name}.csv", sep = ',')
     if 'Unnamed: 0' in df.columns:
         df = df.drop(['Unnamed: 0'], axis=1)
     return df
@@ -164,13 +168,13 @@ def get_matrices(df_name, y_col, seed):
 def write_train_val_test(df_name, prot_col, seed, X_train, X_val, X_test, y_train, y_val, y_test):
     train = X_train
     train['y'] = y_train.tolist()
-    train.to_csv(PATH_TO_DATA + 'train_val_test_standard/' + df_name + '/' + df_name + '_' + prot_col + '_train_seed_' + str(seed) + '.csv', index = False)
+    train.to_csv(f"{PATH_TO_DATA}train_val_test_standard/{df_name}/{df_name}_{prot_col}_train_seed_{str(seed)}.csv", index = False)
     val = X_val
     val['y'] = y_val.tolist()
-    val.to_csv(PATH_TO_DATA + 'train_val_test_standard/' + df_name + '/' + df_name + '_' + prot_col + '_val_seed_' + str(seed) + '.csv', index = False)
+    val.to_csv(f"{PATH_TO_DATA}train_val_test_standard/{df_name}/{df_name}_{prot_col}_val_seed_{str(seed)}.csv", index = False)
     test = X_test
     test['y'] = y_test.tolist()
-    test.to_csv(PATH_TO_DATA + 'train_val_test_standard/' + df_name + '/' + df_name + '_' + prot_col + '_test_seed_' + str(seed) + '.csv', index = False)
+    test.to_csv(f"{PATH_TO_DATA}train_val_test_standard/{df_name}/{df_name}_{prot_col}_test_seed_{str(seed)}.csv", index = False)
 
 #Exports obtained decision tree to a png file
 def print_tree(classifier, model, features):
@@ -186,6 +190,18 @@ def print_properties_tree(learner):
     w_avg_depth = data_weight_avg_depth(learner)
     return depth, leaves, w_avg_depth
 
+#Returns depth and leaves given a decision tree
+def print_properties_lgbm(learner):
+    n_estimators = learner.model.num_trees()
+    n_features = learner.model.num_feature()
+    feature_importance_std = learner.model.feature_importance('gain').std()
+    # Número de árboles real (tree_index)
+    #print(learner.model.trees_to_dataframe())
+    #print(learner.model.trees_to_dataframe().shape)
+    #print(learner.model.trees_to_dataframe().columns)
+
+    return n_estimators, n_features, feature_importance_std
+
 #Returns coefficients of the given logistic regression
 def print_properties_lr(learner):
     return learner.coef_
@@ -194,17 +210,18 @@ def print_properties_flgbm(learner):
     pass
 
 #TODO Revisar que se ha hecho bien
+#TODO Incluir validación en LightGBM
 #Classifier training
-def train_model(df_name, variable, seed, model, **features):
+def train_model(X_train, y_train, prot_col, seed, model, **features):
     #path = PATH_TO_DATA + 'train_val_test_standard/' + df_name
     #pattern = r'.*binary_train_seed_%s\.csv' % seed
     #print(os.path.abspath(__file__))
     #matching_files = [file for file in os.listdir(path) if re.match(pattern, file)]
     #pd.read_csv(path + '/' + matching_files[0])
-    train = pd.read_csv(PATH_TO_DATA + 'train_val_test_standard/' + df_name + '/' + df_name + '_' + variable + '_train_seed_' + str(seed) + '.csv')
-    X_train = train.iloc[:, :-1]
-    y_train = train.iloc[:, -1]
-    prot = X_train[variable]
+
+    prot = X_train[prot_col]
+
+    
     
     #We will need to use the seed used to split into train and test also as seed for these methods, because as they are trained twice, we have to be exactly the same both times
     if model == "DT":
@@ -240,6 +257,7 @@ def train_model(df_name, variable, seed, model, **features):
     if model == "FLGBM":
         lgbm_params = {
         'objective': 'binary',
+        'device_type': 'cpu',
         'deterministic': True,
         'random_state': seed,
         'verbose': -1,
@@ -248,30 +266,29 @@ def train_model(df_name, variable, seed, model, **features):
         'max_depth': features['max_depth'],
         'learning_rate': features['learning_rate'],
         'n_estimators': features['n_estimators'],
-        'feature_fraction': features['feature_fraction']
+        'feature_fraction': features['feature_fraction'],
+        'verbose_eval': False
         }
-        clf = FairLGBM(lamb=features['lamb'], proc=variable, fair_c='fpr', lgbm_params=lgbm_params)
+        clf = FairLGBM(lamb=features['lamb'], proc=prot_col, fair_c='fpr', lgbm_params=lgbm_params)
     
     if model == "FDT":
         learner = clf.fit(X_train, y_train, prot = prot.to_numpy())
+    elif model == "FLGBM":
+        learner = clf.fit(X_train, y_train)
     else:
         learner = clf.fit(X_train, y_train)
 
     return learner
 
 
-# TODO: hola
-def get_max_depth_FLGBM(df_name, variable, seed, model, **features):
-    train = pd.read_csv(PATH_TO_DATA + 'train_val_test_standard/' + df_name + '/' + df_name + '_' + variable + '_train_seed_' + str(seed) + '.csv')
-    X_train = train.iloc[:, :-1]
-    y_train = train.iloc[:, -1]
-    prot = X_train[variable]
+def get_max_depth_FLGBM(X_train, y_train, prot_col, seed, **features):
     
     lgbm_params = {
     'objective': 'binary',
+    'device_type': 'cpu',
     'deterministic': True,
     'random_state': seed,
-    'verbose': 2,
+    'verbose': -1,
     'num_leaves': features['num_leaves'],
     'min_data_in_leaf': features['min_data_in_leaf'],
     'max_depth': features['max_depth'],
@@ -280,18 +297,10 @@ def get_max_depth_FLGBM(df_name, variable, seed, model, **features):
     'feature_fraction': features['feature_fraction']
     }
     
-    clf = FairLGBM(lamb=features['lamb'], proc=variable, fair_c='fpr', lgbm_params=lgbm_params)
-    
-    with open('../data/output.txt', 'w') as f, contextlib.redirect_stdout(f):
-        learner = clf.fit(X_train, y_train)
+    clf = FairLGBM(lamb=features['lamb'], proc=prot_col, fair_c='fpr', lgbm_params=lgbm_params)
+    learner = clf.fit(X_train, y_train)
+    return learner.model.trees_to_dataframe()['node_depth'].max()
 
-    depths = []
-    with open('../data/output.txt', 'r') as f:
-        for line in f.readlines():
-            if len(line.split()) > 2 and line.split()[-3] == 'depth':
-                depths.append(int(line.split()[-1]))
-        
-    return max(depths)
 
 def save_model(learner, dataset_name, seed, variable_name, num_of_generations, num_of_individuals, individual_id, model, method, objectives):
     # save the model to disk
@@ -306,21 +315,13 @@ def save_model(learner, dataset_name, seed, variable_name, num_of_generations, n
 
 #TODO Revisar que se ha hecho bien
 #Validates the classifier (comparison with validation set)
-def val_model(df_name, variable, learner, seed):
-    val = pd.read_csv(PATH_TO_DATA + 'train_val_test_standard/' + df_name + '/' + df_name + '_' + variable + '_val_seed_' + str(seed) + '.csv')
-    X_val = val.iloc[:, :-1]
-    y_val = val.iloc[:, -1]
-    y_pred = learner.predict(X_val)
-    return X_val, y_val, y_pred
+def val_model(X_val, learner):
+    return learner.predict(X_val)
 
 #TODO Revisar que se ha hecho bien
 #Tests the classifier (comparison with test set)
-def test_model(df_name, variable, learner, seed):
-    test = pd.read_csv(PATH_TO_DATA + 'train_val_test_standard/' + df_name + '/' + df_name + '_' + variable + '_test_seed_' + str(seed) + '.csv')
-    X_test = test.iloc[:, :-1]
-    y_test = test.iloc[:, -1]
-    y_pred = learner.predict(X_test)
-    return X_test, y_test, y_pred
+def test_model(X_test, learner):
+    return learner.predict(X_test)
 
 #Split dataset using protected attribute
     #y_val_p values belonging to privileged class
@@ -441,12 +442,27 @@ def data_weight_avg_depth(learner):
 
 
 def create_generation_stats(model):
+    """
+    Creates generation stats dataframe, which store data for each generation
+    - Parameters:
+        - model: learning model
+    - Returns:
+        - pd.DataFrame of information to store during each generation
+    """
     if model == 'FDT' or model == 'DT':
         return pd.DataFrame(data={'min_depth':[], 'mean_depth':[], 'max_depth':[], 'std_depth':[], 'min_leaves': [], 'mean_leaves': [], 'max_leaves':[], 'std_leaves': [], 'min_data_avg_depth': [], 'mean_data_avg_depth':[], 'max_data_avg_depth':[], 'std_data_avg_depth':[], 'process_time':[]})
     elif model == 'FLGBM':
-        return pd.DataFrame(data={})
+        return pd.DataFrame(data={'min_n_estimators':[], 'mean_n_estimators':[], 'max_n_estimators':[], 'std_n_estimators':[], 'min_n_features':[], 'mean_n_features':[], 'max_n_features':[], 'std_n_features':[], 'min_feature_importance_std':[], 'mean_feature_importance_std':[], 'max_feature_importance_std':[], 'std_feature_importance_std':[], 'process_time':[]})
 
-def save_generation_stats(generations_df, generation_indivs, model, newtime):
+def save_generation_stats(generations_df, generation_indivs, model, newtime, totaltime):
+    """
+    Save generation stats of the current generation into the dataframe created using create_genertaion_stats
+    - Parameters:
+        - generations_df:
+        - generation_indivs:
+        - model:
+        - newtime:
+    """
     if model == 'FDT' or model == 'DT':
         new_row ={
         'min_depth':generation_indivs['actual_depth'].min(),
@@ -464,30 +480,31 @@ def save_generation_stats(generations_df, generation_indivs, model, newtime):
         'max_data_avg_depth':generation_indivs['actual_data_avg_depth'].max(),
         'std_data_avg_depth':generation_indivs['actual_data_avg_depth'].std(),
 
-        'process_time': newtime
+        'process_time': newtime,
+        'total_time': totaltime
         }
 
-        return generations_df.append(new_row, ignore_index=True)
+        return pd.concat([generations_df, pd.DataFrame([new_row])], ignore_index=True)
 
-    # TODO:Completar bien
     elif model== 'FLGBM':
         new_row ={
-        'min_n_estimators':generation_indivs['n_estimators'].min(),
-        'mean_n_estimators':generation_indivs['n_estimators'].mean(),
-        'min_n_estimators':generation_indivs['n_estimators'].max(),
-        'min_n_estimators':generation_indivs['n_estimators'].std(),
+        'min_n_estimators':generation_indivs['actual_n_estimators'].min(),
+        'mean_n_estimators':generation_indivs['actual_n_estimators'].mean(),
+        'max_n_estimators':generation_indivs['actual_n_estimators'].max(),
+        'std_n_estimators':generation_indivs['actual_n_estimators'].std(),
 
-        'min_n_features':generation_indivs['n_features'].min(),
-        'mean_n_features':generation_indivs['n_features'].mean(),
-        'max_n_features':generation_indivs['n_features'].max(),
-        'std_n_features':generation_indivs['n_features'].std(),
+        'min_n_features':generation_indivs['actual_n_features'].min(),
+        'mean_n_features':generation_indivs['actual_n_features'].mean(),
+        'max_n_features':generation_indivs['actual_n_features'].max(),
+        'std_n_features':generation_indivs['actual_n_features'].std(),
 
-        'min_feature_importance_std':generation_indivs['feature_importance_std'].min(),
-        'mean_feature_importance_std':generation_indivs['feature_importance_std'].mean(),
-        'max_feature_importance_std':generation_indivs['feature_importance_std'].max(),
-        'std_feature_importance_std':generation_indivs['feature_importance_std'].std(),
+        'min_feature_importance_std':generation_indivs['actual_feature_importance_std'].min(),
+        'mean_feature_importance_std':generation_indivs['actual_feature_importance_std'].mean(),
+        'max_feature_importance_std':generation_indivs['actual_feature_importance_std'].max(),
+        'std_feature_importance_std':generation_indivs['actual_feature_importance_std'].std(),
 
-        'process_time': newtime
+        'process_time': newtime,
+        'total_time': totaltime
         }
 
-        return generations_df.append(new_row, ignore_index=True)
+        return pd.concat([generations_df, pd.DataFrame([new_row])], ignore_index=True)
