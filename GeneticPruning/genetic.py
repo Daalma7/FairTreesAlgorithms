@@ -10,6 +10,8 @@ from sympy import symbols, nsolve
 import random, copy
 import pandas as pd
 from ml import create_gen_stats_df, update_gen_stats_df, create_gen_population_df, update_gen_population
+from joblib import Parallel, delayed
+
 import time
 
 class Genetic_Pruning_Process():
@@ -261,31 +263,42 @@ class Genetic_Pruning_Process():
 
 
     # TODO: Parallelize
-    def parallel_pop_crossover():
-        pass
+    def parallel_pop_crossover(self, parent_1, parent_2):
+        rand = np.random.random()       # We decide if crossover will be done
+        n_p = []
+        if rand < self.prob_cross:           # If so, we apply it
+            new_indiv1, new_indiv2 = self.crossover(parent_1, parent_2)
+            n_p.append(new_indiv1)
+            n_p.append(new_indiv2)
+        else:                           # If not, we return the same parents
+            n_p.append(Genetic_Pruning_Process.indiv_class(self.struc, self.objs_string, parent_1.repre, parent_1.creation_mode, parent_1.objectives))
+            n_p.append(Genetic_Pruning_Process.indiv_class(self.struc, self.objs_string, parent_2.repre, parent_2.creation_mode, parent_2.objectives))
+        return n_p
+    
 
     # MODIFIABLE
-    def pop_crossover(self):
+    def pop_crossover(self, parents, parallel=False):
         """
         Applies crossover over parents population
 
         Returns:
         - new_pop: new children population
         """
-        
         new_pop = []                    # Children population
-
-        longi = len(self.population)         
-        for i in range(int(longi/2)):       # For each pair or parents
-            rand = np.random.random()       # We decide if crossover will be done
-            if rand < self.prob_cross:           # If so, we apply it
-
-                new_indiv1, new_indiv2 = self.crossover(self.population[2*i], self.population[(2*i)+1])
-                new_pop.append(new_indiv1)
-                new_pop.append(new_indiv2)
-            else:                           # If not, we return the same parents
-                new_pop.append(self.population[2*i])
-                new_pop.append(self.population[(2*i)+1])
+        longi = len(parents)
+        if parallel:
+            new_pop = Parallel(n_jobs=-1)(delayed(self.parallel_pop_crossover)(self.population[2*i], self.population[(2*i)+1]) for i in range(int(longi/2)))
+            new_pop = [child for children in new_pop for child in children]
+        else:
+            for i in range(int(longi/2)):       # For each pair or parents
+                rand = np.random.random()       # We decide if crossover will be done
+                if rand < self.prob_cross:           # If so, we apply it
+                    new_indiv1, new_indiv2 = self.crossover(parents[2*i], parents[(2*i)+1])
+                    new_pop.append(new_indiv1)
+                    new_pop.append(new_indiv2)
+                else:                           # If not, we return the same parents
+                    new_pop.append(Genetic_Pruning_Process.indiv_class(self.struc, self.objs_string, self.population[2*i].repre, self.population[2*i].creation_mode, self.population[2*i].objectives))
+                    new_pop.append(Genetic_Pruning_Process.indiv_class(self.struc, self.objs_string, self.population[(2*i)+1].repre, self.population[(2*i)+1].creation_mode, self.population[(2*i)+1].objectives))
 
         return new_pop
 
@@ -324,7 +337,7 @@ class Genetic_Pruning_Process():
         rand_modify = np.random.random()
 
         if rand_modify < self.prob_mutation:       # If a mutation will be done
-            
+            #print("Begin Mutation")
             # We will calculate the nodes from which a modification of a pruning can be done 
             # We will insert them in an ORDERED way
             leaves = indiv.repre.copy()                  # Considering the prunings which have been applied.
@@ -362,14 +375,12 @@ class Genetic_Pruning_Process():
                 while j > -1:
                     leaves.append(self.struc.base_leaves[j])
                     j = j - 1
-
             # We will now randomly select one of those leaves. We will select it using equal probabilities
             new_repre = indiv.repre.copy()
 
             # Select random leaf
             leaf = copy.deepcopy(random.choice(leaves))
             move_distance = int(self.struc.clf.tree_.max_depth / 10)
-
             # After having selected the leaf, we will now select the mutation applied over that leaf.
             if random.random() > 0.5:
                 # Move up
@@ -413,7 +424,6 @@ class Genetic_Pruning_Process():
                     if not inserted:
                         new_repre.append(leaf)
 
-            
             """
             # for leaf in leaves:
                 #probs = {tuple(leaf): 1/len(leaves) for leaf in leaves}
@@ -539,13 +549,13 @@ class Genetic_Pruning_Process():
         print("Beggining")
         #print(self.population)              # Print initial population ERASE
         for i in range(self.num_gen):       # For each generation
-            new_pop = self.tournament()     # We select the parent inidividuals
-            new_pop = self.pop_crossover()  # We apply crossover operator
+            parents = self.tournament()     # We select the parent inidividuals
+            children = self.pop_crossover(parents)  # We apply crossover operator
             # TODO: Parallelize
-            new_pop = [self.mutation(indiv) for indiv in new_pop] # We apply mutation over individuals
+            children = [self.mutation(indiv) for indiv in children] # We apply mutation over individuals
             
             #print(i)
-            self.population = new_pop       # We update the population to the new created one
+            self.population = children       # We update the population to the new created one
         print("End")
         return self.population              # Return the last created population
 
@@ -623,7 +633,7 @@ class Genetic_Pruning_Process_NSGA2(Genetic_Pruning_Process):
         """
         Fast nondominated sort of the individuals into fronts
         """
-        
+
         self.fronts = [[]]
         for individual in self.population:               # Stablishment of the best front and dominance info for generating the rest of them
             individual.domination_count = 0
@@ -681,15 +691,13 @@ class Genetic_Pruning_Process_NSGA2(Genetic_Pruning_Process):
                 best = self.population[rand2]
             else:
                 if self.population[rand1].crowding_distance > self.population[rand2].crowding_distance:
-                    best = rand1
+                    best = self.population[rand1]
                 else:
-                    best = rand2
+                    best = self.population[rand2]
             new_pop.append(best)
 
         return new_pop
 
-    # TODO: Añadir std
-    # TODO: Comprobar que se hace todo como en NSGA2 
     def genetic_optimization(self, seed, store=True):
         """
         Defines the whole optimization process
@@ -705,16 +713,36 @@ class Genetic_Pruning_Process_NSGA2(Genetic_Pruning_Process):
         start_p_time = time.process_time()
         start_t_time = time.time()
         for i in range(self.num_gen):
-            new_pop = self.tournament()
-            new_pop = self.pop_crossover()
-            new_pop = [self.mutation(indiv) for indiv in new_pop]  
-          
             print(i)
-            self.population = new_pop
-            gen_stats_df = update_gen_stats_df(gen_stats_df, new_pop, time.process_time() - start_p_time, time.time() - start_t_time)
-            gen_population_df = update_gen_population(gen_population_df, new_pop, self.objs_string, seed)
+
+            # NSGA-II Process
+            parents = self.tournament()                             # Tournament
+            children = self.pop_crossover(parents)                   # Crossover
+            #list_mutate = [True if np.random.random() < self.prob_mutation else False for x in range(len(children))]
+            #print(list_mutate)
+            children = [self.mutation(indiv) for indiv in children]   # Mutation
+            self.population.extend(children)                         # Selection
+            self.fast_nondominated_sort()
+
+            new_population = []
+            front_num = 0
+            while len(new_population) + len(self.fronts[front_num]) <= self.num_indiv:
+                self.crowding_distance(self.fronts[front_num])
+                new_population.extend(self.fronts[front_num])
+                front_num += 1
+            self.crowding_distance(self.fronts[front_num])
+            self.fronts[front_num].sort(key=lambda individual: individual.crowding_distance, reverse=True)
+            new_population.extend(self.fronts[front_num][0:self.num_indiv-len(new_population)])
+          
+            # New generation
+            self.population = new_population
+
+            # Store data
+            gen_stats_df = update_gen_stats_df(gen_stats_df, new_population, time.process_time() - start_p_time, time.time() - start_t_time)
+            gen_population_df = update_gen_population(gen_population_df, new_population, self.objs_string, seed)
             start_p_time = time.process_time()
             start_t_time = time.time()
+
 
 
 

@@ -157,7 +157,6 @@ for run in range(n_runs):
         extra_str = '_'.join(extraobj)
         save_population_name = f"{PATH_TO_RESULTS}/population/{dataset}/{dataset}__{sens_col}__obj_{obj_str}__seed_{set_seed}__extra_{extra_str}__nind_{individuals}__ngen_{generations}.csv"
 
-    print(save_population_name)
     try:
         read = pd.read_csv(save_population_name)
         print(f"Result file for {dataset} dataset, seed {set_seed}, and the others parameters already existed!")
@@ -168,7 +167,7 @@ for run in range(n_runs):
         execute = True
 
     if execute:
-
+        print("--- RUN:", run)
         # write datasets
         x_train, x_val, x_test, y_train, y_val, y_test = get_matrices(dataset, y_col, set_seed)
         write_train_val_test(dataset, sens_col, set_seed, x_train, x_val, x_test, y_train, y_val, y_test)
@@ -182,21 +181,36 @@ for run in range(n_runs):
         
         struc = Tree_Structure(x_train, y_train, prot_train, x_val, y_val, prot_val, run)
 
-        gen_process = Genetic_Pruning_Process_NSGA2(struc, objectives, generations, individuals, 0.7, 0.2)
+        gen_process = Genetic_Pruning_Process_NSGA2(struc, objectives, generations, individuals, 1, 0.2)
 
         indivs, gen_stats_df, population_df = gen_process.genetic_optimization(set_seed)
         
+        """
         print(indivs)
         for indiv in indivs:    
             print(i)
             print(indiv.repre)
             for i in range(len(objectives)):
                 print(objectives[i], indiv.objectives[i])
+        """
         
         test_and_save_results(x_test, y_test, prot_test, indivs, gen_stats_df, population_df, objectives, individuals, generations, dataset, sens_col, set_seed, objectives, extraobj)
 
+
+x_train, x_val, x_test, y_train, y_val, y_test = get_matrices(dataset, y_col, set_seed)
+write_train_val_test(dataset, sens_col, set_seed, x_train, x_val, x_test, y_train, y_val, y_test)
+x_train = x_train.loc[:, x_train.columns != 'y']
+x_val = x_val.loc[:, x_val.columns != 'y']
+x_test = x_test.loc[:, x_test.columns != 'y']
+
+prot_train = x_train[sens_col].astype(int)
+prot_val = x_val[sens_col].astype(int)
+prot_test = x_test[sens_col].astype(int)
+
+struc = Tree_Structure(x_train, y_train, prot_train, x_val, y_val, prot_val, run)
+
 print("Calculating pareto optimal solutions using all runs...")
-calculate_pareto_optimal(dataset, sens_col, obj_str, individuals, generations, set_seed_base, n_runs, extraobj)
+calculate_pareto_optimal(dataset, sens_col, objectives, individuals, generations, set_seed_base, n_runs, extraobj, struc)
 print("Execution succesful!\n------------------------------")
     
 

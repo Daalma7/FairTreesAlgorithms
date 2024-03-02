@@ -92,7 +92,6 @@ class Tree_Structure:
         # Second component is the node ids where that sample goes through
         paths = self.clf.decision_path(self.x_train).nonzero()        
         
-        
         fair_template = []                               # We create a list of lists for the fair dict dictionary
         for i in range(pd.unique(self.y_train).shape[0]):      # First dimension represents the class
             fair_template.append([])
@@ -130,7 +129,6 @@ class Tree_Structure:
                 
                 
         for i in range(len(paths[0])):         #for every individual and node from which goes through
-            #print("Sample with id: ", paths[0][i], " goes through node with code: ", paths[1][i])            
             fair_dict[paths[1][i]][self.y_train.iloc[paths[0][i]]][self.prot_train.iloc[paths[0][i]]] += 1        # We build our fair_dict
                     
         #Lastly, we change the faif_dict keys to the current used ids.
@@ -242,14 +240,14 @@ class Tree_Structure:
             # If a split node, append left and right children and depth to `stack`
             # so we can loop through them
             if is_split_node:
+                repr_space.append(repre)
                 stack.append((children_left[node_id], repre + [0]))
                 stack.append((children_right[node_id], repre + [1]))
-                repr_space.append(repre)
                 
         if verbose:
             print("repr_space", repr_space[1:])
         
-        return repr_space[1:]
+        return repr_space
     
     
     # MODIFIABLE
@@ -348,7 +346,7 @@ class Individual:
     of prunings over the base classifier tree.
     """
     
-    def __init__(self, struc, objs_string, repre, creation_mode):
+    def __init__(self, struc, objs_string, repre, creation_mode, objectives=None):
 
         """
         Class constructor
@@ -358,16 +356,20 @@ class Individual:
         - objs_string: Strings defining the objective functions for the optimization process
         - repr: Representation of the individual
         """
+
         self.struc = struc
         self.objs_string = objs_string
         self.repre = repre   # Each individual created needs to have a minimal representation
-        self.objectives = self.calc_objectives()     # And also its objectives values will be calculated
+        if objectives is None:
+            self.objectives = self.calc_objectives()     # And also its objectives values will be calculated
+        else:
+            self.objectives = objectives
         self.creation_mode = creation_mode
         self.num_prunings = len(repre)
         self.depth = None
         self.num_leaves = None
         self.unbalance = None
-        self.mean_depth = None
+        self.data_avg_depth = None
 
     # MODIFIABLE
     def calc_objectives(self):
@@ -419,29 +421,29 @@ class Individual:
 
             if obj == 'accuracy':
 
-                ret.append(accuracy_score(self.struc.y_val, y_pred))
+                ret.append(1-accuracy_score(self.struc.y_val, y_pred))
                 continue
             
             if obj == 'tpr_diff':
                 tpr_p = tp_p / (tp_p + fn_p)
                 tpr_u = tp_u / (tp_u + fn_u)
-                ret.append(1-abs(tpr_p-tpr_u))
+                ret.append(abs(tpr_p-tpr_u))
                 continue
             
             if obj == 'fpr_diff':
                 fpr_p = fp_p / (fp_p + tn_p)
                 fpr_u = fp_u / (fp_u + tn_u)
-                ret.append(1-abs(fpr_p-fpr_u))
+                ret.append(abs(fpr_p-fpr_u))
                 continue
                 
             if obj == 'ppv_diff':
                 ppv_p = tp_p / (tp_p + fp_p)
                 ppv_u = tp_u / (tp_u + fp_u)
-                ret.append(1-abs(ppv_p-ppv_u))
+                ret.append(abs(ppv_p-ppv_u))
                 continue
             
             if obj == 'gmean_inv':
-                ret.append(geometric_mean_score(self.struc.y_val, y_pred))
+                ret.append(1-geometric_mean_score(self.struc.y_val, y_pred))
                 pass
 
         return ret
@@ -450,7 +452,7 @@ class Individual:
     def dominates(self, other):
         """
         Checks if the individual dominates another one.
-        We understand this problem as a maximization one.
+        We understand this problem as a minimization one.
 
         Parameters:
         - other: other individual to be checked
@@ -458,12 +460,12 @@ class Individual:
         Returns:
         - True if the individual dominates the other one, False otherwise
         """
-        ret = True
-        for i in range(len(self.objectives)):
-            if self.objectives[i] < other.objectives[i]:
-                ret = False
-                break
-        return ret
+        and_condition = True
+        or_condition = False
+        for first, second in zip(self.objectives, other.objectives):
+            and_condition = and_condition and first <= second
+            or_condition = or_condition or first < second
+        return (and_condition and or_condition)
     
     
     def get_tree(self):
@@ -515,7 +517,7 @@ class Individual:
         self.depth = all_depths.max()
         self.num_leaves = len(all_depths)
         self.unbalance = float(all_depths.min()) / float(all_depths.max())
-        self.mean_depth = np.dot(all_depths, all_samples) / float(np.sum(all_samples)) # Mean depth weighted by samples
+        self.data_avg_depth = np.dot(all_depths, all_samples) / float(np.sum(all_samples)) # Mean depth weighted by samples
         return new_tree
 
 
@@ -573,29 +575,29 @@ class Individual:
 
             if obj == 'accuracy':
 
-                ret.append(accuracy_score(y_test, y_pred))
+                ret.append(1-accuracy_score(y_test, y_pred))
                 continue
             
             if obj == 'tpr_diff':
                 tpr_p = tp_p / (tp_p + fn_p)
                 tpr_u = tp_u / (tp_u + fn_u)
-                ret.append(1-abs(tpr_p-tpr_u))
+                ret.append(abs(tpr_p-tpr_u))
                 continue
             
             if obj == 'fpr_diff':
                 fpr_p = fp_p / (fp_p + tn_p)
                 fpr_u = fp_u / (fp_u + tn_u)
-                ret.append(1-abs(fpr_p-fpr_u))
+                ret.append(abs(fpr_p-fpr_u))
                 continue
                 
             if obj == 'ppv_diff':
                 ppv_p = tp_p / (tp_p + fp_p)
                 ppv_u = tp_u / (tp_u + fp_u)
-                ret.append(1-abs(ppv_p-ppv_u))
+                ret.append(abs(ppv_p-ppv_u))
                 continue
             
             if obj == 'gmean_inv':
-                ret.append(geometric_mean_score(y_test, y_pred))
+                ret.append(1-geometric_mean_score(y_test, y_pred))
                 pass
 
         return ret
@@ -633,7 +635,7 @@ class Individual_NSGA2(Individual):
     Class representing an individual for a NSGA2 optimization process, within this context
     """
 
-    def __init__(self, struc, repre):
+    def __init__(self, struc, objs_string, repre, creation_mode, objectives=None):
         """
         Class constructor
 
@@ -641,7 +643,7 @@ class Individual_NSGA2(Individual):
         - struc: tree structure with all calculated metrics, from the general.Tree_Structure class
         - repr: Representation of the individual
         """
-        Individual.__init__(struc, repre)
+        Individual.__init__(self, struc, objs_string, repre, creation_mode, objectives)
         self.domination_count=0
         self.rank = None
         self.crowding_distance = None
