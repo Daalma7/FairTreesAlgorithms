@@ -1,13 +1,34 @@
-from logging import makeLogRecord
+import matplotlib.pyplot as plt
 import pandas as pd
+from math import ceil
+import random
+import csv
 import sys
+import time
 import warnings
-warnings.filterwarnings("ignore")
+import importlib
 import os
+import re
+import seaborn as sns
+warnings.filterwarnings("ignore")
 
-from ml import get_matrices, write_train_val_test, test_and_save_results, calculate_pareto_optimal
-from genetic import Genetic_Pruning_Process_NSGA2
-from individual import Tree_Structure
+sys.path.insert(1, os.path.dirname(os.path.dirname(__file__)))
+from qualitymeasures import hypervolume, spacing, maximum_spread, error_ratio, overall_pareto_front_spread, generational_distance, inverted_generational_distance, ideal_point, nadir_point, algorithm_proportion, diff_val_test_rate, coverage
+from calculatemeasures_aux import read_overall_pareto_files, create_results_df, calculate_general_pareto_front_measures, calculate_algorithm_pareto_front_measures, calculate_algorithm_pareto_front_measures, calculate_median_values, coverage_analysis
+
+#Dictionary to propperly create individuals given the objectives
+quality_measures = ['Mean solutions', 'Proportion', 'Hypervolume', 'Spacing', 'Maximum spread', 'Overall PF spread',  'Error ratio', 'GD', 'Inverted GD']
+ml_measures = ['Min', 'Q1', 'Q2', 'Q3', 'Max']
+
+alg = dat = var = obj = mod = extra = False        #Possible parameters given
+
+
+#########################################################################################################################
+#########################################################################################################################
+#########################################################################################################################
+#########################################################################################################################
+#########################################################################################################################
+#########################################################################################################################
 
 PATH_TO_RESULTS = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))) + '/results/GP'
 
@@ -20,7 +41,6 @@ dict_protected = {'academic': 'ge','adult': 'Race','arrhythmia': 'sex','bank': '
 message = "\nExecutes a multiobjective evolutionary optimization algorithm to solve a problem, based on prunings over a base Decision Tree Classifier, with the following parameters:\n"
 message += "\nThe following parameters have been given by the user:"
 extraobj = None
-
 error = False
 for i in range(1, len(sys.argv)):           #We're going to read all parameters
     valid = False
@@ -144,81 +164,44 @@ if len(objectives) < 2:
     print("There should be at least 2 objectives. Aborting.")
     sys.exit(1)
 
-for run in range(n_runs):
-    set_seed = set_seed_base + run
-
-    obj_str = '__'.join(objectives) 
-
-    execute = False
-    save_population_name = None
-    extra_str = ''
-    if not extraobj is None:
-        extra_str = '__'.join(extraobj)
-
-    save_population_name = f"{PATH_TO_RESULTS}/population/{dataset}/{dataset}_seed_{set_seed}_var_{sens_col}_gen_{generations}_indiv_{individuals}_model_GP_obj_{obj_str}{extra_str}.csv"
-    #print(save_population_name)
-    try:
-        read = pd.read_csv(save_population_name)
-        print(f"Result file for {dataset} dataset, seed {set_seed}, and the others parameters already existed!")
-        if read.shape[0] < generations * individuals:
-            execute = True
-            print("\tBut it lacks some individuals, so it will be executed again")
-    except FileNotFoundError:
-        execute = True
-
-    if execute:
-        print("--- RUN:", run)
-        # write datasets
-        x_train, x_val, x_test, y_train, y_val, y_test = get_matrices(dataset, y_col, set_seed)
-        write_train_val_test(dataset, sens_col, set_seed, x_train, x_val, x_test, y_train, y_val, y_test)
-        x_train = x_train.loc[:, x_train.columns != 'y']
-        x_val = x_val.loc[:, x_val.columns != 'y']
-        x_test = x_test.loc[:, x_test.columns != 'y']
-
-        prot_train = x_train[sens_col].astype(int)
-        prot_val = x_val[sens_col].astype(int)
-        prot_test = x_test[sens_col].astype(int)
-        
-        struc = Tree_Structure(x_train, y_train, prot_train, x_val, y_val, prot_val, run)
-
-        gen_process = Genetic_Pruning_Process_NSGA2(struc, objectives, generations, individuals, 1, 0.2)
-
-        indivs, gen_stats_df, population_df = gen_process.genetic_optimization(set_seed)
-        
-        """
-        print(indivs)
-        for indiv in indivs:    
-            print(i)
-            print(indiv.repre)
-            for i in range(len(objectives)):
-                print(objectives[i], indiv.objectives[i])
-        """
-        
-        test_and_save_results(x_test, y_test, prot_test, indivs, gen_stats_df, population_df, objectives, individuals, generations, dataset, sens_col, set_seed, objectives, extraobj)
+obj_str = '__'.join(objectives) 
+extra_str = ''
+if not extraobj is None:
+    extra_str = '__'.join(extraobj)
 
 
-x_train, x_val, x_test, y_train, y_val, y_test = get_matrices(dataset, y_col, set_seed)
-write_train_val_test(dataset, sens_col, set_seed, x_train, x_val, x_test, y_train, y_val, y_test)
-x_train = x_train.loc[:, x_train.columns != 'y']
-x_val = x_val.loc[:, x_val.columns != 'y']
-x_test = x_test.loc[:, x_test.columns != 'y']
 
-prot_train = x_train[sens_col].astype(int)
-prot_val = x_val[sens_col].astype(int)
-prot_test = x_test[sens_col].astype(int)
 
-struc = Tree_Structure(x_train, y_train, prot_train, x_val, y_val, prot_val, run)
+###################################################################################################################
+###################################################################################################################
+###################################################################################################################
 
-print("Calculating pareto optimal solutions using all runs...")
-calculate_pareto_optimal(dataset, sens_col, objectives, individuals, generations, set_seed_base, n_runs, extraobj, struc)
+
+
+
+#measures_df, measures_df_2 = create_results_df()
+#models = ['FDT', 'GP']
+models = ['FDT']
+indiv_list = read_overall_pareto_files(dataset, models, set_seed_base, individuals, generations, objectives, extraobj)
+
+
+
+
+#########################################
+# Measures for the general pareto front #
+#########################################
+calculate_general_pareto_front_measures()
+
+##############################################
+# Measures for each algorithm's pareto front #
+##############################################
+calculate_algorithm_pareto_front_measures()
+
+
+calculate_median_values()
+
+coverage_analysis()
+
+
+
 print("Execution succesful!\n------------------------------")
-    
-
-
-
-"""
-#Calculate file with the general pareto front using all pareto fronts in every execution
-print("Calculating pareto optimal solutions using all runs...")
-pareto_optimal_exec, pareto_optimal_df = problem.calculate_pareto_optimal(set_seed_base, n_runs, algorithm)
-print("Execution succesful!\n------------------------------")
-"""

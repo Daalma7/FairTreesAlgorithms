@@ -31,18 +31,18 @@ class Evolution:
         self.beta_method = beta_method
 
     def get_dataframes(self, indiv):
-        dict_general_info = {'id': indiv.id, 'seed': self.problem.seed, 'creation_mode':indiv.creation_mode}
-        dict_objectives= {self.problem.objectives[j].__name__: indiv.objectives[j] for j in range(self.problem.num_of_objectives)}
+        dict_general_info = {'ID': indiv.id, 'seed': self.problem.seed, 'creation_mode':indiv.creation_mode}
+        dict_objectives= {f"{self.problem.objectives[j].__name__}_val": indiv.objectives[j] for j in range(self.problem.num_of_objectives)}
         indiv_list = list(indiv.features.items())
         if self.problem.model == "DT":
             criterion, max_depth, min_samples_split, max_leaf_nodes, class_weight = [item[1] for item in indiv_list]
             dict_hyperparameters = {'criterion': [criterion], 'max_depht': [max_depth], 'min_samples_split': [min_samples_split], 'max_leaf_nodes': [max_leaf_nodes], 'class_weight': [class_weight]}
-            dict_actual_dimensions = {'actual_depth': indiv.actual_depth, 'actual_leaves': indiv.actual_leaves, 'actual_data_avg_depth': indiv.actual_data_avg_depth}       #It's really instersting in case of DT to have this size measures
+            dict_actual_dimensions = {'leaves': indiv.actual_leaves, 'depth': indiv.actual_depth, 'data_avg_depth': indiv.actual_data_avg_depth, 'depth_unbalance': indiv.actual_depth_unbalance}       #It's really instersting in case of DT to have this size measures
             dict_dataframe = {**dict_general_info, **dict_objectives, **dict_actual_dimensions, **dict_hyperparameters}
         if self.problem.model == "FDT":
             criterion, max_depth, min_samples_split, max_leaf_nodes, class_weight, fair_param = [item[1] for item in indiv_list]
             dict_hyperparameters = {'criterion': [criterion], 'max_depht': [max_depth], 'min_samples_split': [min_samples_split], 'max_leaf_nodes': [max_leaf_nodes], 'class_weight': [class_weight], 'fair_param': [fair_param]}
-            dict_actual_dimensions = {'actual_depth': indiv.actual_depth, 'actual_leaves': indiv.actual_leaves, 'actual_data_avg_depth': indiv.actual_data_avg_depth}       #It's really instersting in case of DT to have this size measures
+            dict_actual_dimensions = {'leaves': indiv.actual_leaves, 'depth': indiv.actual_depth, 'data_avg_depth': indiv.actual_data_avg_depth, 'depth_unbalance': indiv.actual_depth_unbalance}       #It's really instersting in case of DT to have this size measures
             dict_dataframe = {**dict_general_info, **dict_objectives, **dict_actual_dimensions, **dict_hyperparameters}
         if self.problem.model == "LR":
             max_iter, tol, lambd, l1_ratio, class_weight = [item[1] for item in indiv_list]
@@ -82,8 +82,7 @@ class Evolution:
             self.evolutions_df = pd.concat([self.evolutions_df, gen_df])
             #print(self.evolutions_df)
             if i == (self.num_of_generations-1):
-                self.evolutions_df.to_csv(f"{PATH_TO_RESULTS}{self.model_name}/nsga2/population/{self.dataset_name}/{self.dataset_name}_seed_{self.utils.problem.seed}_var_{self.protected_variable}_gen_{self.num_of_generations}_indiv_{self.num_of_individuals}_model_{self.problem.model}_obj_{str_obj}.csv", index = False, header = True, columns = list(self.evolutions_df.keys()))
-
+                self.evolutions_df.to_csv(f"{PATH_TO_RESULTS}{self.model_name}/nsga2/population/{self.dataset_name}/{self.dataset_name}_seed_{self.utils.problem.seed}_var_{self.protected_variable}_gen_{self.num_of_generations}_indiv_{self.num_of_individuals}_model_{self.problem.model}_obj_{str_obj}{self.problem.get_extra_string()}.csv", index = False, header = True, columns = list(self.evolutions_df.keys()))
             generations_df = save_generation_stats(generations_df, gen_df, self.problem.model, time.process_time() - start_process_time, time.time() - start_total_time)
             start_process_time = time.process_time()
             start_total_time = time.time()
@@ -102,6 +101,6 @@ class Evolution:
             self.population = new_population
             children = self.utils.create_children(self.population, self.problem.model)
         
-        generations_df.to_csv(f"{PATH_TO_RESULTS}{self.model_name}/nsga2/generation_stats/{self.dataset_name}/{self.dataset_name}_seed_{self.utils.problem.seed}_var_{self.protected_variable}_gen_{self.num_of_generations}_indiv_{self.num_of_individuals}_model_{self.problem.model}_obj_{str_obj}.csv", index = False, header = True)
+        generations_df.to_csv(f"{PATH_TO_RESULTS}{self.model_name}/nsga2/generation_stats/{self.dataset_name}/{self.dataset_name}_seed_{self.utils.problem.seed}_var_{self.protected_variable}_gen_{self.num_of_generations}_indiv_{self.num_of_individuals}_model_{self.problem.model}_obj_{str_obj}{self.problem.get_extra_string()}.csv", index = False, header = True)
         self.utils.fast_nondominated_sort(self.population)  #Once we've finished, let's return only nondominated individuals
         return self.population.fronts[0]

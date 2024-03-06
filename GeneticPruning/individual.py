@@ -368,7 +368,7 @@ class Individual:
         self.num_prunings = len(repre)
         self.depth = None
         self.num_leaves = None
-        self.unbalance = None
+        self.depth_unbalance = None
         self.data_avg_depth = None
 
     # MODIFIABLE
@@ -441,10 +441,15 @@ class Individual:
                 ppv_u = tp_u / (tp_u + fp_u)
                 ret.append(abs(ppv_p-ppv_u))
                 continue
+
+            if obj == 'pnr_diff':
+                pnr_p = fn_p + tn_p / (fn_p + tn_p + fp_p + tp_p)
+                pnr_u = fn_u + tn_u / (fn_u + tn_u + fp_u + tp_u)
+                ret.append(abs(pnr_p - pnr_u))
+                continue
             
             if obj == 'gmean_inv':
                 ret.append(1-geometric_mean_score(self.struc.y_val, y_pred))
-                pass
 
         return ret
     
@@ -516,7 +521,7 @@ class Individual:
         #new_tree.tree_.max_depth = all_depths.max()
         self.depth = all_depths.max()
         self.num_leaves = len(all_depths)
-        self.unbalance = float(all_depths.min()) / float(all_depths.max())
+        self.depth_unbalance = float(all_depths.min()) / float(all_depths.max())
         self.data_avg_depth = np.dot(all_depths, all_samples) / float(np.sum(all_samples)) # Mean depth weighted by samples
         return new_tree
 
@@ -594,6 +599,12 @@ class Individual:
                 ppv_p = tp_p / (tp_p + fp_p)
                 ppv_u = tp_u / (tp_u + fp_u)
                 ret.append(abs(ppv_p-ppv_u))
+                continue
+
+            if obj == 'pnr_diff':
+                pnr_p = fn_p + tn_p / (fn_p + tn_p + fp_p + tp_p)
+                pnr_u = fn_u + tn_u / (fn_u + tn_u + fp_u + tp_u)
+                ret.append(abs(pnr_p - pnr_u))
                 continue
             
             if obj == 'gmean_inv':

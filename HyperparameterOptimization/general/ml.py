@@ -187,8 +187,8 @@ def print_tree(classifier, model, features):
 def print_properties_tree(learner):
     depth = learner.get_depth()
     leaves = learner.get_n_leaves()
-    w_avg_depth = data_weight_avg_depth(learner)
-    return depth, leaves, w_avg_depth
+    data_avg_depth, depth_unbalance = data_weight_avg_depth(learner)
+    return depth, leaves, data_avg_depth, depth_unbalance
 
 #Returns depth and leaves given a decision tree
 def print_properties_lgbm(learner):
@@ -309,7 +309,7 @@ def save_model(learner, dataset_name, seed, variable_name, num_of_generations, n
         str_obj += "__" + objectives[i].__name__
 
     path = PATH_TO_RESULTS + str(model) + '/' + str(method) + '/models/' + dataset_name + "/"
-    filename =  'model_id_' + individual_id + '_seed_' + str(seed) + '_var_' + variable_name + '_gen_' + str(num_of_generations) + '_indiv_' + str(num_of_individuals) + '_obj_' + str(str_obj) + '.sav'
+    filename =  'model_ID_' + individual_id + '_seed_' + str(seed) + '_var_' + variable_name + '_gen_' + str(num_of_generations) + '_indiv_' + str(num_of_individuals) + '_obj_' + str(str_obj) + '.sav'
     pickle.dump(learner, open(path + filename, 'wb'))
     return
 
@@ -359,7 +359,7 @@ def accuracy_diff(y_val_p, y_val_u, y_pred_p, y_pred_u):
 
 
 #TPR: True Positive Rate: Verdaderos positivos entre todos los positivos (verdaderos positivos y falsos negativos)
-def dem_tpr(y_val_p, y_val_u, y_pred_p, y_pred_u):
+def tpr_diff(y_val_p, y_val_u, y_pred_p, y_pred_u):
     """
     Compute demography metric.
     """
@@ -373,7 +373,7 @@ def dem_tpr(y_val_p, y_val_u, y_pred_p, y_pred_u):
     return dem
 
 #FPR: False Positive Rate: Falsos positivos entre todos los negativos (falsos positivos y verdaderos negativos)
-def dem_fpr(y_val_p, y_val_u, y_pred_p, y_pred_u):
+def fpr_diff(y_val_p, y_val_u, y_pred_p, y_pred_u):
     """
     Compute false positive rate parity.
     """
@@ -387,7 +387,7 @@ def dem_fpr(y_val_p, y_val_u, y_pred_p, y_pred_u):
     return dem
 
 #TNR: True Negative Rate: Verdaderos negativos entre todos los negativos (verdaderos negativos y falsos positivos)
-def dem_tnr(y_val_p, y_val_u, y_pred_p, y_pred_u):
+def tnr_diff(y_val_p, y_val_u, y_pred_p, y_pred_u):
     tn_p, fp_p, fn_p, tp_p = confusion_matrix(y_val_p, y_pred_p).ravel()
     tn_u, fp_u, fn_u, tp_u = confusion_matrix(y_val_u, y_pred_u).ravel()
     tnr_p = tn_p/(tn_p + fp_p)
@@ -396,7 +396,7 @@ def dem_tnr(y_val_p, y_val_u, y_pred_p, y_pred_u):
     return dem
 
 #PPV: Positive Predictive Value: Verdaderos positivos entre los predichos como positivos (verdaderos positivos y falsos positivos)
-def dem_ppv(y_val_p, y_val_u, y_pred_p, y_pred_u):
+def ppv_diff(y_val_p, y_val_u, y_pred_p, y_pred_u):
     tn_p, fp_p, fn_p, tp_p = confusion_matrix(y_val_p, y_pred_p).ravel()
     tn_u, fp_u, fn_u, tp_u = confusion_matrix(y_val_u, y_pred_u).ravel()
     ppv_p = tp_p/(tp_p + fp_p)
@@ -407,7 +407,7 @@ def dem_ppv(y_val_p, y_val_u, y_pred_p, y_pred_u):
     return dem
 
 #PNR: Predicted Negative Rate: Predichos como negativos entre todos los valores (MEDIDA PARA DEMOGRAPHIC PARITY)
-def dem_pnr(y_val_p, y_val_u, y_pred_p, y_pred_u):
+def pnr_diff(y_val_p, y_val_u, y_pred_p, y_pred_u):
     tn_p, fp_p, fn_p, tp_p = confusion_matrix(y_val_p, y_pred_p).ravel()
     tn_u, fp_u, fn_u, tp_u = confusion_matrix(y_val_u, y_pred_u).ravel()
     pnr_p = (fn_p + tn_p)/(tn_p + fp_p + fn_p + tp_p)
@@ -429,6 +429,8 @@ def data_weight_avg_depth(learner):
     total_w_depth = 0.0
     tree = learner.tree_
     total_samples = 0.0
+    min_depth = float('inf')
+    max_depth = 0
     while len(stack) > 0:
         current_node, current_depth = stack.pop()
         if(learner.tree_.children_left[current_node] != learner.tree_.children_right[current_node]):    #If it's not a leaf
@@ -438,7 +440,14 @@ def data_weight_avg_depth(learner):
             weighted_samples = tree.weighted_n_node_samples[current_node]
             total_w_depth += weighted_samples * current_depth
             total_samples += weighted_samples
-    return total_w_depth / total_samples
+            if current_depth < min_depth:
+                min_depth = current_depth
+            if current_depth > max_depth:
+                max_depth = current_depth
+    return total_w_depth / total_samples, float(min_depth) / float(max_depth)
+
+
+
 
 
 def create_generation_stats(model):
@@ -450,9 +459,24 @@ def create_generation_stats(model):
         - pd.DataFrame of information to store during each generation
     """
     if model == 'FDT' or model == 'DT':
-        return pd.DataFrame(data={'min_depth':[], 'mean_depth':[], 'max_depth':[], 'std_depth':[], 'min_leaves': [], 'mean_leaves': [], 'max_leaves':[], 'std_leaves': [], 'min_data_avg_depth': [], 'mean_data_avg_depth':[], 'max_data_avg_depth':[], 'std_data_avg_depth':[], 'process_time':[]})
+        store_dimensions = ['leaves', 'depth', 'data_avg_depth', 'depth_unbalance']
     elif model == 'FLGBM':
-        return pd.DataFrame(data={'min_n_estimators':[], 'mean_n_estimators':[], 'max_n_estimators':[], 'std_n_estimators':[], 'min_n_features':[], 'mean_n_features':[], 'max_n_features':[], 'std_n_features':[], 'min_feature_importance_std':[], 'mean_feature_importance_std':[], 'max_feature_importance_std':[], 'std_feature_importance_std':[], 'process_time':[]})
+        store_dimensions = ['n_estimators', 'n_features', 'feature_importance_std']
+    
+    new_dict = {}
+    for elem in store_dimensions:
+        new_dict[f"min_{elem}"] = []
+        new_dict[f"mean_{elem}"] = []
+        new_dict[f"max_{elem}"] = []
+        new_dict[f"std_{elem}"] = []
+    new_dict['process_time'] = []
+    new_dict['total_time'] = []
+    
+    return pd.DataFrame(data=new_dict)
+
+
+
+
 
 def save_generation_stats(generations_df, generation_indivs, model, newtime, totaltime):
     """
@@ -464,47 +488,17 @@ def save_generation_stats(generations_df, generation_indivs, model, newtime, tot
         - newtime:
     """
     if model == 'FDT' or model == 'DT':
-        new_row ={
-        'min_depth':generation_indivs['actual_depth'].min(),
-        'mean_depth':generation_indivs['actual_depth'].mean(),
-        'max_depth':generation_indivs['actual_depth'].max(),
-        'std_depth':generation_indivs['actual_depth'].std(),
+        store_dimensions = ['leaves', 'depth', 'data_avg_depth', 'depth_unbalance']
+    elif model == 'FLGBM':
+        store_dimensions = ['n_estimators', 'n_features', 'feature_importance_std']
 
-        'min_leaves':generation_indivs['actual_leaves'].min(),
-        'mean_leaves':generation_indivs['actual_leaves'].mean(),
-        'max_leaves':generation_indivs['actual_leaves'].max(),
-        'std_leaves':generation_indivs['actual_leaves'].std(),
+    new_row = {}
+    for elem in store_dimensions:
+        new_row[f"min_{elem}"] = generation_indivs[elem].min()
+        new_row[f"mean_{elem}"] = generation_indivs[elem].mean()
+        new_row[f"max_{elem}"] = generation_indivs[elem].max()
+        new_row[f"std_{elem}"] = generation_indivs[elem].std()
+    new_row['process_time'] = newtime
+    new_row['total_time'] = totaltime
 
-        'min_data_avg_depth':generation_indivs['actual_data_avg_depth'].min(),
-        'mean_data_avg_depth':generation_indivs['actual_data_avg_depth'].mean(),
-        'max_data_avg_depth':generation_indivs['actual_data_avg_depth'].max(),
-        'std_data_avg_depth':generation_indivs['actual_data_avg_depth'].std(),
-
-        'process_time': newtime,
-        'total_time': totaltime
-        }
-
-        return pd.concat([generations_df, pd.DataFrame([new_row])], ignore_index=True)
-
-    elif model== 'FLGBM':
-        new_row ={
-        'min_n_estimators':generation_indivs['actual_n_estimators'].min(),
-        'mean_n_estimators':generation_indivs['actual_n_estimators'].mean(),
-        'max_n_estimators':generation_indivs['actual_n_estimators'].max(),
-        'std_n_estimators':generation_indivs['actual_n_estimators'].std(),
-
-        'min_n_features':generation_indivs['actual_n_features'].min(),
-        'mean_n_features':generation_indivs['actual_n_features'].mean(),
-        'max_n_features':generation_indivs['actual_n_features'].max(),
-        'std_n_features':generation_indivs['actual_n_features'].std(),
-
-        'min_feature_importance_std':generation_indivs['actual_feature_importance_std'].min(),
-        'mean_feature_importance_std':generation_indivs['actual_feature_importance_std'].mean(),
-        'max_feature_importance_std':generation_indivs['actual_feature_importance_std'].max(),
-        'std_feature_importance_std':generation_indivs['actual_feature_importance_std'].std(),
-
-        'process_time': newtime,
-        'total_time': totaltime
-        }
-
-        return pd.concat([generations_df, pd.DataFrame([new_row])], ignore_index=True)
+    return pd.concat([generations_df, pd.DataFrame([new_row])], ignore_index=True)

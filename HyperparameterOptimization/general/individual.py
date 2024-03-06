@@ -50,6 +50,7 @@ class IndividualDT(Individual):
         self.actual_depth = None
         self.actual_leaves = None
         self.actual_data_avg_depth = None
+        self.actual_depth_unbalance = None
 
     def dominates(self, other_individual):
         and_condition = True
@@ -144,6 +145,7 @@ class IndividualFDT(Individual):
         self.actual_depth = None
         self.actual_leaves = None
         self.actual_data_avg_depth = None
+        self.actual_depth_unbalance = None
 
 
     def dominates(self, other_individual):

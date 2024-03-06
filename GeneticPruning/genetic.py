@@ -703,6 +703,10 @@ class Genetic_Pruning_Process_NSGA2(Genetic_Pruning_Process):
         Defines the whole optimization process
         """
         np.random.seed(seed)
+
+        start_p_time = time.process_time()
+        start_t_time = time.time()
+
         gen_stats_df = create_gen_stats_df()
         gen_population_df = create_gen_population_df(self.objs_string, seed)
         
@@ -710,10 +714,15 @@ class Genetic_Pruning_Process_NSGA2(Genetic_Pruning_Process):
         #for i in range(len(self.population)):
             #print(self.population[i].repre)
         
-        start_p_time = time.process_time()
-        start_t_time = time.time()
+
         for i in range(self.num_gen):
-            print(i)
+            print(f"{i}")
+
+            # Store data
+            gen_stats_df = update_gen_stats_df(gen_stats_df, self.population, time.process_time() - start_p_time, time.time() - start_t_time)
+            gen_population_df = update_gen_population(gen_population_df, self.population, self.objs_string, seed)
+            start_p_time = time.process_time()
+            start_t_time = time.time()
 
             # NSGA-II Process
             parents = self.tournament()                             # Tournament
@@ -727,6 +736,7 @@ class Genetic_Pruning_Process_NSGA2(Genetic_Pruning_Process):
             new_population = []
             front_num = 0
             while len(new_population) + len(self.fronts[front_num]) <= self.num_indiv:
+                #print(new_population, len(self.fronts[front_num]))
                 self.crowding_distance(self.fronts[front_num])
                 new_population.extend(self.fronts[front_num])
                 front_num += 1
@@ -737,11 +747,7 @@ class Genetic_Pruning_Process_NSGA2(Genetic_Pruning_Process):
             # New generation
             self.population = new_population
 
-            # Store data
-            gen_stats_df = update_gen_stats_df(gen_stats_df, new_population, time.process_time() - start_p_time, time.time() - start_t_time)
-            gen_population_df = update_gen_population(gen_population_df, new_population, self.objs_string, seed)
-            start_p_time = time.process_time()
-            start_t_time = time.time()
+
 
 
 
@@ -751,4 +757,3 @@ class Genetic_Pruning_Process_NSGA2(Genetic_Pruning_Process):
 
         return self.fronts[0], gen_stats_df, gen_population_df
         #return self.fronts[0]                       # Returns the best individuals
-

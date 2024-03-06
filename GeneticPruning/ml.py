@@ -79,8 +79,8 @@ def save_model(learner, dataset_name, seed, variable_name, num_of_generations, n
     for i in range(1, len(objectives)):
         str_obj += "__" + objectives[i].__name__
 
-    path = './results/' + str(method) + '/models/' + model + '/' + dataset_name + "/"
-    filename =  'model_id_' + individual_id + '_seed_' + str(seed) + '_var_' + variable_name + '_gen_' + str(num_of_generations) + '_indiv_' + str(num_of_individuals) + '_obj_' + str(str_obj) + '.sav'
+    path = f"./results/{method}/models/{model}/{dataset_name}/"
+    filename =  f"model_id_{individual_id}_seed_{seed}_var_{variable_name}_gen_{num_of_generations}_indiv_{num_of_individuals}_obj_{str_obj}.sav"
     pickle.dump(learner, open(path + filename, 'wb'))
     return
 
@@ -117,43 +117,74 @@ def generate_random_string(length):
 
 
 def create_gen_stats_df():
-    return pd.DataFrame({'df_min_leaves':[], 'df_avg_leaves':[], 'df_max_leaves':[], 'df_std_leaves':[],
-                  'df_min_depth':[], 'df_avg_depth':[], 'df_max_depth':[], 'df_std_depth':[],
-                  'df_min_data_avg_depth':[], 'df_mean_data_avg_depth':[], 'df_max_data_avg_depth':[], 'df_std_data_avg_depth':[],
-                  'process_time':[], 'total_time':[]})
+
+    store_dimensions = ['prunings', 'leaves', 'depth', 'data_avg_depth', 'depth_unbalance']
+    
+    new_dict = {}
+    for elem in store_dimensions:
+        new_dict[f"min_{elem}"] = []
+        new_dict[f"mean_{elem}"] = []
+        new_dict[f"max_{elem}"] = []
+        new_dict[f"std_{elem}"] = []
+    new_dict['process_time'] = []
+    new_dict['total_time'] = []
+    
+    return pd.DataFrame(data=new_dict)
+
 
 def update_gen_stats_df(store_df, newpop, p_time, t_time):
-    df_num_leaves = []
-    df_depth = []
-    df_data_avg_depth = []
+
+    store_dimensions = ['prunings', 'leaves', 'depth', 'data_avg_depth', 'depth_unbalance']
+    
+    dict_store = {}
+    for dimension in store_dimensions:
+        dict_store[dimension] = []
+    
     for elem in newpop:
         elem.get_tree()
-        df_num_leaves.append(elem.num_leaves)
-        df_depth.append(elem.depth)
-        df_data_avg_depth.append(elem.data_avg_depth)
+        dict_store['prunings'].append(elem.num_prunings)
+        dict_store['leaves'].append(elem.num_leaves)
+        dict_store['depth'].append(elem.depth)
+        dict_store['data_avg_depth'].append(elem.data_avg_depth)
+        dict_store['depth_unbalance'].append(elem.depth_unbalance)
 
-    df_num_leaves = np.array(df_num_leaves)
-    df_depth = np.array(df_depth)
-    df_data_avg_depth = np.array(df_data_avg_depth)
+    for dimension in store_dimensions:
+        dict_store[dimension] = np.array(dict_store[dimension])
 
-    c_df = pd.DataFrame({'df_min_leaves':[df_num_leaves.min()], 'df_avg_leaves':[df_num_leaves.mean()], 'df_max_leaves':[df_num_leaves.max()], 'df_std_leaves':[df_num_leaves.std()],
-                  'df_min_depth':[df_depth.min()], 'df_avg_depth':[df_depth.mean()], 'df_max_depth':[df_depth.max()], 'df_std_depth':[df_depth.std()],
-                  'df_min_data_avg_depth':[df_data_avg_depth.min()], 'df_mean_data_avg_depth':[df_data_avg_depth.mean()], 'df_max_data_avg_depth':[df_data_avg_depth.max()], 'df_std_data_avg_depth':[df_data_avg_depth.std()],
-                  'process_time': [p_time], 'total_time':[t_time]})
+    new_row = {}
+    for dimension in store_dimensions:
+        new_row[f"min_{dimension}"] = dict_store[dimension].min()
+        new_row[f"mean_{dimension}"] = dict_store[dimension].mean()
+        new_row[f"max_{dimension}"] = dict_store[dimension].max()
+        new_row[f"std_{dimension}"] = dict_store[dimension].std()
+    new_row['process_time'] = p_time
+    new_row['total_time'] = t_time
     
-    return pd.concat([store_df,c_df], ignore_index=True)
+    return pd.concat([store_df, pd.DataFrame([new_row])], ignore_index=True)
 
 
 def create_gen_population_df(obj, seed):
-    dict_individual = {'ID': [], 'seed': [], 'creation_mode': [], 'num_prunings': [], 'num_leaves': [], 'depth':[], 'data_avg_depth':[], 'unbalance':[]}
+    dict_individual = {'ID': [], 'seed': [], 'creation_mode': []}
+
     for elem in obj:
         dict_individual[elem + '_val'] = []
+
+    size_features = ['prunings', 'leaves', 'depth', 'data_avg_depth', 'depth_unbalance']
+    for elem in size_features:
+        dict_individual[elem] = []
+    
     return pd.DataFrame(dict_individual)
 
 def update_gen_population(pop_df, new_pop, obj, seed):
-    dict_individual = {'ID': [], 'seed': [], 'creation_mode': [], 'num_prunings': [], 'num_leaves': [], 'depth':[], 'data_avg_depth':[], 'unbalance':[]}
+    dict_individual = {'ID': [], 'seed': [], 'creation_mode': []}
+
     for elem in obj:
         dict_individual[elem + '_val'] = []
+
+    size_features = ['prunings', 'leaves', 'depth', 'data_avg_depth', 'depth_unbalance']
+    for elem in size_features:
+        dict_individual[elem] = []
+    
     dict_individual['repre'] = []
 
     for clf in new_pop:
@@ -167,11 +198,11 @@ def update_gen_population(pop_df, new_pop, obj, seed):
         for i in range(len(obj)):
             dict_individual[obj[i] + '_val'].append(clf.objectives[i])
         
-        dict_individual['num_prunings'].append(clf.num_prunings)
-        dict_individual['num_leaves'].append(clf.num_leaves)
+        dict_individual['prunings'].append(clf.num_prunings)
+        dict_individual['leaves'].append(clf.num_leaves)
         dict_individual['depth'].append(clf.depth)
         dict_individual['data_avg_depth'].append(clf.data_avg_depth)
-        dict_individual['unbalance'].append(clf.unbalance)
+        dict_individual['depth_unbalance'].append(clf.depth_unbalance)
 
     return pd.concat([pop_df, pd.DataFrame(dict_individual)], ignore_index=True)
 
@@ -183,30 +214,31 @@ def update_gen_population(pop_df, new_pop, obj, seed):
 def test_and_save_results(x_test, y_test, prot_test, classifiers, gen_stats_df, population_df, objectives, nind, ngen, dat, var, seed, obj, extra):
     
     save_population_name = save_gen_name = save_pareto_run_name = ''
-    obj_str = '_'.join(objectives) 
-    if extra is None:
-        save_population_name = f"{PATH_TO_RESULTS}/population/{dat}/{dat}__{var}__obj_{obj_str}__seed_{seed}__nind_{nind}__ngen_{ngen}.csv"
-        save_gen_name = f"{PATH_TO_RESULTS}/generation_stats/{dat}/{dat}__{var}__obj_{obj_str}__seed_{seed}__nind_{nind}__ngen_{ngen}.csv"
-        save_pareto_run_name = f"{PATH_TO_RESULTS}/pareto_individuals/runs/{dat}/{dat}__{var}__obj_{obj_str}__seed_{seed}__nind_{nind}__ngen_{ngen}.csv"
-    else:
-        extra_str = '_'.join(extra)
-        save_population_name = f"{PATH_TO_RESULTS}/population/{dat}/{dat}__{var}__obj_{obj_str}__seed_{seed}__extra_{extra_str}__nind_{nind}__ngen_{ngen}.csv"
-        save_gen_name = f"{PATH_TO_RESULTS}/generation_stats/{dat}/{dat}__{var}__obj_{obj_str}__seed_{seed}__extra_{extra_str}__nind_{nind}__ngen_{ngen}.csv"
-        save_pareto_run_name = f"{PATH_TO_RESULTS}/pareto_individuals/runs/{dat}/{dat}__{var}__obj_{obj_str}__seed_{seed}__extra_{extra_str}__nind_{nind}__ngen_{ngen}.csv"
-        
+    obj_str = '__'.join(objectives)
+    extra_str = ''
+    if not extra is None:
+        extra_str = '__'.join(extra)
+        extra_str = '_ext_' + extra_str
+
+    save_population_name = f"{PATH_TO_RESULTS}/population/{dat}/{dat}_seed_{seed}_var_{var}_gen_{ngen}_indiv_{nind}_model_GP_obj_{obj_str}{extra_str}.csv"
+    save_gen_name = f"{PATH_TO_RESULTS}/generation_stats/{dat}/{dat}_seed_{seed}_var_{var}_gen_{ngen}_indiv_{nind}_model_GP_obj_{obj_str}{extra_str}.csv"
+    save_pareto_run_name = f"{PATH_TO_RESULTS}/pareto_individuals/runs/{dat}/{dat}_seed_{seed}_var_{var}_gen_{ngen}_indiv_{nind}_model_GP_obj_{obj_str}{extra_str}.csv"
     
-    dict_individual = {'ID': [], 'seed': [], 'creation_mode': [], 'num_prunings': [], 'num_leaves': [], 'depth':[], 'data_avg_depth':[], 'unbalance':[]}
+    dict_individual = {'ID': [], 'seed': [], 'creation_mode': []}
     
     for elem in obj:
         dict_individual[elem + '_val'] = []
+
     for elem in obj:
         dict_individual[elem + '_test'] = []
     
+    size_features = ['prunings','leaves', 'depth', 'data_avg_depth', 'depth_unbalance']
+    for elem in size_features:
+        dict_individual[elem] = []
+
     dict_individual['repre'] = []
     
     for clf in classifiers:
-        print("----")
-        print(clf)
         ID = generate_random_string(20)
         dict_individual['ID'].append(ID)
         dict_individual['seed'].append(seed)
@@ -218,11 +250,11 @@ def test_and_save_results(x_test, y_test, prot_test, classifiers, gen_stats_df, 
             dict_individual[obj[i] + '_val'].append(clf.objectives[i])
             dict_individual[obj[i] + '_test'].append(test_objs[i])
         
-        dict_individual['num_prunings'].append(clf.num_prunings)
-        dict_individual['num_leaves'].append(clf.num_leaves)
+        dict_individual['prunings'].append(clf.num_prunings)
+        dict_individual['leaves'].append(clf.num_leaves)
         dict_individual['depth'].append(clf.depth)
         dict_individual['data_avg_depth'].append(clf.data_avg_depth)
-        dict_individual['unbalance'].append(clf.unbalance)
+        dict_individual['depth_unbalance'].append(clf.depth_unbalance)
         
     df = pd.DataFrame(dict_individual)
     
@@ -232,25 +264,25 @@ def test_and_save_results(x_test, y_test, prot_test, classifiers, gen_stats_df, 
 
 
 
-def calculate_pareto_optimal(dataset, var, objectives, nind, ngen, seed_base, runs, extra, struc):
+def calculate_pareto_optimal(dat, var, objectives, nind, ngen, seed, runs, extra, struc):
     pareto_fronts = []
     all_indivs = []
     pareto_optimal = []
-    obj_str = '_'.join(objectives) 
-
+    obj_str = '__'.join(objectives) 
+    extra_str = ''
+    if not extra is None:
+        extra_str = '__'.join(extra)
+        extra_str = '_ext_' + extra_str
+    
     for i in range(runs):
-        save_pareto_run_name = ''
-        if extra is None:
-            save_pareto_run_name = f"{PATH_TO_RESULTS}/pareto_individuals/runs/{dataset}/{dataset}__{var}__obj_{obj_str}__seed_{seed_base + i}__nind_{nind}__ngen_{ngen}.csv"
-        else:
-            extra_str = '_'.join(extra)
-            save_pareto_run_name = f"{PATH_TO_RESULTS}/pareto_individuals/runs/{dataset}/{dataset}__{var}__obj_{obj_str}__seed_{seed_base + i}__extra_{extra_str}__nind_{nind}__ngen_{ngen}.csv"
+        save_pareto_run_name = f"{PATH_TO_RESULTS}/pareto_individuals/runs/{dat}/{dat}_seed_{seed + i}_var_{var}_gen_{ngen}_indiv_{nind}_model_GP_obj_{obj_str}{extra_str}.csv"
         read = pd.read_csv(save_pareto_run_name)
         pareto_fronts.append(read)
 
     hyperparameters = []
     pareto_fronts = pd.concat(pareto_fronts)                            #Union of all pareto fronts got in each run
     pareto_fronts.reset_index(drop=True, inplace=True)                  #Reset index because for each run all rows have repeated ones
+    print(pareto_fronts)
     for index, row in pareto_fronts.iterrows():                         #We create an individual object associated with each row
         indiv = Individual_NSGA2(struc, objectives, row['repre'], row['creation_mode'], [float(row[f"{obj}_val"]) for obj in objectives])
         hyperparameters = ['repre']
@@ -295,9 +327,7 @@ def calculate_pareto_optimal(dataset, var, objectives, nind, ngen, seed_base, ru
     #We extract them to a file
     pareto_optimal_df = pd.concat(pareto_optimal_df)
     pareto_optimal_df = pareto_optimal_df.drop_duplicates(subset=(['seed']+hyperparameters), keep='first')
-    if extra is None:
-        pareto_optimal_df.to_csv(f"{PATH_TO_RESULTS}/pareto_individuals/overall/{dataset}/{dataset}__{var}__obj_{obj_str}__seed_{seed_base + i}__nind_{nind}__ngen_{ngen}.csv", index = False, header = True, columns = list(pareto_fronts.keys()))
-    else:
-        pareto_optimal_df.to_csv(f"{PATH_TO_RESULTS}/pareto_individuals/overall/{dataset}/{dataset}__{var}__obj_{obj_str}__seed_{seed_base + i}__extra_{extra_str}__nind_{nind}__ngen_{ngen}.csv", index = False, header = True, columns = list(pareto_fronts.keys()))
+
+    pareto_optimal_df.to_csv(f"{PATH_TO_RESULTS}/pareto_individuals/overall/{dat}/{dat}_seed_{seed}_var_{var}_gen_{ngen}_indiv_{nind}_model_GP_obj_{obj_str}{extra_str}.csv", index=False)
 
     return pareto_optimal, pareto_optimal_df                   #Population of pareto front individuals
