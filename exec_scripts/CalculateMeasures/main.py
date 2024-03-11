@@ -14,7 +14,7 @@ warnings.filterwarnings("ignore")
 
 sys.path.insert(1, os.path.dirname(os.path.dirname(__file__)))
 from qualitymeasures import hypervolume, spacing, maximum_spread, error_ratio, overall_pareto_front_spread, generational_distance, inverted_generational_distance, ideal_point, nadir_point, algorithm_proportion, diff_val_test_rate, coverage
-from calculatemeasures_aux import read_overall_pareto_files, create_results_df, calculate_general_pareto_front_measures, calculate_algorithm_pareto_front_measures, calculate_algorithm_pareto_front_measures, calculate_median_values, coverage_analysis
+from calculatemeasures_aux import read_overall_pareto_files, plot_algorithm_metrics, create_results_df, create_total_pareto_optimal, calculate_general_pareto_front_measures, calculate_algorithm_pareto_front_measures, calculate_algorithm_pareto_front_measures, coverage_analysis
 
 #Dictionary to propperly create individuals given the objectives
 quality_measures = ['Mean solutions', 'Proportion', 'Hypervolume', 'Spacing', 'Maximum spread', 'Overall PF spread',  'Error ratio', 'GD', 'Inverted GD']
@@ -180,27 +180,32 @@ if not extraobj is None:
 
 
 #measures_df, measures_df_2 = create_results_df()
-#models = ['FDT', 'GP']
-models = ['FDT']
-indiv_list = read_overall_pareto_files(dataset, models, set_seed_base, individuals, generations, objectives, extraobj)
+models = ['DT', 'FDT', 'GP']
 
+# Read all pareto files for the given models 
+indiv_lists = read_overall_pareto_files(dataset, models, set_seed_base, individuals, generations, objectives, extraobj)
 
+indiv_list = [indiv for alist in indiv_lists for indiv in alist]
 
+# Then, we calculate the pareto optimal individuals from all those considered
+pareto_optimal = create_total_pareto_optimal(indiv_list, dataset, models, set_seed_base, individuals, generations, objectives, extraobj)
 
-#########################################
-# Measures for the general pareto front #
-#########################################
-calculate_general_pareto_front_measures()
+# Measures for the general pareto front
+po_results = calculate_general_pareto_front_measures(pareto_optimal, dataset, objectives, extraobj)
 
-##############################################
-# Measures for each algorithm's pareto front #
-##############################################
-calculate_algorithm_pareto_front_measures()
+# Measures for each algorithm's pareto front
+results = None
+for alist in indiv_lists:
+    new_results = calculate_algorithm_pareto_front_measures(alist, pareto_optimal, objectives, extraobj)
+    if results is None:
+        results = {meas: [new_results[meas]] for meas in new_results}
+    else:
+        [results[meas].append(new_results[meas]) for meas in new_results]
 
+plot_algorithm_metrics(results, po_results, models, dataset)
 
-calculate_median_values()
-
-coverage_analysis()
+#calculate_median_values()
+#coverage_analysis(models, indiv_lists, dataset, models, set_seed_base, individuals, generations, objectives, extraobj)
 
 
 

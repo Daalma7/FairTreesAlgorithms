@@ -16,26 +16,26 @@ PATH_TO_RESULTS = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirnam
 class Problem:
 
     def __init__(self, objectives, extra, num_of_variables, variables_range, individuals_df, num_of_generations, num_of_individuals, dataset_name, variable_name, model, seed, expand=True, same_range=False):
-        self.num_of_objectives = len(objectives)        #Number of objectives to minimize
-        self.num_of_variables = num_of_variables        #Num of variables that represent a solution for our problem
-        self.objectives = objectives                    #objective *functions* to minimize
-        self.extra = extra                              #objective *functions* to be calculated but for which we're not going to optimize
-        self.expand = expand                            #Boolean. if True, functions are considered as f(x,y,z), and if False, as f([x,y,z])
-        self.variables_range = []                       #Range of variables that represent a solution for our problem
-        self.individuals_df = individuals_df            #Individuals DataFrame        
-        self.num_of_generations = num_of_generations    #Number of generations to do
-        self.num_of_individuals = num_of_individuals    #Number of individuals in a population
-        self.dataset_name = dataset_name                #Dataset name
-        self.variable_name = variable_name              #Name of the sensitive variable
-        self.model = model                              #Model to learn
-        self.seed = seed   
+        self.num_of_objectives = len(objectives)        # Number of objectives to minimize
+        self.num_of_variables = num_of_variables        # Num of variables that represent a solution for our problem
+        self.objectives = objectives                    # objective *functions* to minimize
+        self.extra = extra                              # objective *functions* to be calculated but for which we're not going to optimize
+        self.expand = expand                            # Boolean. if True, functions are considered as f(x,y,z), and if False, as f([x,y,z])
+        self.variables_range = []                       # Range of variables that represent a solution for our problem
+        self.individuals_df = individuals_df            # Individuals DataFrame        
+        self.num_of_generations = num_of_generations    # Number of generations to do
+        self.num_of_individuals = num_of_individuals    # Number of individuals in a population
+        self.dataset_name = dataset_name                # Dataset name
+        self.variable_name = variable_name              # Name of the sensitive variable
+        self.model = model                              # Model to learn
+        self.seed = seed                                # Random seed for partition
         x_train, y_train, x_val, y_val, x_test, y_test = self.read_datasets()
-        self.x_train = x_train
-        self.y_train = y_train
-        self.x_val = x_val
-        self.y_val = y_val
-        self.x_test = x_test
-        self.y_test = y_test
+        self.x_train = x_train                          # Training dataset
+        self.y_train = y_train                          # Training attribute to predict
+        self.x_val = x_val                              # Validation dataset
+        self.y_val = y_val                              # Validation attribute to predict
+        self.x_test = x_test                            # Test dataset
+        self.y_test = y_test                            # Test attribute to predict
         #Random seed
         if same_range:
             for _ in range(num_of_variables):
@@ -43,7 +43,16 @@ class Problem:
         else:
             self.variables_range = variables_range
 
+
+
+
+
     def read_datasets(self):
+        """
+        Read training, validation and tests datasets, and extracting the attribute to predict
+            Returns:
+                - x_train, y_train, x_val, y_val, x_test, y_test: training, validation and test sets, as well as their attributes to predict
+        """
         train = pd.read_csv(f"{PATH_TO_DATA}train_val_test_standard/{self.dataset_name}/{self.dataset_name}_{self.variable_name}_train_seed_{self.seed}.csv", index_col = False)
         x_train = train.iloc[:, :-1]
         y_train = train.iloc[:, -1]
@@ -55,13 +64,31 @@ class Problem:
         y_test = test.iloc[:, -1]
         return x_train, y_train, x_val, y_val, x_test, y_test
 
+
+
+
+
     def get_obj_string(self):
+        """
+        Get string describing the objectives
+            Returns:
+                - string: String describing the objectives, separeted by '__'
+        """
         string = self.objectives[0].__name__
         for i in range(1, len(self.objectives)):
             string += "__" + self.objectives[i].__name__
         return string
     
+
+
+
+
     def get_extra_string(self):
+        """
+        Get string describing the extra objectives
+            Returns:
+                - string: String describing the extra objectives, separeted by '__'
+        """
         if self.extra == None:
             return ''
         else:
@@ -70,118 +97,136 @@ class Problem:
                 string += "__" + self.extra[i].__name__
             return string
 
+
+
+
+
     #Generates a default decision tree using gini criteria, and with low limitations on the rest of variables
     #It generates the biggest tree as possible, as it is unbounded in those control variables
-    def generate_default_individual_gini_dt(self, kind = 'base'):
+    def generate_default_individual_dt(self, kind = 'base', criterion = 'gini'):
+        """
+        Generate a default Decision Tree individual using gini criterion
+            Parameters:
+                - kind: Kind of individual, base for any algorithm, or grea for GrEA Algorithm
+                - criterion: Criterion (Either gini or entropy)
+            Returns:
+                - individual: Created individual
+        """
+        assert criterion in ['gini', 'entropy'] and kind in ['base', 'grea']
         if kind == 'base':
             individual = IndividualDT()
         if kind == 'grea':
             individual = IndividualDTGrea()
         individual.id = ''.join(random.choice(string.ascii_uppercase + string.digits) for _ in range(10))
-        individual.features = [0, None, 2, None, None]
+        if criterion == 'gini':
+            individual.features = [0, None, 2, None, None]
+        else:
+            individual.features = [1, None, 2, None, None]
         hyperparameters = ['criterion','max_depth', 'min_samples_split', 'max_leaf_nodes', 'class_weight']
         individual.features = od(zip(hyperparameters, individual.features))
         individual.features = decode(self.variables_range, "DT", **individual.features)
         individual.creation_mode = "initialization"
         return individual
 
-    #Generates a default decision tree using entropy criteria, and with low limitations on the rest of variables
-    #It generates the biggest tree as possible, as it is unbounded in those control variables
-    def generate_default_individual_entropy_dt(self, kind = 'base'):
+
+
+
+
+    def generate_default_individual_gini_fdt(self, kind = 'base', criterion = 'gini'):
+        """
+        Generate a default Fair Decision Tree individual using gini criterion
+            Parameters:
+                - kind: Kind of individual, base for any algorithm, or grea for GrEA Algorithm
+                - criterion: Criterion (Either gini or entropy)
+            Returns:
+                - individual: Created individual
+        """
+        assert criterion in ['gini', 'entropy'] and kind in ['base', 'grea']
         if kind == 'base':
             individual = IndividualDT()
         if kind == 'grea':
             individual = IndividualDTGrea()
         individual.id = ''.join(random.choice(string.ascii_uppercase + string.digits) for _ in range(10))
-        individual.features = [1, None, 2, None, None]
-        hyperparameters = ['criterion','max_depth', 'min_samples_split', 'max_leaf_nodes', 'class_weight']
-        individual.features = od(zip(hyperparameters, individual.features))
-        individual.features = decode(self.variables_range, "DT", **individual.features)
-        individual.creation_mode = "initialization"
-        return individual
-    
-    def generate_default_individual_gini_fdt(self, kind = 'base'):
-        if kind == 'base':
-            individual = IndividualDT()
-        if kind == 'grea':
-            individual = IndividualDTGrea()
-        individual.id = ''.join(random.choice(string.ascii_uppercase + string.digits) for _ in range(10))
-        individual.features = [0, None, 2, None, None, None]
+        if criterion == 'gini':
+            individual.features = [0, None, 2, None, None, None]
+        else:
+            individual.features = [1, None, 2, None, None, None]
         hyperparameters = ['criterion','max_depth', 'min_samples_split', 'max_leaf_nodes', 'class_weight', 'fair_param']
         individual.features = od(zip(hyperparameters, individual.features))
         individual.features = decode(self.variables_range, "FDT", **individual.features)
         individual.creation_mode = "initialization"
         return individual
 
-    #Generates a default decision tree using entropy criteria, and with low limitations on the rest of variables
-    #It generates the biggest tree as possible, as it is unbounded in those control variables
-    def generate_default_individual_entropy_fdt(self, kind = 'base'):
-        if kind == 'base':
-            individual = IndividualDT()
-        if kind == 'grea':
-            individual = IndividualDTGrea()
-        individual.id = ''.join(random.choice(string.ascii_uppercase + string.digits) for _ in range(10))
-        individual.features = [1, None, 2, None, None, None]
-        hyperparameters = ['criterion','max_depth', 'min_samples_split', 'max_leaf_nodes', 'class_weight', 'fair_param']
-        individual.features = od(zip(hyperparameters, individual.features))
-        individual.features = decode(self.variables_range, "FDT", **individual.features)
-        individual.creation_mode = "initialization"
-        return individual
 
-    def generate_first_default_lr(self, kind= 'base'):
+
+
+
+    def generate_default_lr(self, kind = 'base', num = 'first'):
+        """
+        Generate first default Logistic Regression individual using entropy criterion
+            Parameters:
+                - kind: Kind of individual, base for any algorithm, or grea for GrEA Algorithm
+                - num: Indicates if the individuals is the first or second
+            Returns:
+                - individual: Created individual
+        """
+        assert kind in ['base', 'grea'] and num in ['first', 'second']
         if kind == 'base':
             individual = IndividualLR()
         if kind == 'grea':
             individual = IndividualLRGrea()
         individual.id = ''.join(random.choice(string.ascii_uppercase + string.digits) for _ in range(10))
-        individual.features = [100, 0.0001, 1, 0, None]
+        if num == 'first':
+            individual.features = [100, 0.0001, 1, 0, None]
+        else:
+            individual.features = [100, 0.0001, 1, 1, None]
         hyperparameters = ['max_iter', 'tol', 'lambda', 'l1_ratio', 'class_weight']
         individual.features = od(zip(hyperparameters, individual.features))
         individual.features = decode(self.variables_range, "LR", **individual.features)
         individual.creation_mode = "initialization"
         return individual
     
-    def generate_second_default_lr(self, kind= 'base'):
-        if kind == 'base':
-            individual = IndividualLR()
-        if kind == 'grea':
-            individual = IndividualLRGrea()
-        individual.id = ''.join(random.choice(string.ascii_uppercase + string.digits) for _ in range(10))
-        individual.features = [100, 0.0001, 1, 1, None]
-        hyperparameters = ['max_iter', 'tol', 'lambda', 'l1_ratio', 'class_weight']
-        individual.features = od(zip(hyperparameters, individual.features))
-        individual.features = decode(self.variables_range, "LR", **individual.features)
-        individual.creation_mode = "initialization"
-        return individual
-    
-    def generate_first_default_flgbm(self, kind= 'base'):
+
+
+
+
+    def generate_default_flgbm(self, kind = 'base', num = 'first'):
+        """
+        Generate first default Fair LGBM individual using entropy criterion
+            Parameters:
+                - kind: Kind of individual, base for any algorithm, or grea for GrEA Algorithm
+                - num: Indicates if the individuals is the first or second
+            Returns:
+                - individual: Created individual
+        """
+        assert kind in ['base', 'grea'] and num in ['first', 'second']
         if kind == 'base':
             individual = IndividualFLGBM()
         if kind == 'grea':
             individual = IndividualFLGBMGrea()
         individual.id = ''.join(random.choice(string.ascii_uppercase + string.digits) for _ in range(10))
-        individual.features = [1, 31, 20, None, 0.1, 100, 1.0, 20]
+        if num == 'first':
+            individual.features = [1, 31, 20, None, 0.1, 100, 1.0, 20]
+        else:
+            individual.features = [1, 31, 20, None, 0.01, 100, 1.0, 20]
         hyperparameters = ['lamb', 'num_leaves', 'min_data_in_leaf', 'max_depth', 'learning_rate', 'n_estimators', 'feature_fraction']
         individual.features = od(zip(hyperparameters, individual.features))
         individual.features = decode(self.variables_range, "FLGBM", **individual.features)
         individual.creation_mode = "initialization"
         return individual
     
-    def generate_second_default_flgbm(self, kind= 'base'):
-        if kind == 'base':
-            individual = IndividualFLGBM()
-        if kind == 'grea':
-            individual = IndividualFLGBMGrea()
-        individual.id = ''.join(random.choice(string.ascii_uppercase + string.digits) for _ in range(10))
-        individual.features = [1, 31, 20, None, 0.01, 100, 1.0, 20]
-        hyperparameters = ['lamb', 'num_leaves', 'min_data_in_leaf', 'max_depth', 'learning_rate', 'n_estimators', 'feature_fraction']
-        individual.features = od(zip(hyperparameters, individual.features))
-        individual.features = decode(self.variables_range, "FLGBM", **individual.features)
-        individual.creation_mode = "initialization"
-        return individual
-    
-    #Generates a random decision tree
+
+
+
+
     def generate_individual(self, kind = 'base'):
+        """
+        Generates a new individual
+            Parameters:
+                - kind: base for any algorith, or grea for GrEA Algorithm
+            Returns:
+                - individual: Created individual
+        """
         if self.model == "DT":
             if kind == 'base':
                 individual = IndividualDT()
@@ -214,8 +259,19 @@ class Problem:
         individual.creation_mode = "initialization"
         return individual
 
+
+
+
+
     #Validates each individual and exports its parameters and other measures to csv
     def calculate_objectives(self, individual, first_individual, seed):
+        """
+        Calculates objectives (validation) for the given individual
+            Parameters:
+                - individual: Individual to which calculate the objectives
+                - first: boolean value to indicate whether the individual is the first or not
+                - seed: Random seed
+        """
         if self.expand and not individual.calc_objectives:
             individual.calc_objectives=True
             hyperparameters = individual.features
@@ -317,8 +373,20 @@ class Problem:
         individuals_aux
     """
 
+
+
+
+
     #Evaluates and exports to csv the pareto-optimal individuals obtained during all the execution
     def test_and_save(self, individual, first, seed, method):
+        """
+        Calculates test objectives for the given individual, and stores it into the pareto_individuals/runs results folder
+            Parameters:
+                - individual: Individual for which to calculate the test objectives and store
+                - first: Boolean value indicating whether is the first individual or not
+                - seed: Random partition seed
+                - method: Algorithm which was used
+        """
         if self.expand:
             hyperparameters = individual.features
             learner = train_model(self.x_train, self.y_train, self.variable_name, seed, self.model, **hyperparameters)
@@ -377,7 +445,7 @@ class Problem:
             if self.model == "FDT":          #Depending on the model we will have different sets of hyperparameters for that model
                 criterion, max_depth, min_samples_split, max_leaf_nodes, class_weight, fair_param = [item[1] for item in indiv_list]
                 dict_hyperparameters= {'criterion': [criterion], 'max_depth': [max_depth], 'min_samples_split': [min_samples_split], 'max_leaf_nodes': [max_leaf_nodes], 'class_weight': [class_weight], 'fair_param': [fair_param]}
-                dict_actual_dimensions = {'depth': individual.actual_depth, 'leaves': individual.actual_leaves, 'data_avg_depth': individual.actual_data_avg_depth, 'depth_unbalance': individual.actual_depth_unbalance}       #It's really instersting in case of DT to have this size measures
+                dict_actual_dimensions = {'leaves': individual.actual_leaves, 'depth': individual.actual_depth, 'data_avg_depth': individual.actual_data_avg_depth, 'depth_unbalance': individual.actual_depth_unbalance}       #It's really instersting in case of DT to have this size measures
                 if self.extra != None:
                     dict_dataframe = {**dict_general_info, **dict_objectives, **dict_extra, **dict_test, **dict_extra_test, **dict_actual_dimensions, **dict_hyperparameters}
                 else:
@@ -406,8 +474,24 @@ class Problem:
             else:
                 individuals_aux.to_csv(f"{PATH_TO_RESULTS}{self.model}/{method}/pareto_individuals/runs/{self.dataset_name}/{self.dataset_name}_seed_{seed}_var_{self.variable_name}_gen_{self.num_of_generations}_indiv_{self.num_of_individuals}_model_{self.model}_obj_{self.get_obj_string()}{self.get_extra_string()}.csv", index = False, mode='a', header=False, columns = list(dict_dataframe.keys()))
     
+
+
+
+
     #Calculate file with the general pareto front using all pareto fronts in every execution
     def calculate_pareto_optimal(self, seed, runs, method):
+        """
+        Calculates pareto optimal individuals from the optimization process.
+        ATTENTION: It supooses that all runs have been executed, so the pareto optimal individulas will be
+        calculated using test objectives (The model has been trained, we now select)
+            Parameters:
+                - seed: Random partition seed
+                - runs: Number of runs which were run
+                - method: Algorithm used
+            Returns:
+                - pareto_optimal: List containing all pareto optimal individuals
+                - pareto_optimal_df: Dataframe containing all pareto optimal individuals
+        """
         if self.expand:
             pareto_fronts = []
             all_indivs = []
@@ -476,6 +560,7 @@ class Problem:
                         indiv.domination_count += 1                        #Indiv is dominated by the second
                 if indiv.domination_count == 0:                            #Could be done easily more efficiently, but could be interesting 
                     pareto_optimal.append(indiv)
+            
             pareto_optimal_df = []
             for p in pareto_optimal:                #We select individuals from the files corresponding to the pareto front ones (we filter by id)
                 curr_id = p.id                      #BUT IF THERE ARE MORE THAN 1 INDIVIDUAL WITH THE SAME ID THEY WILL ALL BE ADDED, EVEN THOUGHT ONLY 1 OF THEM IS A PARETO OPTIMAL SOLUTION

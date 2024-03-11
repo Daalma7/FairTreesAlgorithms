@@ -22,39 +22,46 @@ class NSGA2Utils:
     # TODO: Paralelizar
     #Initial population creation
     def create_initial_population(self, model):
+        """
+        Creates initial population
+            Parameters:
+                - model: Algorithm used
+            Returns:
+                - population: Created new population
+        """
         population = Population()
         first_individual = True
         indivlist = []
         for k in range(self.num_of_individuals):        #There will be at least 1 Gini and 1 Entropy individuals in this initial population
             if model == "DT":
                 if k == 0:
-                    individual = self.problem.generate_default_individual_gini_dt()
+                    individual = self.problem.generate_default_individual_dt('gini')
                 elif k == 1:
-                    individual = self.problem.generate_default_individual_entropy_dt()
+                    individual = self.problem.generate_default_individual_dt('entropy')
                 else:
                     individual = self.problem.generate_individual()
             
             if model == "FDT":
                 if k == 0:
-                    individual = self.problem.generate_default_individual_gini_fdt()
+                    individual = self.problem.generate_default_individualfdt('gini')
                 elif k == 1:
-                    individual = self.problem.generate_default_individual_entropy_fdt()
+                    individual = self.problem.generate_default_individual_fdt('entropy')
                 else:
                     individual = self.problem.generate_individual()
             
             if model == "LR":
                 if k == 0:
-                    individual = self.problem.generate_first_default_lr()
+                    individual = self.problem.generate_default_lr('first')
                 elif k == 1:
-                    individual = self.problem.generate_second_default_lr()
+                    individual = self.problem.generate_default_lr('second')
                 else:
                     individual = self.problem.generate_individual()
             
             if model == "FLGBM":
                 if k == 0:
-                    individual = self.problem.generate_first_default_flgbm()
+                    individual = self.problem.generate_default_flgbm('first')
                 elif k == 1:
-                    individual = self.problem.generate_second_default_flgbm()
+                    individual = self.problem.generate_default_flgbm('second')
                 else:
                     individual = self.problem.generate_individual()
             newindiv = self.problem.calculate_objectives(individual, first_individual, self.problem.seed)

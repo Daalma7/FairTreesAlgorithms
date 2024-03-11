@@ -7,7 +7,9 @@ import abc
 
 # TODO: Optimizar objetivos calculados
 class Individual(object):
-
+    """
+    General individual object for the multiobjective algorithm
+    """
     def __init__(self):
         self.id = None
         self.rank = None
@@ -21,11 +23,21 @@ class Individual(object):
         self.creation_mode = None
 
     def __eq__(self, other):
+        """
+        Equality comparison operator
+        """
         if isinstance(self, other.__class__):
             return self.features == other.features
         return False
 
     def dominates_standard(self, other_individual):
+        """
+        Standard domination criterion
+            Parameters:
+                - other_individual: Other individual to which compare the domination
+            Return:
+                - Boolean, True if dominates other_individual, False in any other case
+        """
         and_condition = True
         or_condition = False
         for first, second in zip(self.objectives, other_individual.objectives):
@@ -44,7 +56,9 @@ class Individual(object):
 ################################################################
 
 class IndividualDT(Individual):
-
+    """
+    General individual object for the multiobjective algorithm
+    """
     def __init__(self):
         super().__init__()
         self.actual_depth = None
@@ -53,6 +67,13 @@ class IndividualDT(Individual):
         self.actual_depth_unbalance = None
 
     def dominates(self, other_individual):
+        """
+        Domination criterion
+            Parameters:
+                - other_individual: Other individual to which compare the domination
+            Return:
+                - Boolean, True if dominates other_individual, False in any other case
+        """
         and_condition = True
         or_condition = False
         eq_condition = True
@@ -85,8 +106,14 @@ class IndividualDTGrea(IndividualDT):
         self.grid_coordinate_point_distance = None
         self.punishment_degree = 0
 
-    #For grid dominance
     def grid_dominates(self, other_individual):
+        """
+        Grid domination criterion
+            Parameters:
+                - other_individual: Other individual to which compare the domination
+            Return:
+                - Boolean, True if dominates other_individual, False in any other case
+        """
         and_condition = True
         or_condition = False
         for first, second in zip(self.grid_coordinates, other_individual.grid_coordinates):
@@ -94,26 +121,37 @@ class IndividualDTGrea(IndividualDT):
             or_condition = or_condition or first < second
         return (and_condition and or_condition)
 
-    #Returns grid difference between individuals, having calculated their locations
     def grid_difference(self, other_individual):
+        """
+        Grid difference between individuals, having calculated their locations
+            Parameters:
+                - other_individual
+            Return:
+                - Grid difference
+        """
         sum = 0
         for k in range(0, len(self.objectives)):
             sum += abs(self.grid_coordinates[k]-other_individual.grid_coordinates[k])
         return sum
 
-    #Grid rating measure for convergence
-    #This is a convergence measure
     def calculate_grid_rating(self):
+        """
+        Grid rating measure for convergence
+        This is a convergence measure
+        """
         sum = 0
         for k in range(0, len(self.grid_coordinates)):
             sum += self.grid_coordinates[k]
         self.grid_rating = sum
 
-
-    #Calculates grid crowding distance (GCD) concerning all the population
-    #if the individual belongs to the population itself, at least GCD = M
-    #This is a diversity measure
     def calculate_grid_crowding_distance(self, population):
+        """
+        Calculates grid crowding distance (GCD) concerning all the population
+        if the individual belongs to the population itself, at least GCD = M
+        This is a diversity measure
+            Parameters:
+                - population: Population to calculate the grid crowding distance
+        """
         M = len(self.objectives)    #Constant which depend on the number of objective functions
         sum = 0
         for indiv in population:
@@ -122,9 +160,13 @@ class IndividualDTGrea(IndividualDT):
                 sum += M - g
         self.grid_crowding_distance = sum
 
-    #GCPD of a given individual. Population is needed for upper and lower boundries of the grid
-    #This is a convergence measure
     def calculate_grid_coordinate_point_distance(self, population):
+        """
+        GCPD of a given individual. Population is needed for upper and lower boundries of the grid
+        This is a convergence measure
+            Parameters:
+                - population: Population to calculate the grid coordinate point distance
+        """
         sum = 0
         for i in range(0, len(self.objectives)):
             d = (population.upper[i]-population.lower[i])/float(population.div)
@@ -165,8 +207,14 @@ class IndividualFDTGrea(IndividualFDT):
         self.grid_coordinate_point_distance = None
         self.punishment_degree = 0
 
-    #For grid dominance
     def grid_dominates(self, other_individual):
+        """
+        Grid domination criterion
+            Parameters:
+                - other_individual: Other individual to which compare the domination
+            Return:
+                - Boolean, True if dominates other_individual, False in any other case
+        """
         and_condition = True
         or_condition = False
         for first, second in zip(self.grid_coordinates, other_individual.grid_coordinates):
@@ -174,26 +222,37 @@ class IndividualFDTGrea(IndividualFDT):
             or_condition = or_condition or first < second
         return (and_condition and or_condition)
 
-    #Returns grid difference between individuals, having calculated their locations
     def grid_difference(self, other_individual):
+        """
+        Grid difference between individuals, having calculated their locations
+            Parameters:
+                - other_individual
+            Return:
+                - Grid difference
+        """
         sum = 0
         for k in range(0, len(self.objectives)):
             sum += abs(self.grid_coordinates[k]-other_individual.grid_coordinates[k])
         return sum
 
-    #Grid rating measure for convergence
-    #This is a convergence measure
     def calculate_grid_rating(self):
+        """
+        Grid rating measure for convergence
+        This is a convergence measure
+        """
         sum = 0
         for k in range(0, len(self.grid_coordinates)):
             sum += self.grid_coordinates[k]
         self.grid_rating = sum
 
-
-    #Calculates grid crowding distance (GCD) concerning all the population
-    #if the individual belongs to the population itself, at least GCD = M
-    #This is a diversity measure
     def calculate_grid_crowding_distance(self, population):
+        """
+        Calculates grid crowding distance (GCD) concerning all the population
+        if the individual belongs to the population itself, at least GCD = M
+        This is a diversity measure
+            Parameters:
+                - population: Population to calculate the grid crowding distance
+        """
         M = len(self.objectives)
         sum = 0
         for indiv in population:
@@ -202,9 +261,13 @@ class IndividualFDTGrea(IndividualFDT):
                 sum += M - g
         self.grid_crowding_distance = sum
 
-    #GCPD of a given individual. Population is needed for upper and lower boundries of the grid
-    #This is a convergence measure
     def calculate_grid_coordinate_point_distance(self, population):
+        """
+        GCPD of a given individual. Population is needed for upper and lower boundries of the grid
+        This is a convergence measure
+            Parameters:
+                - population: Population to calculate the grid coordinate point distance
+        """
         sum = 0
         for i in range(0, len(self.objectives)):
             d = (population.upper[i]-population.lower[i])/float(population.div)
@@ -237,8 +300,14 @@ class IndividualLRGrea(IndividualLR):
         self.grid_coordinate_point_distance = None
         self.punishment_degree = 0
 
-    #For grid dominance
     def grid_dominates(self, other_individual):
+        """
+        Grid domination criterion
+            Parameters:
+                - other_individual: Other individual to which compare the domination
+            Return:
+                - Boolean, True if dominates other_individual, False in any other case
+        """
         and_condition = True
         or_condition = False
         for first, second in zip(self.grid_coordinates, other_individual.grid_coordinates):
@@ -246,26 +315,37 @@ class IndividualLRGrea(IndividualLR):
             or_condition = or_condition or first < second
         return (and_condition and or_condition)
 
-    #Returns grid difference between individuals, having calculated their locations
     def grid_difference(self, other_individual):
+        """
+        Grid difference between individuals, having calculated their locations
+            Parameters:
+                - other_individual
+            Return:
+                - Grid difference
+        """
         sum = 0
         for k in range(0, len(self.objectives)):
             sum += abs(self.grid_coordinates[k]-other_individual.grid_coordinates[k])
         return sum
 
-    #Grid rating measure for convergence
-    #This is a convergence measure
     def calculate_grid_rating(self):
+        """
+        Grid rating measure for convergence
+        This is a convergence measure
+        """
         sum = 0
         for k in range(0, len(self.grid_coordinates)):
             sum += self.grid_coordinates[k]
         self.grid_rating = sum
 
-
-    #Calculates grid crowding distance (GCD) concerning all the population
-    #if the individual belongs to the population itself, at least GCD = M
-    #This is a diversity measure
     def calculate_grid_crowding_distance(self, population):
+        """
+        Calculates grid crowding distance (GCD) concerning all the population
+        if the individual belongs to the population itself, at least GCD = M
+        This is a diversity measure
+            Parameters:
+                - population: Population to calculate the grid crowding distance
+        """
         M = len(self.objectives)
         sum = 0
         for indiv in population:
@@ -274,9 +354,13 @@ class IndividualLRGrea(IndividualLR):
                 sum += M - g
         self.grid_crowding_distance = sum
 
-    #GCPD of a given individual. Population is needed for upper and lower boundries of the grid
-    #This is a convergence measure
     def calculate_grid_coordinate_point_distance(self, population):
+        """
+        GCPD of a given individual. Population is needed for upper and lower boundries of the grid
+        This is a convergence measure
+            Parameters:
+                - population: Population to calculate the grid coordinate point distance
+        """
         sum = 0
         for i in range(0, len(self.objectives)):
             d = (population.upper[i]-population.lower[i])/float(population.div)
@@ -316,8 +400,14 @@ class IndividualFLGBMGrea(IndividualFLGBM):
         self.grid_coordinate_point_distance = None
         self.punishment_degree = 0
 
-    #For grid dominance
     def grid_dominates(self, other_individual):
+        """
+        Grid domination criterion
+            Parameters:
+                - other_individual: Other individual to which compare the domination
+            Return:
+                - Boolean, True if dominates other_individual, False in any other case
+        """
         and_condition = True
         or_condition = False
         for first, second in zip(self.grid_coordinates, other_individual.grid_coordinates):
@@ -325,26 +415,37 @@ class IndividualFLGBMGrea(IndividualFLGBM):
             or_condition = or_condition or first < second
         return (and_condition and or_condition)
 
-    #Returns grid difference between individuals, having calculated their locations
     def grid_difference(self, other_individual):
+        """
+        Grid difference between individuals, having calculated their locations
+            Parameters:
+                - other_individual
+            Return:
+                - Grid difference
+        """
         sum = 0
         for k in range(0, len(self.objectives)):
             sum += abs(self.grid_coordinates[k]-other_individual.grid_coordinates[k])
         return sum
 
-    #Grid rating measure for convergence
-    #This is a convergence measure
     def calculate_grid_rating(self):
+        """
+        Grid rating measure for convergence
+        This is a convergence measure
+        """
         sum = 0
         for k in range(0, len(self.grid_coordinates)):
             sum += self.grid_coordinates[k]
         self.grid_rating = sum
 
-
-    #Calculates grid crowding distance (GCD) concerning all the population
-    #if the individual belongs to the population itself, at least GCD = M
-    #This is a diversity measure
     def calculate_grid_crowding_distance(self, population):
+        """
+        Calculates grid crowding distance (GCD) concerning all the population
+        if the individual belongs to the population itself, at least GCD = M
+        This is a diversity measure
+            Parameters:
+                - population: Population to calculate the grid crowding distance
+        """
         M = len(self.objectives)
         sum = 0
         for indiv in population:
@@ -353,9 +454,13 @@ class IndividualFLGBMGrea(IndividualFLGBM):
                 sum += M - g
         self.grid_crowding_distance = sum
 
-    #GCPD of a given individual. Population is needed for upper and lower boundries of the grid
-    #This is a convergence measure
     def calculate_grid_coordinate_point_distance(self, population):
+        """
+        GCPD of a given individual. Population is needed for upper and lower boundries of the grid
+        This is a convergence measure
+            Parameters:
+                - population: Population to calculate the grid coordinate point distance
+        """
         sum = 0
         for i in range(0, len(self.objectives)):
             d = (population.upper[i]-population.lower[i])/float(population.div)

@@ -29,11 +29,20 @@ from sklearn.tree import DecisionTreeClassifier
 from FLGBM.FLGBM import FairLGBM
 
 
-#Decoding hyperparameters
-# Here we correct the values of some hyperparameters, as some of them can be unbounded
-# and when they generate, they are all continuous, and some need to be converted to integers.
-def decode(var_range, model, **features):
 
+
+
+def decode(var_range, model, **features):
+    """
+    Hyperparameter decodificaton and correction: Correct the values of some hyperparameters, as some of them
+    can be unbounded when they are generated. Also others convert to integers, and other corrections are performed.
+        Parameters:
+            - var_range: Range of the hyperparameters, being a list of lists of 2 values (min,max)
+            - model: ML model employed
+            - features: Hyperparemeter dictionary
+        Returns:
+            - OrderedDict of the hyperparameters with corrected attributes 
+    """
     if model == "DT":
         features['criterion'] = int(round(features['criterion'], 0))
 
@@ -127,14 +136,31 @@ def decode(var_range, model, **features):
     features = collections.OrderedDict(list_of_hyperparameters)
     return features
 
-#Reads the dataset to work with. You have to work with preprocessed data, and to ensure it, we will only read the files ending with _preproc
+
+
+
+
 def read_data(df_name):
+    """
+    Reads the dataset to work with. The base version is read.
+        Parameters:
+            - df_name: DataFrame name
+        Returns:
+            - pd.DataFrame containing the specified dataframe.
+    """
     df = pd.read_csv(f"{PATH_TO_DATA}{df_name}.csv", sep = ',')
     if 'Unnamed: 0' in df.columns:
         df = df.drop(['Unnamed: 0'], axis=1)
     return df
 
+
+
+
+
 def score_text(v):
+    """
+    This function will likely be removed
+    """
     if v == 'Low':
         return 0
     elif v == 'Medium':
@@ -143,8 +169,19 @@ def score_text(v):
         return 2
 
 
-#Data preprocessing and splits dataframe into train and test
+
+
+
 def get_matrices(df_name, y_col, seed):
+    """
+    Data preprocessing and splits dataframe into train and test
+        Parameters:
+            - df_name: Name of the dataframe to read
+            - y_col: Name of the attribute to be predicted, it will be returned separated from the rest
+            - seed: Random partition seed
+        Returns:
+            - X_train, X_val, X_test, y_train, y_val, y_test: Datasets information as pd.Dataframe and series
+    """
     df = read_data(df_name)
 
     if df_name == 'compas':
@@ -164,8 +201,19 @@ def get_matrices(df_name, y_col, seed):
     X_train, X_val, y_train, y_val = train_test_split(X_train, y_train, random_state = seed)
     return X_train, X_val, X_test, y_train, y_val, y_test
 
-#Exports to csv files train, validation and test sets
+
+
+
+
 def write_train_val_test(df_name, prot_col, seed, X_train, X_val, X_test, y_train, y_val, y_test):
+    """
+    Exports to csv files train, validation and test sets
+        Parameters:
+            - df_name: Dataset name
+            - prot_col: Protected attribute
+            - seed: Random seed partition
+            - X_train, X_val, X_test, y_train, y_val, y_test: Dataset information (train, validation and test)
+    """
     train = X_train
     train['y'] = y_train.tolist()
     train.to_csv(f"{PATH_TO_DATA}train_val_test_standard/{df_name}/{df_name}_{prot_col}_train_seed_{str(seed)}.csv", index = False)
@@ -176,22 +224,52 @@ def write_train_val_test(df_name, prot_col, seed, X_train, X_val, X_test, y_trai
     test['y'] = y_test.tolist()
     test.to_csv(f"{PATH_TO_DATA}train_val_test_standard/{df_name}/{df_name}_{prot_col}_test_seed_{str(seed)}.csv", index = False)
 
-#Exports obtained decision tree to a png file
+
+
+
+
 def print_tree(classifier, model, features):
+    """
+    Exports obtained decision tree to a png file
+        Parameters:
+            - classifier: Classifier to export
+            - model: ML model used
+            - features: Name of the decision tree features
+    """
     dot_data = StringIO()
     export_graphviz(classifier, out_file = dot_data, feature_names = features)
     graph = pydotplus.graph_from_dot_data(dot_data.getvalue())
     graph.write_png("../results/" + model + "/trees/tree.png")
 
-#Returns depth and leaves given a decision tree
+
+
+
+
 def print_properties_tree(learner):
+    """
+    Returns properties of a Decision Tree
+        Parameters:
+            - learner: Model to obtain properties
+        Returns:
+            - depth, leaves, data_avg_depth, depth_unbalance: Calculated DT properties
+    """
     depth = learner.get_depth()
     leaves = learner.get_n_leaves()
     data_avg_depth, depth_unbalance = data_weight_avg_depth(learner)
     return depth, leaves, data_avg_depth, depth_unbalance
 
-#Returns depth and leaves given a decision tree
+
+
+
+
 def print_properties_lgbm(learner):
+    """
+    Returns depth and leaves given a decision tree
+        Parameters:
+            - learner: LGBM model to print properties
+        Returns:
+            - n_estimators, n_features, feature_importance_std: Calculated LGBM properties
+    """
     n_estimators = learner.model.num_trees()
     n_features = learner.model.num_feature()
     feature_importance_std = learner.model.feature_importance('gain').std()
@@ -202,27 +280,48 @@ def print_properties_lgbm(learner):
 
     return n_estimators, n_features, feature_importance_std
 
-#Returns coefficients of the given logistic regression
+
+
+
+
 def print_properties_lr(learner):
+    """
+    Returns coefficients of the given logistic regression
+        Parameters:
+            - learner: LR model to which calculate its parametesrs
+        Returns:
+            coefficients
+    """
     return learner.coef_
+
+
+
+
 
 def print_properties_flgbm(learner):
     pass
 
+
+
+
+
 #TODO Revisar que se ha hecho bien
 #TODO Incluir validación en LightGBM
-#Classifier training
 def train_model(X_train, y_train, prot_col, seed, model, **features):
-    #path = PATH_TO_DATA + 'train_val_test_standard/' + df_name
-    #pattern = r'.*binary_train_seed_%s\.csv' % seed
-    #print(os.path.abspath(__file__))
-    #matching_files = [file for file in os.listdir(path) if re.match(pattern, file)]
-    #pd.read_csv(path + '/' + matching_files[0])
-
+    """
+    Classifier training
+        Parameters:
+            - X_train: Training dataset
+            - y_train: attribute to predict
+            - prot_col: Name of the protected attribute
+            - seed: Random seed to control reproducibility
+            - model: ML model to train
+            - features: Other hyperparameters for training
+        Return:
+            - Trained model    
+    """
     prot = X_train[prot_col]
 
-    
-    
     #We will need to use the seed used to split into train and test also as seed for these methods, because as they are trained twice, we have to be exactly the same both times
     if model == "DT":
         if features['class_weight'] is not None:
@@ -281,8 +380,23 @@ def train_model(X_train, y_train, prot_col, seed, model, **features):
     return learner
 
 
+
+
+
 def get_max_depth_FLGBM(X_train, y_train, prot_col, seed, **features):
-    
+    """
+    Auxiliaty function to obtain the max depth of any tree contained in a FLGBM model
+    (This will serve to specify parameters range)
+        Parameters:
+            - X_train: Training dataset
+            - y_train: attribute to predict
+            - prot_col: Name of the protected attribute
+            - seed: Random seed to control reproducibility
+            - model: ML model to train
+            - features: Other hyperparameters for training
+        Return:
+            - Max depth found for any tree of the FLGBM 
+    """
     lgbm_params = {
     'objective': 'binary',
     'device_type': 'cpu',
@@ -302,8 +416,14 @@ def get_max_depth_FLGBM(X_train, y_train, prot_col, seed, **features):
     return learner.model.trees_to_dataframe()['node_depth'].max()
 
 
+
+
+
 def save_model(learner, dataset_name, seed, variable_name, num_of_generations, num_of_individuals, individual_id, model, method, objectives):
-    # save the model to disk
+    """
+    Save a given ML model to disk. This function is currently no used
+    """
+    
     str_obj = objectives[0].__name__
     for i in range(1, len(objectives)):
         str_obj += "__" + objectives[i].__name__
@@ -313,55 +433,126 @@ def save_model(learner, dataset_name, seed, variable_name, num_of_generations, n
     pickle.dump(learner, open(path + filename, 'wb'))
     return
 
-#TODO Revisar que se ha hecho bien
-#Validates the classifier (comparison with validation set)
+
+
+
+
 def val_model(X_val, learner):
+    """
+    Validates the classifier (comparison with validation set)
+        Parameters:
+            - X_val: Validation dataset
+            - learner: Trained ML classifier
+        Returns
+            - Results of validation
+    """
     return learner.predict(X_val)
 
-#TODO Revisar que se ha hecho bien
-#Tests the classifier (comparison with test set)
+
+
+
+
 def test_model(X_test, learner):
+    """
+    Validates the classifier (comparison with test set)
+        Parameters:
+            - X_test: Test dataset
+            - learner: Trained ML classifier
+        Returns
+            - Results of testing
+    """
     return learner.predict(X_test)
 
-#Split dataset using protected attribute
-    #y_val_p values belonging to privileged class
-def split_protected(X, y, pred, protected_variable, protected_value = 1):
-    df = pd.DataFrame({protected_variable: X[protected_variable], 'y_val': y, 'y_pred': pred})
-    df_p = df.loc[df[protected_variable] == protected_value, :]        #p variables represent data belonging to privileged class
-    df_u = df.loc[df[protected_variable] != protected_value, :]        #u variables represent data belonging to unprivileged class
+
+
+
+
+def evaluate_fairness(X, y, pred, protected_attr, protected_value=1):
+    """
+    Generates a new dataframe containing protected attribute, attribute to predict and real prediction.
+    This dataframe is then divided, deppending on the values of the predicted attribute, and for the 
+    real (val) values of y and the predicted ones
+        Parameters:
+            - X: Complete dataset
+            - y: Attribute to predict (real)
+            - pred: Prediction made for y
+            - protected_attr: Name of the protected attribute
+            - protected_value: Value of protected_attr for the privileged group
+        Returns:
+            - y_val_p: Real y values for privileged class
+            - y_val_u: Real y values for unprivileged class
+            - y_pred_p: Predicted values for privileged class
+            - y_pred_u: Predicted values for unprivileged class
+    """
+    df = pd.DataFrame({protected_attr: X[protected_attr], 'y_val': y, 'y_pred': pred})
+    df_p = df.loc[df[protected_attr] == protected_value, :]        #p variables represent data belonging to privileged class
+    df_u = df.loc[df[protected_attr] != protected_value, :]        #u variables represent data belonging to unprivileged class
     y_val_p = df_p['y_val']
     y_val_u = df_u['y_val']
     y_pred_p = df_p['y_pred']
     y_pred_u = df_u['y_pred']
     return y_val_p, y_val_u, y_pred_p, y_pred_u
 
-#La evaluación del fairness consiste en una llamada a split_protected
-def evaluate_fairness(X_val, y_val, y_pred, protected_variable):
-    y_val_p, y_val_u, y_pred_p, y_pred_u = split_protected(X_val, y_val, y_pred, protected_variable, 1)
-    return y_val_p, y_val_u, y_pred_p, y_pred_u
 
-#Classical quality measure
+
+
+
 def accuracy_inv(y_val, y_pred):
+    """
+    Computes accuracy and does 1 - accuracy (for minimization purposes)
+        Parameters:
+            - y_val: Real y values,
+            - y_pred: Predicted values
+        Returns:
+            - 1 - Accuracy
+    """
     err = 1 - f1_score(y_val, y_pred)
     return err
 
-#Quality measure
+
+
+
+
 def gmean_inv(y_val, y_pred):
+    """
+    Computes Gmean-score (sqrt(TPR*TNR)) and does 1 - accuracy (for minimization purposes)
+        Parameters:
+            - y_val: Real y values
+            - y_pred: Predicted values
+        Returns:
+            - 1 - Gmean-score
+    """
     gmean_error = 1 - geometric_mean_score(y_val, y_pred)
     return gmean_error
 
-#Difference of accuracies
+
+
+
+
 def accuracy_diff(y_val_p, y_val_u, y_pred_p, y_pred_u):
+    """
+    Computes difference in accuracy rates for privileged and unprivileged groups
+        Parameters:
+            - y_val_p, y_val_u, y_pred_p, y_pred_u: Real y values and protected values for each demographic group
+        Returns:
+            - Absolute accuracy difference
+    """
     acc_p  = accuracy_score(y_val_p, y_pred_p)
     acc_u = accuracy_score(y_val_u, y_pred_u)
     acc_fair = abs(acc_u - acc_p)
     return acc_fair
 
 
-#TPR: True Positive Rate: Verdaderos positivos entre todos los positivos (verdaderos positivos y falsos negativos)
+
+
+
 def tpr_diff(y_val_p, y_val_u, y_pred_p, y_pred_u):
     """
-    Compute demography metric.
+    Computes difference in true positive rates for privileged and unprivileged groups
+        Parameters:
+            - y_val_p, y_val_u, y_pred_p, y_pred_u: Real y values and protected values for each demographic group
+        Returns:
+            - Absolute TPR difference
     """
     tn_p, fp_p, fn_p, tp_p = confusion_matrix(y_val_p, y_pred_p).ravel()    #Matriz de confusion de los valores predichos, teniendo en cuenta los verdaderos valores y los predichos
     tn_u, fp_u, fn_u, tp_u = confusion_matrix(y_val_u, y_pred_u).ravel()
@@ -372,10 +563,17 @@ def tpr_diff(y_val_p, y_val_u, y_pred_p, y_pred_u):
         dem = 1
     return dem
 
-#FPR: False Positive Rate: Falsos positivos entre todos los negativos (falsos positivos y verdaderos negativos)
+
+
+
+
 def fpr_diff(y_val_p, y_val_u, y_pred_p, y_pred_u):
     """
-    Compute false positive rate parity.
+    Computes difference in false positive rates for privileged and unprivileged groups
+        Parameters:
+            - y_val_p, y_val_u, y_pred_p, y_pred_u: Real y values and protected values for each demographic group
+        Returns:
+            - Absolute FPR difference
     """
     tn_p, fp_p, fn_p, tp_p = confusion_matrix(y_val_p, y_pred_p).ravel()
     tn_u, fp_u, fn_u, tp_u = confusion_matrix(y_val_u, y_pred_u).ravel()
@@ -386,8 +584,18 @@ def fpr_diff(y_val_p, y_val_u, y_pred_p, y_pred_u):
         dem = 1
     return dem
 
-#TNR: True Negative Rate: Verdaderos negativos entre todos los negativos (verdaderos negativos y falsos positivos)
+
+
+
+
 def tnr_diff(y_val_p, y_val_u, y_pred_p, y_pred_u):
+    """
+    Computes difference in true negative rates for privileged and unprivileged groups
+        Parameters:
+            - y_val_p, y_val_u, y_pred_p, y_pred_u: Real y values and protected values for each demographic group
+        Returns:
+            - Absolute TNR difference
+    """
     tn_p, fp_p, fn_p, tp_p = confusion_matrix(y_val_p, y_pred_p).ravel()
     tn_u, fp_u, fn_u, tp_u = confusion_matrix(y_val_u, y_pred_u).ravel()
     tnr_p = tn_p/(tn_p + fp_p)
@@ -395,8 +603,18 @@ def tnr_diff(y_val_p, y_val_u, y_pred_p, y_pred_u):
     dem = abs(tnr_p - tnr_u)
     return dem
 
-#PPV: Positive Predictive Value: Verdaderos positivos entre los predichos como positivos (verdaderos positivos y falsos positivos)
+
+
+
+
 def ppv_diff(y_val_p, y_val_u, y_pred_p, y_pred_u):
+    """
+    Computes difference in predictive positive values for privileged and unprivileged groups
+        Parameters:
+            - y_val_p, y_val_u, y_pred_p, y_pred_u: Real y values and protected values for each demographic group
+        Returns:
+            - Absolute PPV difference
+    """
     tn_p, fp_p, fn_p, tp_p = confusion_matrix(y_val_p, y_pred_p).ravel()
     tn_u, fp_u, fn_u, tp_u = confusion_matrix(y_val_u, y_pred_u).ravel()
     ppv_p = tp_p/(tp_p + fp_p)
@@ -406,8 +624,18 @@ def ppv_diff(y_val_p, y_val_u, y_pred_p, y_pred_u):
         dem = 1
     return dem
 
-#PNR: Predicted Negative Rate: Predichos como negativos entre todos los valores (MEDIDA PARA DEMOGRAPHIC PARITY)
+
+
+
+
 def pnr_diff(y_val_p, y_val_u, y_pred_p, y_pred_u):
+    """
+    Computes difference in predicted negative rates for privileged and unprivileged groups
+        Parameters:
+            - y_val_p, y_val_u, y_pred_p, y_pred_u: Real y values and protected values for each demographic group
+        Returns:
+            - Absolute PNR difference
+    """
     tn_p, fp_p, fn_p, tp_p = confusion_matrix(y_val_p, y_pred_p).ravel()
     tn_u, fp_u, fn_u, tp_u = confusion_matrix(y_val_u, y_pred_u).ravel()
     pnr_p = (fn_p + tn_p)/(tn_p + fp_p + fn_p + tp_p)
@@ -416,15 +644,29 @@ def pnr_diff(y_val_p, y_val_u, y_pred_p, y_pred_u):
     
     return dem
 
-#First complexity measure.
-#Returns the number of leaves that the learner has (divided by div which is expected to be the maximum number of leaves that can be got)
+
 def num_leaves(learner):
+    """
+    First complexity measure. Number of leaves
+        Parameters:
+            - learner: Trained ML model (DT or FDT)
+        Returns:
+            - number of leaves
+    """
     return int(learner.get_n_leaves())
 
 
-#Second complexity measure, that complements the first one.
-#Return the weighted average of the depth of all leaves nodes, considering the number of training samples that fell on each one.
+
+
+
 def data_weight_avg_depth(learner):
+    """
+    Second complexity measure. Data weighted average depth
+        Parameters:
+            - learner: Trained ML model (DT or FDT)
+        Returns:
+            - The value of the metric, as well as the unbalance of the tree
+    """
     stack = [(0,0)]                     #Root node id and its depth
     total_w_depth = 0.0
     tree = learner.tree_
@@ -478,14 +720,17 @@ def create_generation_stats(model):
 
 
 
-def save_generation_stats(generations_df, generation_indivs, model, newtime, totaltime):
+def save_generation_stats(generations_df, generation_indivs, model, p_time, t_time):
     """
     Save generation stats of the current generation into the dataframe created using create_genertaion_stats
-    - Parameters:
-        - generations_df:
-        - generation_indivs:
-        - model:
-        - newtime:
+        Parameters:
+            - generations_df: Dataframe containing all previous information
+            - generation_indivs: Individuals of the current generation to save stats
+            - model: ML model employed
+            - p_time: Process time for the current generation to be executed
+            - t_time: Total time for the current generation to be executed
+        Returns:
+            - generations_df with updated information
     """
     if model == 'FDT' or model == 'DT':
         store_dimensions = ['leaves', 'depth', 'data_avg_depth', 'depth_unbalance']
@@ -498,7 +743,7 @@ def save_generation_stats(generations_df, generation_indivs, model, newtime, tot
         new_row[f"mean_{elem}"] = generation_indivs[elem].mean()
         new_row[f"max_{elem}"] = generation_indivs[elem].max()
         new_row[f"std_{elem}"] = generation_indivs[elem].std()
-    new_row['process_time'] = newtime
-    new_row['total_time'] = totaltime
+    new_row['process_time'] = p_time
+    new_row['total_time'] = t_time
 
     return pd.concat([generations_df, pd.DataFrame([new_row])], ignore_index=True)
