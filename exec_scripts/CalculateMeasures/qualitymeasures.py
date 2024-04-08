@@ -13,26 +13,33 @@ from collections import Counter
 objectives_val_dict = {'gmean_inv': 'error_val', 'dem_fpr': 'dem_fpr_val', 'dem_ppv': 'dem_ppv_val', 'dem_pnr': 'dem_pnr_val', 'num_leaves': 'num_leaves', 'data_weight_avg_depth': 'data_weight_avg_depth'}    
 objectives_tst_dict = {'gmean_inv': 'error_tst', 'dem_fpr': 'dem_fpr_tst', 'dem_ppv': 'dem_ppv_tst', 'dem_pnr': 'dem_pnr_tst', 'num_leaves': 'num_leaves_tst', 'data_weight_avg_depth': 'data_weight_avg_depth_tst'}    
 
-#Hypervolume calculation of the set of solutions, using ref as the worst possible point.
-#Measure to maximize
+
 def hypervolume(indivs):
     """
     Computes the hypervolume of the individuals
+    Measure to maximize
         Parameters:
             - indivs: List containing pareto optimal individuals
         Returns:
             - Hypervolume of the individuals, considering the worst point as [1,1,...,1]
     """
     newlist = [x.objectives_test for x in indivs]          #List of objectives
+    worst = [1 for obj in newlist[0]]
+    for i in range(len(newlist)):
+        if newlist[i] == worst:
+            newlist[i] = [1-1e-10 for obj in newlist[0]]
     hv = pg.hypervolume(newlist)
-    return hv.compute([1 for obj in newlist[0]], hv_algo = pg.hvwfg())
+    return hv.compute(worst, hv_algo = pg.hvwfg())
 
-#Spacing, used to measure uniform spacing within population's solutions. If spacing is 0 it means that every individual's distance in ||.||_1
-#to its nearest neighbour solution is the same as the distance in ||.||_1 to its nearest neighbour of any other individual
-#Measure to maximize
+
+
+
+
 def spacing(indivs):
     """
-    Returns spacing metric
+    Spacing, used to measure uniform spacing within population's solutions. If spacing is 0 it means that every individual's distance in ||.||_1
+    to its nearest neighbour solution is the same as the distance in ||.||_1 to its nearest neighbour of any other individual
+    Measure to maximize
         Parameters:
             - indivs: List containing pareto optimal individuals
         Returns:
@@ -58,12 +65,15 @@ def spacing(indivs):
             spac += (mean_dist-dist)**2
         return math.sqrt(spac / float(len(distances) -1))
 
-#Maximum_spread: ||.||_2 of the vector which in coordinate i has the maximum differences between any two individuals in their ith objective
-#Measures the spread of the population
-#Measure to maximize
+
+
+
+
 def maximum_spread(indivs):
     """
     Returns maximum spread metric
+    It is the ||.||_2 of the vector which in coordinate i has the maximum differences between any two individuals in their ith objective
+    Measure to maximize
         Parameters:
             - indivs: List containing pareto optimal individuals
         Returns:
@@ -85,24 +95,45 @@ def maximum_spread(indivs):
     return math.sqrt(ms)
 
 
-#Defines the proportion of individuals that belong to the actual pareto front.
-#We cannot use id since there could be 2 individuals with different id that represent the same individual
-#We use an epsilon = 0.0000001 constant for avoiding rounding errors or impressicions, but not considering an individual not belonging to the pareto front as so.
-def error_ratio(list, pareto_optimal):
+
+def error_ratio(list, pareto_optimal, round_error = 1e-7):
+    """
+    Defines the proportion of individuals that belong to the actual pareto front.
+    We cannot use id since there could be 2 individuals with different id that represent the same individual
+    We use an rounding error for avoding impressicions, but not considering an individual not belonging to the pareto front as so.
+    Measure to minimize
+        Parameters:
+            - list: list of individuals to calculate error_ratio
+            - pareto_optimal: Pareto optimal individuals to which compare
+            - round_error: rounding error parameter, so that the distance between individuals should be less than it
+        Returns:
+            - Error ratio metric of these individuals
+    """
     total_in = 0
     for x in list:
         found = False
         i = 0
         while not found and i < len(pareto_optimal):
-            if np.linalg.norm(np.array(x.objectives_test) - np.array(pareto_optimal[i].objectives_test)) < 0.0000001:
+            if np.linalg.norm(np.array(x.objectives_test) - np.array(pareto_optimal[i].objectives_test)) < round_error:
                 total_in += 1
                 found = True
             i+=1
     return 1 - (float(total_in) / len(list))
 
     
+
+
+
 def overall_pareto_front_spread(list, pareto_optimal):
-    
+    """
+    Defines overall pareto front metric. This metric compare the spread of a given solution list to that of the pareto front
+    Measure to maximize
+        Parameters:
+            - list: list of individuals to calculate overall Pareto front spread
+            - pareto_optimal: Pareto optimal individuals to which compare
+        Returns:
+            - Overall Pareto front spread metric of these individuals
+    """
     # We first compute ideal an nadir points of the pareto optimal reference set:
     ip = ideal_point(pareto_optimal)
     np = nadir_point(pareto_optimal)
@@ -121,7 +152,20 @@ def overall_pareto_front_spread(list, pareto_optimal):
 
     return prod
 
+
+
+
+
 def generational_distance(list, pareto_optimal):
+    """
+    Defines overall pareto front metric. This metric compare the spread of a given solution list to that of the pareto front
+    Measure to maximize
+        Parameters:
+            - list: list of individuals to calculate overall Pareto front spread
+            - pareto_optimal: Pareto optimal individuals to which compare
+        Returns:
+            - Overall Pareto front spread metric of these individuals
+    """
     total_dist = 0
     for x in list:
         dist = float('inf')
@@ -133,7 +177,20 @@ def generational_distance(list, pareto_optimal):
 
     return np.sqrt(total_dist) / len(list)
 
+
+
+
+
 def inverted_generational_distance(list, pareto_optimal):
+    """
+    Defines overall pareto front metric. This metric compare the spread of a given solution list to that of the pareto front
+    Measure to maximize
+        Parameters:
+            - list: list of individuals to calculate overall Pareto front spread
+            - pareto_optimal: Pareto optimal individuals to which compare
+        Returns:
+            - Overall Pareto front spread metric of these individuals
+    """
     total_dist = 0
     for x in pareto_optimal:
         dist = float('inf')
@@ -145,7 +202,18 @@ def inverted_generational_distance(list, pareto_optimal):
 
     return np.sqrt(total_dist) / len(pareto_optimal)
 
+
+
+
+
 def ideal_point(list):
+    """
+    Calculates the ideal point using a solution set
+        Parameters:
+            - list: list of individuals to calculate ideal point
+        Returns:
+            - Ideal point for those individuals
+    """
     ideal = np.ones(len(list[0].objectives_test)).tolist()   #List with as much ones as objectives_test are.
     numobj = len(list[0].objectives_test)
     for x in list:                                      #We give it the least value for each coordinate of all found values
@@ -155,7 +223,17 @@ def ideal_point(list):
     return ideal
 
 
+
+
+
 def nadir_point(list):
+    """
+    Calculates the nadir point using a solution set
+        Parameters:
+            - list: list of individuals to calculate nadir point
+        Returns:
+            - Nadir point for those individuals
+    """
     nadir = np.zeros(len(list[0].objectives_test)).tolist()   #List with as much zeros as objectives_test are.
     numobj = len(list[0].objectives_test)
     for x in list:                                      #We give it the least value for each coordinate of all found values
@@ -164,11 +242,15 @@ def nadir_point(list):
                 nadir[i] = x.objectives_test[i]
     return nadir
 
+
+
+
+
 def algorithm_proportion(indivs):
     """
-    Returns the proportion of individuals by each algorithm
+    Returns the proportion of individuals in a given individual list by each algorithm
         Parameters:
-            - indivs: List of all individuals of the overall pareto front
+            - indivs: List of all individuals to calculate proportion
         Returns
             - dictionary containing each algorithm name as key, and its proportion as value
     """
@@ -178,23 +260,50 @@ def algorithm_proportion(indivs):
     return {key: value for key, value in algorithms.items()}
 
 
-#If mean is > 0, val results are generally better than test ones, which is expected. If >> 0, there's overfit, if < 0, there's underfit
-def diff_val_test_rate(df, obj):
-    diff = []
-    new_df = df[[objectives_val_dict.get(obj), objectives_tst_dict.get(obj)]]
-    for i in range(df.shape[0]):
-        diff.append(float(new_df.iloc[i,0]) - float(new_df.iloc[i,1]))      #val evaluation - test evaluation
-    diff = np.array(diff)
-    return np.mean(diff), np.std(diff)
 
 
-def coverage(list1, list2):
+
+def diff_val_test_rate(model, indivs, obj):
+    """
+    Calculates a comparison between validation and test results
+    If mean is > 0, val results are generally better than test ones, which is expected.
+    If >> 0, there's overfit, if < 0, there's underfit
+        Parameters:
+            - df: Dataframe
+            - obj: Objectives 
+        Returns
+            - Mean and std of the differences between validation and test sets
+    """
+    return_df = {'algorithm':[], 'measure':[], 'val-test':[]}
+    for i in range(len(obj)):
+        for indiv in indivs:
+            return_df['algorithm'].append(model)
+            return_df['measure'].append(obj[i])
+            return_df['val-test'].append(indiv.objectives[i] - indiv.objectives_test[i])
+    
+    return pd.DataFrame(return_df)
+
+
+
+
+
+
+def coverage(indiv_cover, indiv_covered):
+    """
+    Calculates the coverage between two individual lists. It calculates the coverage of individuals from the first
+    list to the second list. This is an assymetrical metric, so also the other configuration should be tested
+        Parameters:
+            - indiv_cover: List of individuals which are tested to dominate (cover) the ones from the other list
+            - indiv_covered: List of individuals which are tested to be dominated (be covered) by the ones from the other list 
+        Returns
+            - Proportion of individuals covered from the first list to the second
+    """
     numcovered = 0
-    for indiv in list2:                      #For each individual on the second list of individuals
+    for indiv in indiv_covered:                      #For each individual on the second list of individuals
         covered = False
-        for other_indiv in list1:            #Let's see if an individual on the first set dominates it
+        for other_indiv in indiv_cover:            #Let's see if an individual on the first set dominates it
             if other_indiv.dominates(indiv):
                 covered = True
         if covered:
             numcovered += 1
-    return float(numcovered) / len(list2)
+    return float(numcovered) / len(indiv_covered)

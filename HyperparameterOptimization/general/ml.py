@@ -338,14 +338,14 @@ def train_model(X_train, y_train, prot_col, seed, model, **features):
     if model == "FDT":
         if features['class_weight'] is not None:
             if(features['criterion'] <= 0.5):
-                clf = FairDecisionTreeClassifier(criterion = 'gini', max_depth = features['max_depth'], min_samples_split = features['min_samples_split'], max_leaf_nodes = features['max_leaf_nodes'], class_weight = {0:features['class_weight'], 1:(10-features['class_weight'])}, f_lambda = float(features['fair_param'] / 10.0), random_state=seed)
+                clf = FairDecisionTreeClassifier(criterion = 'gini_fair', max_depth = features['max_depth'], min_samples_split = features['min_samples_split'], max_leaf_nodes = features['max_leaf_nodes'], class_weight = {0:features['class_weight'], 1:(10-features['class_weight'])}, f_lambda = float((2**features['fair_param'] - 1) / 2**10), random_state=seed)
             else:
-                clf = FairDecisionTreeClassifier(criterion = 'entropy', max_depth = features['max_depth'], min_samples_split = features['min_samples_split'], max_leaf_nodes = features['max_leaf_nodes'], class_weight = {0:features['class_weight'], 1:(10-features['class_weight'])}, f_lambda = float(features['fair_param'] / 10.0), random_state=seed)
+                clf = FairDecisionTreeClassifier(criterion = 'entropy_fair', max_depth = features['max_depth'], min_samples_split = features['min_samples_split'], max_leaf_nodes = features['max_leaf_nodes'], class_weight = {0:features['class_weight'], 1:(10-features['class_weight'])}, f_lambda = float((2**features['fair_param'] - 1) / 2**10), random_state=seed)
         else:
             if features['criterion'] <= 0.5:
-                clf = FairDecisionTreeClassifier(criterion = 'gini', max_depth = features['max_depth'], min_samples_split = features['min_samples_split'], max_leaf_nodes = features['max_leaf_nodes'], class_weight = features['class_weight'], f_lambda = float(features['fair_param'] / 10.0), random_state=seed)
+                clf = FairDecisionTreeClassifier(criterion = 'gini_fair', max_depth = features['max_depth'], min_samples_split = features['min_samples_split'], max_leaf_nodes = features['max_leaf_nodes'], class_weight = features['class_weight'], f_lambda = float((2**features['fair_param'] - 1) / 2**10), random_state=seed)
             else:
-                clf = FairDecisionTreeClassifier(criterion = 'entropy', max_depth = features['max_depth'], min_samples_split = features['min_samples_split'], max_leaf_nodes = features['max_leaf_nodes'], class_weight = features['class_weight'], f_lambda = float(features['fair_param'] / 10.0), random_state=seed)
+                clf = FairDecisionTreeClassifier(criterion = 'entropy_fair', max_depth = features['max_depth'], min_samples_split = features['min_samples_split'], max_leaf_nodes = features['max_leaf_nodes'], class_weight = features['class_weight'], f_lambda = float((2**features['fair_param'] - 1) / 2**10), random_state=seed)
     
     if model == "LR":
         if features['class_weight'] is not None:
@@ -556,12 +556,19 @@ def tpr_diff(y_val_p, y_val_u, y_pred_p, y_pred_u):
     """
     tn_p, fp_p, fn_p, tp_p = confusion_matrix(y_val_p, y_pred_p).ravel()    #Matriz de confusion de los valores predichos, teniendo en cuenta los verdaderos valores y los predichos
     tn_u, fp_u, fn_u, tp_u = confusion_matrix(y_val_u, y_pred_u).ravel()
-    tpr_p = tp_p/(tp_p + fn_p)
-    tpr_u = tp_u/(tp_u + fn_u)
-    dem = abs(tpr_p - tpr_u)
-    if(tpr_p == 0 or tpr_u == 0):
-        dem = 1
-    return dem
+    
+    ret = None
+    p_p = tp_p + fn_p
+    p_u = tp_u + fn_u
+
+    if(p_p == 0 or p_u == 0):
+        ret = 1.0
+    else:
+        tpr_p = tp_p / p_p
+        tpr_u = tp_u / p_u
+        ret = abs(tpr_p - tpr_u)
+    
+    return ret
 
 
 
@@ -577,12 +584,19 @@ def fpr_diff(y_val_p, y_val_u, y_pred_p, y_pred_u):
     """
     tn_p, fp_p, fn_p, tp_p = confusion_matrix(y_val_p, y_pred_p).ravel()
     tn_u, fp_u, fn_u, tp_u = confusion_matrix(y_val_u, y_pred_u).ravel()
-    fpr_p = fp_p/(fp_p + tn_p)
-    fpr_u = fp_u/(fp_u + tn_u)
-    dem = abs(fpr_p - fpr_u)
-    if(fpr_p == 0 or fpr_u == 0):
-        dem = 1
-    return dem
+
+    ret = None
+    n_p = fp_p + tn_p
+    n_u = fp_u + tn_u
+
+    if(n_p == 0 or n_u == 0):
+        ret = 1.0
+    else:
+        fpr_p = fp_p / n_p
+        fpr_u = fp_u / n_u
+        ret = abs(fpr_p - fpr_u)
+
+    return ret
 
 
 
@@ -598,10 +612,19 @@ def tnr_diff(y_val_p, y_val_u, y_pred_p, y_pred_u):
     """
     tn_p, fp_p, fn_p, tp_p = confusion_matrix(y_val_p, y_pred_p).ravel()
     tn_u, fp_u, fn_u, tp_u = confusion_matrix(y_val_u, y_pred_u).ravel()
-    tnr_p = tn_p/(tn_p + fp_p)
-    tnr_u = tn_u/(tn_u + fp_u)
-    dem = abs(tnr_p - tnr_u)
-    return dem
+
+    ret = None
+    n_p = fp_p + tn_p
+    n_u = fp_u + tn_u
+
+    if(n_p == 0 or n_u == 0):
+        ret = 1.0
+    else:
+        tnr_p = tn_p / n_p
+        tnr_u = tn_u / n_u
+        ret = abs(tnr_p - tnr_u)
+
+    return ret
 
 
 
@@ -617,12 +640,19 @@ def ppv_diff(y_val_p, y_val_u, y_pred_p, y_pred_u):
     """
     tn_p, fp_p, fn_p, tp_p = confusion_matrix(y_val_p, y_pred_p).ravel()
     tn_u, fp_u, fn_u, tp_u = confusion_matrix(y_val_u, y_pred_u).ravel()
-    ppv_p = tp_p/(tp_p + fp_p)
-    ppv_u = tp_u/(tp_u + fp_u)
-    dem = abs(ppv_p - ppv_u)
-    if(tp_p == 0 or tp_u ==0):
-        dem = 1
-    return dem
+
+    ret = None
+    pp_p = tp_p + fp_p
+    pp_u = tp_u + fp_u
+
+    if(pp_p == 0 or pp_u == 0):
+        ret = 1.0
+    else:
+        ppv_p = tp_p / pp_p
+        ppv_u = tp_u / pp_u
+        ret = abs(ppv_p - ppv_u)
+
+    return ret
 
 
 
@@ -638,10 +668,10 @@ def pnr_diff(y_val_p, y_val_u, y_pred_p, y_pred_u):
     """
     tn_p, fp_p, fn_p, tp_p = confusion_matrix(y_val_p, y_pred_p).ravel()
     tn_u, fp_u, fn_u, tp_u = confusion_matrix(y_val_u, y_pred_u).ravel()
+
     pnr_p = (fn_p + tn_p)/(tn_p + fp_p + fn_p + tp_p)
     pnr_u = (fn_u + tn_u)/(tn_u + fp_u + fn_u + tp_u)
     dem = abs(pnr_p - pnr_u)
-    
     return dem
 
 

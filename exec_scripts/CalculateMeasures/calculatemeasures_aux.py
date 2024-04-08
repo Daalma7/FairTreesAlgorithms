@@ -7,11 +7,10 @@ import random
 import csv
 import sys
 import time
-import warnings
 import importlib
 import os
 import re
-
+import warnings
 warnings.filterwarnings("ignore")
 
 sys.path.insert(1, os.path.dirname(os.path.dirname(__file__)))
@@ -23,7 +22,8 @@ dict_outcomes = {'academic': 'atd','adult': 'income','arrhythmia': 'arrhythmia',
 dict_protected = {'academic': 'ge','adult': 'Race','arrhythmia': 'sex','bank': 'AgeGroup','catalunya': 'foreigner','compas': 'race','credit': 'sex','crime': 'race','default': 'SEX','diabetes-w': 'Age','diabetes': 'Sex','drugs': 'Gender','dutch': 'Sex','german': 'Sex','heart': 'Sex','hrs': 'gender','insurance': 'sex','kdd-census': 'Sex','lsat':'race','nursery': 'finance','obesity': 'Gender','older-adults': 'sex','oulad': 'Sex','parkinson': 'sex','ricci': 'Race','singles': 'sex','student': 'sex','tic': 'religion','wine': 'color','synthetic-athlete': 'Sex','synthetic-disease': 'Age','toy': 'sst'}
 
 
-palette = {'DT': '#1f77b4', 'FDT': '#ff7f0e', 'GP': '#2ca02c', 'FLGBM': '9467bd', 'Total':'d62728'}
+palette = {'DT': '#1f77b4', 'FDT': '#ff7f0e', 'GP': '#2ca02c', 'FLGBM': '#9467bd', 'Total':'#d62728'}
+palette_obj = {'gmean_inv': '#a1c9f4', 'fpr_diff': '#8de5a1'}
 sns.set_style("darkgrid")
 
 class Individual(object):
@@ -67,14 +67,11 @@ def get_str(obj, extra):
     return obj_str, extra_str
 
 
+"""
 def create_results_df():
-    """
-    Creates dataframe with result values
-        Parameters:
-            -
-        Returns:
-            -
-    """
+
+    Creates dataframe with result values. Not currently used
+
     #Creation of the measures dataframe
     measures_df_1 = pd.DataFrame({'Quality Measures': quality_measures, 'NSGA-II': np.full(len(quality_measures), -47).tolist(), 'SMS-EMOA': np.full(len(quality_measures), -47).tolist(), 'GrEA': np.full(len(quality_measures), -47).tolist(), 'General PF': np.full(len(quality_measures), -47).tolist()})
     real_measures_dict = {general_objectives_dict.get(objectives[i].__name__): np.full(len(ml_measures), -47).tolist() for i in range(len(objectives))}
@@ -91,7 +88,7 @@ def create_results_df():
         measures_df_2.append(pd.DataFrame({**init_dict, **real_measures_dict, **real_measures_tst_dict, **extra_measures_dict, **extra_measures_tst_dict}))
 
     return measures_df_1, measures_df_2
-
+"""
 
 
 
@@ -157,12 +154,12 @@ def read_overall_pareto_files(dataname, models, bseed, nind, ngen, obj, extra):
 
     plt.title(f"{dataname} individuals' validation objectives")
     sns.scatterplot(pd.DataFrame(dict_plot), x=obj[0], y=obj[1], hue='algorithm', alpha=0.5, palette=palette)
-    plt.savefig(f"{PATH_TO_RESULTS}/GeneralGraphics/{dataname}/scatter_val_{dataname}")
+    plt.savefig(f"{PATH_TO_RESULTS}/GeneralGraphics/{dataname}/scatter_val_{dataname}", dpi=200, bbox_inches='tight')
     plt.close()
 
     plt.title(f"{dataname} individuals' test objectives")
     sns.scatterplot(pd.DataFrame(dict_plot_test), x=obj[0], y=obj[1], hue='algorithm', alpha=0.5, palette=palette)
-    plt.savefig(f"{PATH_TO_RESULTS}/GeneralGraphics/{dataname}/scatter_test_{dataname}")
+    plt.savefig(f"{PATH_TO_RESULTS}/GeneralGraphics/{dataname}/scatter_test_{dataname}", dpi=200, bbox_inches='tight')
     plt.close()
 
     return indivs
@@ -250,12 +247,12 @@ def create_total_pareto_optimal(df_indivs, dataname, models, bseed, nind, ngen, 
 
     plt.title(f"{dataname} individuals' validation objectives")
     sns.scatterplot(pd.DataFrame(dict_plot), x=obj[0], y=obj[1], hue='algorithm', alpha=0.5, palette=palette)
-    plt.savefig(f"{PATH_TO_RESULTS}/GeneralGraphics/{dataname}/scatter_po_val_{dataname}")
+    plt.savefig(f"{PATH_TO_RESULTS}/GeneralGraphics/{dataname}/scatter_po_val_{dataname}", dpi=200, bbox_inches='tight')
     plt.close()
 
     plt.title(f"{dataname} individuals' test objectives")
     sns.scatterplot(pd.DataFrame(dict_plot_test), x=obj[0], y=obj[1], hue='algorithm', alpha=0.5, palette=palette)
-    plt.savefig(f"{PATH_TO_RESULTS}/GeneralGraphics/{dataname}/scatter_po_test_{dataname}")
+    plt.savefig(f"{PATH_TO_RESULTS}/GeneralGraphics/{dataname}/scatter_po_test_{dataname}", dpi=200, bbox_inches='tight')
     plt.close()
     return pareto_optimal
     
@@ -327,8 +324,8 @@ def calculate_general_pareto_front_measures(pareto_optimal, dataname, obj, extra
             return '{v:d}'.format(v=val)
         return my_format
     plt.pie(results['Proportion'].values(), labels = results['Proportion'].keys(), autopct=autopct_format(results['Proportion'].values()), colors=[palette[x] for x in results['Proportion'].keys()])
-    plt.title("Pie plot showing proportion of each algorithm")
-    plt.savefig(f"{PATH_TO_RESULTS}/GeneralGraphics/{dataname}/pie_proportion_{dataname}")
+    plt.title(f"Pie plot showing proportion of each algorithm for {dataname} dataset")
+    plt.savefig(f"{PATH_TO_RESULTS}/GeneralGraphics/{dataname}/pie_proportion_{dataname}", dpi=200, bbox_inches='tight')
     plt.close()
     return results
 
@@ -354,17 +351,28 @@ def calculate_algorithm_pareto_front_measures(indivs, pareto_optimal, obj, extra
     results['Inverted Generational Distance'] = inverted_generational_distance(indivs, pareto_optimal)        # Inverted generational distance
 
 
-    objectives_dict = {}
-    for i in range(len(obj)):
-        obj_list = np.array([indiv.objectives_test[i] for indiv in pareto_optimal])
-        objectives_dict[f"{obj[i]}_min"] = obj_list.min()
-        objectives_dict[f"{obj[i]}_q1"] = np.quantile(obj_list, 0.25)
-        objectives_dict[f"{obj[i]}_q2"] = np.quantile(obj_list, 0.5)
-        objectives_dict[f"{obj[i]}_q3"] = np.quantile(obj_list, 0.75)
-        objectives_dict[f"{obj[i]}_max"] = obj_list.max()
-        objectives_dict[f"{obj[i]}_std"] = obj_list.std()
-
     return results
+
+
+# TODO: Poner bonita
+def plot_diff_val_test(dataname, models, indivs_list, obj):
+    cumm_df = None
+    for i in range(len(models)):
+        if cumm_df is None:
+            cumm_df = diff_val_test_rate(models[i], indivs_list[i], obj)
+        else:
+            cumm_df = pd.concat([cumm_df, diff_val_test_rate(models[i], indivs_list[i], obj)])
+    
+    sns.barplot(cumm_df, x='algorithm', y='val-test', hue='measure', palette=[palette_obj[x] for x in obj])
+    plt.title("Relation between validation and test results (overfit)")
+    plt.ylabel('Validation - Test results')
+    plt.savefig(f"{PATH_TO_RESULTS}/GeneralGraphics/{dataname}/barplot_overfit_{dataname}.png", dpi=200, bbox_inches='tight')
+    plt.close()
+
+
+
+
+
 
 
 """
@@ -474,9 +482,9 @@ def plot_algorithm_metrics(results, po_results, models, dataname):
     for data in [results, results_with_po]:
         for elem in data.columns:
             if not elem == 'models':
-                sns.barplot(data, x='models', y=elem, hue='models')
-                plt.title(f"Barplot showing {elem} for {dataname} dataset. ({highlow_dict[elem]} is better)")
-                plt.savefig(f"{PATH_TO_RESULTS}/GeneralGraphics/{dataname}/barplot_{elem}_{dataname}.png", dpi=200)
+                sns.barplot(data, x='models', y=elem, hue='models', palette=[palette[x] for x in data['models']])
+                plt.title(f"Barplot showing {elem} for {dataname} dataset\n({highlow_dict[elem]} is better)")
+                plt.savefig(f"{PATH_TO_RESULTS}/GeneralGraphics/{dataname}/barplot_{elem}_{dataname}.png", dpi=200, bbox_inches='tight')
                 plt.close()
     
     
@@ -492,13 +500,7 @@ def coverage_analysis(algorithms, indiv_lists, dataname):
             - algorithms: Different algorithms employed
             - indiv_list: Lists of individual object which are the solutions for each algorithm
             - dataname: Name of the dataset
-            - models
     """
-
-    all_indivs = []
-    new_pareto_indivs = []
-    pareto_optimal_df = []
-
     # TODO: Drop duplicate individuals
 
     df_algorithms = {alg: [] for alg in algorithms}
@@ -512,5 +514,95 @@ def coverage_analysis(algorithms, indiv_lists, dataname):
     sns.heatmap(df, annot=True, cmap='Blues', fmt=".4f", annot_kws={'size':16})
     plt.xlabel("Covered")
     plt.ylabel("Covering")
-    plt.savefig(f"{PATH_TO_RESULTS}/GeneralGraphics/{dataname}/coverage_{dataname}.png", dpi=200)
+    plt.savefig(f"{PATH_TO_RESULTS}/GeneralGraphics/{dataname}/coverage_{dataname}.png", dpi=200, bbox_inches='tight')
     plt.close()
+
+
+
+def plot_generation_stats(dataname, models, bseed, runs, nind, ngen, obj, extra):
+
+    obj_str, extra_str = get_str(obj, extra)
+
+    # First step, read all dataframes containing generation stats
+    for model in models:
+        if model in ['DT', 'FDT', 'FLGBM']:
+            prev_path = f"{PATH_TO_RESULTS}/{model}/nsga2"
+        else:
+            prev_path = f"{PATH_TO_RESULTS}/{model}"
+
+        generations_dfs = []
+        for i in range(runs):
+            generations_dfs.append(pd.read_csv(f"{prev_path}/generation_stats/{dataname}/{dataname}_seed_{bseed + i}_var_{dict_protected[dataname]}_gen_{ngen}_indiv_{nind}_model_{model}_obj_{obj_str}{extra_str}.csv"))
+        
+
+
+        # Second step, create a new dataset with values being the average
+        df_concat = pd.concat(generations_dfs)        # Concatenate them
+        grouped = df_concat.groupby(df_concat.index)    # Group by index
+
+        # Compute mean and standard deviation
+        mean_df = grouped.mean()
+        std_df = grouped.std()
+
+        #print("Mean:\n", mean_df)
+        #print("Standard Deviation:\n", std_df)
+        #print(mean_df.columns)
+
+        if model in ['DT', 'FDT']:
+            metrics = ['leaves', 'depth', 'data_avg_depth', 'depth_unbalance']
+        elif model == 'GP':
+            metrics = ['prunings', 'leaves', 'depth', 'data_avg_depth', 'depth_unbalance']
+        else:
+            metrics = ['n_estimators', 'n_features', 'feature_importance_std']
+        line_evolution(dataname, model, mean_df, std_df, metrics, True, False, True)
+ 
+    
+   
+def line_evolution(dataname, model, mean_df, std_df, metrics, include_ext=True, plot_std=True, store=False):
+
+    fig, axes = plt.subplots(len(metrics), 1, figsize=(15, 3*len(metrics)), sharey=False)
+    fig.suptitle(f"Metrics of Fair Decision Trees in each generation")
+    plt.gcf().subplots_adjust(bottom=0.1)
+
+    #print(mean_df.columns, std_df.columns)
+
+
+    metric_colors = {'strong_prunings': 'darkorange', 'medium_prunings': 'orange', 'weak_prunings': 'gold',
+                     'strong_leaves': 'darkgreen', 'medium_leaves': 'forestgreen', 'weak_leaves': 'lightgreen',
+                     'strong_depth': 'darkred', 'medium_depth': 'red', 'weak_depth': 'lightsalmon',
+                     'strong_data_avg_depth': 'darkblue', 'medium_data_avg_depth':'dodgerblue' , 'weak_data_avg_depth': 'lightblue',
+                     'strong_depth_unbalance': 'darkviolet', 'medium_depth_unbalance':'violet', 'weak_depth_unbalance': 'plum',
+                     'strong_n_estimators': 'darkviolet', 'medium_n_estimators': 'violet', 'weak_n_estimators': 'plum',
+                     'strong_n_features': 'darkblue', 'medium_n_features': 'dodgerblue', 'weak_n_features': 'lightblue',
+                     'strong_feature_importance_std': 'darkred', 'medium_feature_importance_std': 'red', 'weak_feature_importance_std': 'lightsalmon',
+}
+
+    for i, metric in enumerate(metrics):
+        mean_df[f"+std"] = mean_df[f"mean_{metric}"] + mean_df[f"std_{metric}"]
+        mean_df[f"-std"] = mean_df[f"mean_{metric}"] - mean_df[f"std_{metric}"]
+        for pos in ['mean', 'min', 'max']: 
+            mean_df[f"{pos}_{metric}+std"] = mean_df[f"{pos}_{metric}"] + std_df[f"{pos}_{metric}"]
+            mean_df[f"{pos}_{metric}-std"] = mean_df[f"{pos}_{metric}"] - std_df[f"{pos}_{metric}"]
+
+        if include_ext:
+            sns.lineplot(ax = axes[i], x=range(mean_df.shape[0]), y=mean_df[f"max_{metric}"], label='max,min', color=metric_colors[f"medium_{metric}"])
+            sns.lineplot(ax = axes[i], x=range(mean_df.shape[0]), y=mean_df[f"min_{metric}"], color=metric_colors[f"medium_{metric}"])
+        sns.lineplot(ax = axes[i], x=range(mean_df.shape[0]), y=mean_df[f"mean_{metric}"], label = 'mean', color = metric_colors[f"strong_{metric}"])
+
+        axes[i].fill_between(x=range(mean_df.shape[0]), y1=mean_df[f"+std"], y2=mean_df[f"-std"], color=metric_colors[f"medium_{metric}"], alpha=0.4)
+        if plot_std:
+            for pos in ['mean', 'min', 'max']: 
+                axes[i].fill_between(x=range(mean_df.shape[0]), y1=mean_df[f"{pos}_{metric}+std"], y2=mean_df[f"{pos}_{metric}-std"], color=metric_colors[f"weak_{metric}"], alpha=0.3)
+
+        #axes[i].set_title(f'{metric}')
+        axes[i].set_xlabel('Generation')
+        axes[i].set_ylabel(f'{metric}')
+    
+    fig.tight_layout()
+
+    if store:
+        plt.savefig(f"{PATH_TO_RESULTS}/GeneralGraphics/{dataname}/gen_evolution_{dataname}_{model}.png", dpi=200, bbox_inches='tight')
+        plt.close()
+    else:
+        plt.show()
+

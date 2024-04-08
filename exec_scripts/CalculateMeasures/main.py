@@ -14,7 +14,7 @@ warnings.filterwarnings("ignore")
 
 sys.path.insert(1, os.path.dirname(os.path.dirname(__file__)))
 from qualitymeasures import hypervolume, spacing, maximum_spread, error_ratio, overall_pareto_front_spread, generational_distance, inverted_generational_distance, ideal_point, nadir_point, algorithm_proportion, diff_val_test_rate, coverage
-from calculatemeasures_aux import read_overall_pareto_files, plot_algorithm_metrics, create_results_df, create_total_pareto_optimal, calculate_general_pareto_front_measures, calculate_algorithm_pareto_front_measures, calculate_algorithm_pareto_front_measures, coverage_analysis
+from calculatemeasures_aux import read_overall_pareto_files, plot_generation_stats, plot_algorithm_metrics, plot_diff_val_test, create_total_pareto_optimal, calculate_general_pareto_front_measures, calculate_algorithm_pareto_front_measures, calculate_algorithm_pareto_front_measures, coverage_analysis
 
 #Dictionary to propperly create individuals given the objectives
 quality_measures = ['Mean solutions', 'Proportion', 'Hypervolume', 'Spacing', 'Maximum spread', 'Overall PF spread',  'Error ratio', 'GD', 'Inverted GD']
@@ -180,20 +180,30 @@ if not extraobj is None:
 
 
 #measures_df, measures_df_2 = create_results_df()
-models = ['DT', 'FDT', 'GP']
+models = ['DT', 'FDT', 'GP', 'FLGBM']
+
+print("Plotting generations stats...")
+plot_generation_stats(dataset, models, set_seed_base, n_runs, individuals, generations, objectives, extraobj)
 
 # Read all pareto files for the given models 
+print("Reading pareto optimal elements...")
 indiv_lists = read_overall_pareto_files(dataset, models, set_seed_base, individuals, generations, objectives, extraobj)
 
 indiv_list = [indiv for alist in indiv_lists for indiv in alist]
 
 # Then, we calculate the pareto optimal individuals from all those considered
+print("Calculating optimal pareto individuals from all runs...")
 pareto_optimal = create_total_pareto_optimal(indiv_list, dataset, models, set_seed_base, individuals, generations, objectives, extraobj)
 
 # Measures for the general pareto front
+print("Calculating measures for general pareto front...")
 po_results = calculate_general_pareto_front_measures(pareto_optimal, dataset, objectives, extraobj)
 
+print("Calculating difference between validation and test sets...")
+plot_diff_val_test(dataset, models, indiv_lists, objectives)
+
 # Measures for each algorithm's pareto front
+print("Calculating measures for each algorithm's pareto front")
 results = None
 for alist in indiv_lists:
     new_results = calculate_algorithm_pareto_front_measures(alist, pareto_optimal, objectives, extraobj)

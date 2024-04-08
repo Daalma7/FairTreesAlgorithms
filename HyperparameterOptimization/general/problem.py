@@ -132,7 +132,7 @@ class Problem:
 
 
 
-    def generate_default_individual_gini_fdt(self, kind = 'base', criterion = 'gini'):
+    def generate_default_individual_fdt(self, kind = 'base', criterion = 'gini'):
         """
         Generate a default Fair Decision Tree individual using gini criterion
             Parameters:
@@ -161,7 +161,7 @@ class Problem:
 
 
 
-    def generate_default_lr(self, kind = 'base', num = 'first'):
+    def generate_default_individual_lr(self, kind = 'base', num = 'first'):
         """
         Generate first default Logistic Regression individual using entropy criterion
             Parameters:
@@ -190,7 +190,7 @@ class Problem:
 
 
 
-    def generate_default_flgbm(self, kind = 'base', num = 'first'):
+    def generate_default_individual_flgbm(self, kind = 'base', num = 'first'):
         """
         Generate first default Fair LGBM individual using entropy criterion
             Parameters:

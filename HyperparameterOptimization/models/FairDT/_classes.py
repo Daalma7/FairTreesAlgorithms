@@ -19,9 +19,9 @@ randomized trees. Single and multi-output problems are both handled.
 #   +-> BaseDecisionTree
 #   |
 #   +-----> DecisionTreeClassifier
-#   +-----> DecisionTreeClassifier
+#   +-----> DecisionTreeRegressor
 #   +-----> ExtraTreeClassifier
-#   +-----> ExtraTreeClassifier
+#   +-----> ExtraTreeRegressor
 
 import sys
 import os
@@ -70,7 +70,8 @@ DTYPE = _tree.DTYPE
 DOUBLE = _tree.DOUBLE
 
 CRITERIA_CLF = {"gini": _criterion.Gini, "entropy": _criterion.Entropy,
-                "gini_fair": _criterion.Gini_Fair}
+                "gini_fair": _criterion.Gini_Fair, 'entropy_fair': _criterion.Entropy_Fair}
+
 CRITERIA_REG = {"mse": _criterion.MSE, "friedman_mse": _criterion.FriedmanMSE,
                 "mae": _criterion.MAE}
 
@@ -80,7 +81,7 @@ DENSE_SPLITTERS = {"best": _splitter.BestSplitter,
 SPARSE_SPLITTERS = {"best": _splitter.BestSparseSplitter,
                     "random": _splitter.RandomSparseSplitter}
 
-POSSIBLE_FAIR_FUNCTIONS = ["dem_tpr", "dem_fpr", "dem_ppv", "dem_tnr", "dem_pnr"]
+POSSIBLE_FAIR_FUNCTIONS = ["tpr_diff", "fpr_diff", "ppv_diff", "tnr_diff", "pnr_diff"]
 
 # =============================================================================
 # Base decision tree
@@ -111,7 +112,7 @@ class BaseDecisionTree(MultiOutputMixin, BaseEstimator, metaclass=ABCMeta):
                  f_lambda=0.0,              # Alpha parameter controlling balance between main
                                             # criterion and fairness criterion
                                             # A value of 0 means only traditional criterion will be used
-                fair_fun="dem_tpr"          # Fair metric for the splitting criterion
+                fair_fun="fpr_diff"          # Fair metric for the splitting criterion
                  ):             
 
 
@@ -328,7 +329,8 @@ class BaseDecisionTree(MultiOutputMixin, BaseEstimator, metaclass=ABCMeta):
             if is_classification:
                 criterion = CRITERIA_CLF[self.criterion](self.n_outputs_,
                                                          self.n_classes_,
-                                                         self.f_lambda)
+                                                         self.f_lambda,
+                                                         self.fair_fun)
             else:
                 criterion = CRITERIA_REG[self.criterion](self.n_outputs_,
                                                          n_samples,
@@ -814,7 +816,8 @@ class DecisionTreeClassifier(ClassifierMixin, BaseDecisionTree):
                  min_impurity_decrease=0.,
                  class_weight=None,
                  ccp_alpha=0.0,
-                 f_lambda=0.0):
+                 f_lambda=0.0,
+                 fair_fun='fpr_diff'):
         super().__init__(
             criterion=criterion,
             splitter=splitter,
@@ -828,7 +831,8 @@ class DecisionTreeClassifier(ClassifierMixin, BaseDecisionTree):
             random_state=random_state,
             min_impurity_decrease=min_impurity_decrease,
             ccp_alpha=ccp_alpha,
-            f_lambda=f_lambda)
+            f_lambda=f_lambda,
+            fair_fun=fair_fun)
 
     def fit(self, X, y, sample_weight=None, prot=None, check_input=True):
         """Build a decision tree classifier from the training set (X, y).

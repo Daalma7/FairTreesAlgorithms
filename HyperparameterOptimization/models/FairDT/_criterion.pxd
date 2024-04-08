@@ -56,7 +56,8 @@ cdef class Criterion:
     cdef double* sum_total_fair
     cdef double* sum_left_fair
     cdef double* sum_right_fair
-    cdef str fair_fun
+    cdef char* fair_fun
+    cdef object fair_fun_string
     
 
 

@@ -34,6 +34,7 @@ from libc.stdlib cimport calloc
 from libc.stdlib cimport free
 from libc.string cimport memcpy
 from libc.string cimport memset
+from libc.string cimport strcmp
 from libc.math cimport fabs
 from libc.stdio cimport printf
 
@@ -233,7 +234,7 @@ cdef class ClassificationCriterion(Criterion):
     def __cinit__(self, SIZE_t n_outputs,
                   np.ndarray[SIZE_t, ndim=1] n_classes,
                   double f_lambda = 0.0,
-                  str fair_fun = "dem_tpr"):
+                  str fair_fun = "fpr_diff"):
         """Initialize attributes for this criterion.
 
         Parameters
@@ -247,7 +248,8 @@ cdef class ClassificationCriterion(Criterion):
             not be used for some criteria, reason why holds 0 by default
         """
         self.sample_weight = NULL
-        self.fair_fun = fair_fun
+        self.fair_fun_string = fair_fun.encode('UTF-8')
+        self.fair_fun = self.fair_fun_string
 
         self.samples = NULL
         self.start = 0
@@ -558,9 +560,8 @@ cdef class ClassificationCriterion(Criterion):
             sum_left += self.sum_stride
             sum_total += self.sum_stride
 
-        for c in range(n_classes[0]):
+        for c in range(4):
             sum_right_fair[c] = sum_total_fair[c] - sum_left_fair[c]
-            sum_right_fair[c+1] = sum_total_fair[c+1] - sum_left_fair[c+1]
 
         self.pos = new_pos
         """
@@ -806,7 +807,7 @@ cdef class Gini(ClassificationCriterion):
 
 
 
-cdef double dem_tpr(double* sum_fair) nogil:
+cdef double tpr_diff(double* sum_fair) nogil:
 
     cdef double tp_0
     cdef double fn_0
@@ -856,12 +857,9 @@ cdef double dem_tpr(double* sum_fair) nogil:
 
     #printf("TPR_0: %f, ", tpr_0)
     #printf("TPR_1: %f\n", tpr_1)
-    dem = fabs(tpr_0 - tpr_1)
-    if(tpr_0 == 0 or tpr_1 == 0):
-        dem = 1
-    return dem
+    return fabs(tpr_0 - tpr_1)
 
-cdef double dem_fpr(double* sum_fair) nogil:
+cdef double fpr_diff(double* sum_fair) nogil:
 
     cdef double tn_0 
     cdef double fp_0
@@ -909,12 +907,9 @@ cdef double dem_fpr(double* sum_fair) nogil:
     
     #printf("FPR_0: %f, ", fpr_0)
     #printf("FPR_1: %f\n", fpr_1)
-    dem = fabs(fpr_0 - fpr_1)
-    if(fpr_0 == 0 or fpr_1 == 0):
-        dem = 1
-    return dem
+    return fabs(fpr_0 - fpr_1)
 
-cdef double dem_tnr(double* sum_fair) nogil:
+cdef double tnr_diff(double* sum_fair) nogil:
 
     cdef double tn_0 
     cdef double fp_0
@@ -948,9 +943,24 @@ cdef double dem_tnr(double* sum_fair) nogil:
     #printf("TN_1: %f: \n", tn_1)
     #printf("FP_1: %f: \n", fp_1)
 
-    return fabs(tn_0 / (fp_0 + tn_0) - tn_1 / (fp_1 + tn_1))
+    den = fp_0 + tn_0
+    if den == 0:
+        tnr_0 = 0
+    else:
+        tnr_0 = tn_0 / den
+    
+    den = fp_1 + tn_1
+    if den == 0:
+        tnr_1 = 0
+    else:
+        tnr_1 = tn_1 / den
+    
+    #printf("FPR_0: %f, ", fpr_0)
+    #printf("FPR_1: %f\n", fpr_1)
+    return fabs(tnr_0 - tnr_1)
 
-cdef double dem_ppv(double* sum_fair) nogil:
+
+cdef double ppv_diff(double* sum_fair) nogil:
 
     cdef double tp_0
     cdef double fp_0
@@ -998,13 +1008,10 @@ cdef double dem_ppv(double* sum_fair) nogil:
     
     #printf("PPV_0: %f, ", ppv_0)
     #printf("PPV_1: %f\n", ppv_1)
-    dem = fabs(ppv_0 - ppv_1)
-    if(ppv_0 == 0 or ppv_1 == 0):
-        dem = 1
-    return dem
+    return fabs(ppv_0 - ppv_1)
 
 
-cdef double dem_pnr(double* sum_fair) nogil:
+cdef double pnr_diff(double* sum_fair) nogil:
 
     cdef double tp_0
     cdef double fp_0
@@ -1066,8 +1073,7 @@ cdef double dem_pnr(double* sum_fair) nogil:
 
     #printf("PNR_0: %f, ", pnr_0)
     #printf("PNR_1: %f\n", pnr_1)
-    dem = fabs(pnr_0 - pnr_1)
-    return dem
+    return fabs(pnr_0 - pnr_1)
 
 
 
@@ -1110,6 +1116,12 @@ cdef class Gini_Fair(ClassificationCriterion):
         cdef double tn 
         cdef double fp
         cdef double fn
+        cdef char* tpr = "tpr_diff"
+        cdef char* fpr = "fpr_diff"
+        cdef char* tnr = "tnr_diff"
+        cdef char* ppv = "ppv_diff"
+        cdef char* pnr = "pnr_diff"
+
         #printf("The number of samples is %f\n", self.n_samples)
         #printf("The value of self.lambda is %f\n", self.f_lambda)
         #for ind in range(self.start, self.end):
@@ -1134,11 +1146,11 @@ cdef class Gini_Fair(ClassificationCriterion):
         printf("TN: %f \n", tn)
         printf("FP: %f \n", fp)
         
-        printf("TPR: %f \n", dem_tpr(sum_total_fair))
-        printf("FPR: %f \n", dem_fpr(sum_total_fair))
-        printf("TNR: %f \n", dem_tnr(sum_total_fair))
-        printf("PPV: %f \n", dem_ppv(sum_total_fair))
-        printf("PNR: %f \n", dem_pnr(sum_total_fair))
+        printf("TPR: %f \n", tpr_diff(sum_total_fair))
+        printf("FPR: %f \n", fpr_diff(sum_total_fair))
+        printf("TNR: %f \n", tnr_diff(sum_total_fair))
+        printf("PPV: %f \n", ppv_diff(sum_total_fair))
+        printf("PNR: %f \n", pnr_diff(sum_total_fair))
         """
 
         for k in range(self.n_outputs):
@@ -1148,7 +1160,6 @@ cdef class Gini_Fair(ClassificationCriterion):
                 # For classical gini criterion
                 count_k = sum_total[c]
                 sq_count += count_k * count_k
-                # For fairness criterion
 
             gini += 1.0 - sq_count / (self.weighted_n_node_samples *
                                       self.weighted_n_node_samples)
@@ -1156,7 +1167,19 @@ cdef class Gini_Fair(ClassificationCriterion):
             sum_total += self.sum_stride
 
         # Convex combination of both gini and fairness criterion values
-        return ((1-f_lambda) * gini + f_lambda * dem_tpr(sum_total_fair)) / self.n_outputs
+        if strcmp(self.fair_fun, tpr):
+            return ((1-f_lambda) * gini + f_lambda * tpr_diff(sum_total_fair)) / self.n_outputs
+        elif strcmp(self.fair_fun, fpr):
+            return ((1-f_lambda) * gini + f_lambda * fpr_diff(sum_total_fair)) / self.n_outputs
+        elif strcmp(self.fair_fun, tnr):
+            return ((1-f_lambda) * gini + f_lambda * tnr_diff(sum_total_fair)) / self.n_outputs
+        elif strcmp(self.fair_fun, ppv):
+            return ((1-f_lambda) * gini + f_lambda * ppv_diff(sum_total_fair)) / self.n_outputs
+        elif strcmp(self.fair_fun, pnr):
+            return ((1-f_lambda) * gini + f_lambda * pnr_diff(sum_total_fair)) / self.n_outputs
+        else:
+            return gini / self.n_outputs
+
 
     cdef void children_impurity(self, double* impurity_left,
                                 double* impurity_right) nogil:
@@ -1183,9 +1206,15 @@ cdef class Gini_Fair(ClassificationCriterion):
         cdef double sq_count_left
         cdef double sq_count_right
         cdef double count_k
-        #cdef str fair_fun = self.fair_fun
         cdef SIZE_t k
         cdef SIZE_t c
+        cdef char* tpr = "tpr_diff"
+        cdef char* fpr = "fpr_diff"
+        cdef char* tnr = "tnr_diff"
+        cdef char* ppv = "ppv_diff"
+        cdef char* pnr = "pnr_diff"
+
+
 
         """
         printf("IZQDA: ")
@@ -1220,11 +1249,164 @@ cdef class Gini_Fair(ClassificationCriterion):
             sum_left += self.sum_stride
             sum_right += self.sum_stride
 
-        impurity_left[0] = ((1-f_lambda) * gini_left + f_lambda * dem_tpr(sum_left_fair)) / self.n_outputs
-        impurity_right[0] = ((1-f_lambda) * gini_right + f_lambda * dem_tpr(sum_left_fair)) / self.n_outputs
+        if strcmp(self.fair_fun, tpr):
+            impurity_left[0] = ((1-f_lambda) * gini_left + f_lambda * tpr_diff(sum_left_fair)) / self.n_outputs
+            impurity_right[0] = ((1-f_lambda) * gini_right + f_lambda * tpr_diff(sum_right_fair)) / self.n_outputs
+        elif strcmp(self.fair_fun, fpr):
+            impurity_left[0] = ((1-f_lambda) * gini_left + f_lambda * fpr_diff(sum_left_fair)) / self.n_outputs
+            impurity_right[0] = ((1-f_lambda) * gini_right + f_lambda * fpr_diff(sum_right_fair)) / self.n_outputs
+        elif strcmp(self.fair_fun, tnr):
+            impurity_left[0] = ((1-f_lambda) * gini_left + f_lambda * tnr_diff(sum_left_fair)) / self.n_outputs
+            impurity_right[0] = ((1-f_lambda) * gini_right + f_lambda * tnr_diff(sum_right_fair)) / self.n_outputs
+        elif strcmp(self.fair_fun, ppv):
+            impurity_left[0] = ((1-f_lambda) * gini_left + f_lambda * ppv_diff(sum_left_fair)) / self.n_outputs
+            impurity_right[0] = ((1-f_lambda) * gini_right + f_lambda * ppv_diff(sum_right_fair)) / self.n_outputs
+        elif strcmp(self.fair_fun, pnr):
+            impurity_left[0] = ((1-f_lambda) * gini_left + f_lambda * pnr_diff(sum_left_fair)) / self.n_outputs
+            impurity_right[0] = ((1-f_lambda) * gini_right + f_lambda * pnr_diff(sum_right_fair)) / self.n_outputs
+        else:
+            impurity_left[0] = gini_left / self.n_outputs
+            impurity_right[0] = gini_right / self.n_outputs
 
-        #impurity_left[0] = ((1-f_lambda) * gini_left + f_lambda)  / self.n_outputs
-        #impurity_right[0] = ((1-f_lambda) * gini_right + f_lambda) / self.n_outputs
+
+
+
+cdef class Entropy_Fair(ClassificationCriterion):
+    r"""Cross Entropy impurity criterion.
+
+    This handles cases where the target is a classification taking values
+    0, 1, ... K-2, K-1. If node m represents a region Rm with Nm observations,
+    then let
+
+        count_k = 1 / Nm \sum_{x_i in Rm} I(yi = k)
+
+    be the proportion of class k observations in node m.
+
+    The cross-entropy is then defined as
+
+        cross-entropy = -\sum_{k=0}^{K-1} count_k log(count_k)
+    """
+
+    cdef double node_impurity(self) nogil:
+        """Evaluate the impurity of the current node.
+
+        Evaluate the cross-entropy criterion as impurity of the current node,
+        i.e. the impurity of samples[start:end]. The smaller the impurity the
+        better.
+        """
+        
+        cdef SIZE_t* n_classes = self.n_classes
+        cdef double* sum_total = self.sum_total
+        cdef double* sum_total_fair = self.sum_total_fair
+        cdef double entropy = 0.0
+        cdef double count_k
+        cdef SIZE_t k
+        cdef SIZE_t c
+
+        cdef double f_lambda = self.f_lambda
+        cdef double tp 
+        cdef double tn 
+        cdef double fp
+        cdef double fn
+        cdef char* tpr = "tpr_diff"
+        cdef char* fpr = "fpr_diff"
+        cdef char* tnr = "tnr_diff"
+        cdef char* ppv = "ppv_diff"
+        cdef char* pnr = "pnr_diff"
+
+        for k in range(self.n_outputs):
+            for c in range(n_classes[k]):
+                count_k = sum_total[c]
+                if count_k > 0.0:
+                    count_k /= self.weighted_n_node_samples
+                    entropy -= count_k * log(count_k)
+
+            sum_total += self.sum_stride
+
+        # Convex combination of both entropy and fairness criterion values
+        if strcmp(self.fair_fun, tpr):
+            return ((1-f_lambda) * entropy + f_lambda * tpr_diff(sum_total_fair)) / self.n_outputs
+        elif strcmp(self.fair_fun, fpr):
+            return ((1-f_lambda) * entropy + f_lambda * fpr_diff(sum_total_fair)) / self.n_outputs
+        elif strcmp(self.fair_fun, tnr):
+            return ((1-f_lambda) * entropy + f_lambda * tnr_diff(sum_total_fair)) / self.n_outputs
+        elif strcmp(self.fair_fun, ppv):
+            return ((1-f_lambda) * entropy + f_lambda * ppv_diff(sum_total_fair)) / self.n_outputs
+        elif strcmp(self.fair_fun, pnr):
+            return ((1-f_lambda) * entropy + f_lambda * pnr_diff(sum_total_fair)) / self.n_outputs
+        else:
+            return entropy / self.n_outputs
+
+    cdef void children_impurity(self, double* impurity_left,
+                                double* impurity_right) nogil:
+        """Evaluate the impurity in children nodes.
+
+        i.e. the impurity of the left child (samples[start:pos]) and the
+        impurity the right child (samples[pos:end]).
+
+        Parameters
+        ----------
+        impurity_left : double pointer
+            The memory address to save the impurity of the left node
+        impurity_right : double pointer
+            The memory address to save the impurity of the right node
+        """
+        cdef SIZE_t* n_classes = self.n_classes
+        cdef double* sum_left = self.sum_left
+        cdef double* sum_right = self.sum_right
+        cdef double entropy_left = 0.0
+        cdef double entropy_right = 0.0
+        cdef double count_k
+        cdef SIZE_t k
+        cdef SIZE_t c
+
+        cdef double* sum_left_fair = self.sum_left_fair
+        cdef double* sum_right_fair = self.sum_right_fair
+        cdef double f_lambda = self.f_lambda
+
+        cdef char* tpr = "tpr_diff"
+        cdef char* fpr = "fpr_diff"
+        cdef char* tnr = "tnr_diff"
+        cdef char* ppv = "ppv_diff"
+        cdef char* pnr = "pnr_diff"
+
+        for k in range(self.n_outputs):
+            for c in range(n_classes[k]):
+                count_k = sum_left[c]
+                if count_k > 0.0:
+                    count_k /= self.weighted_n_left
+                    entropy_left -= count_k * log(count_k)
+
+                count_k = sum_right[c]
+                if count_k > 0.0:
+                    count_k /= self.weighted_n_right
+                    entropy_right -= count_k * log(count_k)
+
+            sum_left += self.sum_stride
+            sum_right += self.sum_stride
+
+        if strcmp(self.fair_fun, tpr):
+            impurity_left[0] = ((1-f_lambda) * entropy_left + f_lambda * tpr_diff(sum_left_fair)) / self.n_outputs
+            impurity_right[0] = ((1-f_lambda) * entropy_right + f_lambda * tpr_diff(sum_right_fair)) / self.n_outputs
+        elif strcmp(self.fair_fun, fpr):
+            impurity_left[0] = ((1-f_lambda) * entropy_left + f_lambda * fpr_diff(sum_left_fair)) / self.n_outputs
+            impurity_right[0] = ((1-f_lambda) * entropy_right + f_lambda * fpr_diff(sum_right_fair)) / self.n_outputs
+        elif strcmp(self.fair_fun, tnr):
+            impurity_left[0] = ((1-f_lambda) * entropy_left + f_lambda * tnr_diff(sum_left_fair)) / self.n_outputs
+            impurity_right[0] = ((1-f_lambda) * entropy_right + f_lambda * tnr_diff(sum_right_fair)) / self.n_outputs
+        elif strcmp(self.fair_fun, ppv):
+            impurity_left[0] = ((1-f_lambda) * entropy_left + f_lambda * ppv_diff(sum_left_fair)) / self.n_outputs
+            impurity_right[0] = ((1-f_lambda) * entropy_right + f_lambda * ppv_diff(sum_right_fair)) / self.n_outputs
+        elif strcmp(self.fair_fun, pnr):
+            impurity_left[0] = ((1-f_lambda) * entropy_left + f_lambda * pnr_diff(sum_left_fair)) / self.n_outputs
+            impurity_right[0] = ((1-f_lambda) * entropy_right + f_lambda * pnr_diff(sum_right_fair)) / self.n_outputs
+        else:
+            impurity_left[0] = entropy_left / self.n_outputs
+            impurity_right[0] = entropy_right / self.n_outputs
+
+
+
+        
 
 
 cdef class RegressionCriterion(Criterion):

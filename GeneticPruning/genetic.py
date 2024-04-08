@@ -7,7 +7,9 @@ from sklearn.metrics import accuracy_score
 from individual import Individual
 from individual import Individual_NSGA2
 from sympy import symbols, nsolve
-import random, copy
+import random
+import copy
+import math
 import pandas as pd
 from ml import create_gen_stats_df, update_gen_stats_df, create_gen_population_df, update_gen_population
 from joblib import Parallel, delayed
@@ -380,7 +382,7 @@ class Genetic_Pruning_Process():
 
             # Select random leaf
             leaf = copy.deepcopy(random.choice(leaves))
-            move_distance = int(self.struc.clf.tree_.max_depth / 10)
+            move_distance = random.randint(1, math.ceilself.struc.clf.tree_.max_depth / 10)
             # After having selected the leaf, we will now select the mutation applied over that leaf.
             if random.random() > 0.5:
                 # Move up
