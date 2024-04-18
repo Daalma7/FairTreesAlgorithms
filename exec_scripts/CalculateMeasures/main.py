@@ -1,20 +1,14 @@
-import matplotlib.pyplot as plt
-import pandas as pd
 from math import ceil
-import random
-import csv
 import sys
-import time
 import warnings
-import importlib
 import os
-import re
-import seaborn as sns
+import numpy as np
+from scipy.stats import rankdata
 warnings.filterwarnings("ignore")
 
 sys.path.insert(1, os.path.dirname(os.path.dirname(__file__)))
 from qualitymeasures import hypervolume, spacing, maximum_spread, error_ratio, overall_pareto_front_spread, generational_distance, inverted_generational_distance, ideal_point, nadir_point, algorithm_proportion, diff_val_test_rate, coverage
-from calculatemeasures_aux import read_overall_pareto_files, plot_generation_stats, plot_algorithm_metrics, plot_diff_val_test, create_total_pareto_optimal, calculate_general_pareto_front_measures, calculate_algorithm_pareto_front_measures, calculate_algorithm_pareto_front_measures, coverage_analysis
+from calculatemeasures_aux import read_overall_pareto_files, plot_generation_stats, plot_algorithm_metrics, plot_diff_val_test, create_total_pareto_optimal, calculate_general_pareto_front_measures, calculate_algorithm_pareto_front_measures, calculate_algorithm_pareto_front_measures, coverage_analysis, metrics_ranking, hyperparameter_plots
 
 #Dictionary to propperly create individuals given the objectives
 quality_measures = ['Mean solutions', 'Proportion', 'Hypervolume', 'Spacing', 'Maximum spread', 'Overall PF spread',  'Error ratio', 'GD', 'Inverted GD']
@@ -55,15 +49,6 @@ for i in range(1, len(sys.argv)):           #We're going to read all parameters
     if not valid and param[0] == 'ngen':              #Number of generations for the algorithm
         ngen = valid = True
         generations = int(param[1])
-    
-    if not valid and param[0] == 'dat':               #Name of the dataset
-        dat = valid = True
-        dataset = param[1]
-        assert dataset in datasetlist
-        sens_col = dict_protected[dataset]
-        y_col = dict_outcomes[dataset]
-        print("\n- y=" + y_col)
-        print("\n- prot=" + sens_col)
 
     
     if not valid and param[0] == 'bseed':             #Base seed for the 1st run of the algorithm
@@ -133,13 +118,6 @@ if not ngen:
     #generations = 300       #Default number of generations for the algorithm: 300
     generations = 300
     print("- ngen=" + str(generations))
-if not dat:
-    dataset = 'german'      #Default dataset: german
-    sens_col = dict_protected[dataset]
-    y_col = dict_outcomes[dataset]
-    print("- dat=" + dataset)
-    print("- y=" + dict_outcomes[dataset])
-    print("- prot=" + dict_protected[dataset])
     
 if not bseed:
     set_seed_base = 100             #Base seed for the 1st run of the algorithm
@@ -176,46 +154,75 @@ if not extraobj is None:
 ###################################################################################################################
 ###################################################################################################################
 
-
-
-
 #measures_df, measures_df_2 = create_results_df()
 models = ['DT', 'FDT', 'GP', 'FLGBM']
+model_ranking = {}
+all_indivs = None
 
-print("Plotting generations stats...")
-plot_generation_stats(dataset, models, set_seed_base, n_runs, individuals, generations, objectives, extraobj)
+for dataset in ['adult', 'compas', 'german', 'ricci', 'obesity', 'insurance', 'student', 'diabetes', 'parkinson', 'dutch']:
+    print("-----------------")
+    print(f"Calculating metrics and images for {dataset} dataset:")
+    sens_col = dict_protected[dataset]
+    y_col = dict_outcomes[dataset]
 
-# Read all pareto files for the given models 
-print("Reading pareto optimal elements...")
-indiv_lists = read_overall_pareto_files(dataset, models, set_seed_base, individuals, generations, objectives, extraobj)
+    print("Plotting generations stats...")
+    plot_generation_stats(dataset, models, set_seed_base, n_runs, individuals, generations, objectives, extraobj)
 
-indiv_list = [indiv for alist in indiv_lists for indiv in alist]
+    # Read all pareto files for the given models 
+    print("Reading pareto optimal elements...")
+    indiv_lists = read_overall_pareto_files(dataset, models, set_seed_base, individuals, generations, objectives, extraobj)
 
-# Then, we calculate the pareto optimal individuals from all those considered
-print("Calculating optimal pareto individuals from all runs...")
-pareto_optimal = create_total_pareto_optimal(indiv_list, dataset, models, set_seed_base, individuals, generations, objectives, extraobj)
+    indiv_list = [indiv for alist in indiv_lists for indiv in alist]
 
-# Measures for the general pareto front
-print("Calculating measures for general pareto front...")
-po_results = calculate_general_pareto_front_measures(pareto_optimal, dataset, objectives, extraobj)
-
-print("Calculating difference between validation and test sets...")
-plot_diff_val_test(dataset, models, indiv_lists, objectives)
-
-# Measures for each algorithm's pareto front
-print("Calculating measures for each algorithm's pareto front")
-results = None
-for alist in indiv_lists:
-    new_results = calculate_algorithm_pareto_front_measures(alist, pareto_optimal, objectives, extraobj)
-    if results is None:
-        results = {meas: [new_results[meas]] for meas in new_results}
+    # For general hyperparameters study:
+    if all_indivs is None:
+        all_indivs = indiv_lists
     else:
-        [results[meas].append(new_results[meas]) for meas in new_results]
+        for i, model in enumerate(models):
+            all_indivs[i] = all_indivs[i] + indiv_lists[i]
 
-plot_algorithm_metrics(results, po_results, models, dataset)
+    # Then, we calculate the pareto optimal individuals from all those considered
+    print("Calculating optimal pareto individuals from all runs...")
+    pareto_optimal = create_total_pareto_optimal(indiv_list, dataset, set_seed_base, individuals, generations, objectives, extraobj)
+
+    # Measures for the general pareto front
+    print("Calculating measures for general pareto front...")
+    po_results = calculate_general_pareto_front_measures(pareto_optimal, dataset, objectives, extraobj)
+
+
+    print("Calculating difference between validation and test sets...")
+    plot_diff_val_test(dataset, models, indiv_lists, objectives)
+
+    # Measures for each algorithm's pareto front
+    print("Calculating measures for each algorithm's pareto front")
+    results = None
+    for alist in indiv_lists:
+        new_results = calculate_algorithm_pareto_front_measures(alist, pareto_optimal)
+        if results is None:
+            results = {meas: [new_results[meas]] for meas in new_results}
+        else:
+            [results[meas].append(new_results[meas]) for meas in new_results]
+
+    # Store information about quality metrics for final rankings.
+    for elem in results:
+        if not elem in model_ranking:
+            model_ranking[elem] = rankdata(results[elem]) - 1
+        else:
+            model_ranking[elem] += rankdata(results[elem]) - 1
+    
+    plot_algorithm_metrics(results, po_results, models, dataset)
+
+    coverage_analysis(models, indiv_lists, dataset)
+
+    hyperparameter_plots(models, indiv_lists, dataset)
+
+metrics_ranking(models, model_ranking)
+
+print(all_indivs)
+hyperparameter_plots(models, all_indivs)
+
 
 #calculate_median_values()
-#coverage_analysis(models, indiv_lists, dataset, models, set_seed_base, individuals, generations, objectives, extraobj)
 
 
 

@@ -206,10 +206,10 @@ class Problem:
             individual = IndividualFLGBMGrea()
         individual.id = ''.join(random.choice(string.ascii_uppercase + string.digits) for _ in range(10))
         if num == 'first':
-            individual.features = [1, 31, 20, None, 0.1, 100, 1.0, 20]
+            individual.features = [31, 20, None, 0.1, 100, 1.0, 20, 1]
         else:
-            individual.features = [1, 31, 20, None, 0.01, 100, 1.0, 20]
-        hyperparameters = ['lamb', 'num_leaves', 'min_data_in_leaf', 'max_depth', 'learning_rate', 'n_estimators', 'feature_fraction']
+            individual.features = [31, 20, None, 0.01, 100, 1.0, 20, 1]
+        hyperparameters = ['num_leaves', 'min_data_in_leaf', 'max_depth', 'learning_rate', 'n_estimators', 'feature_fraction', 'fair_param']
         individual.features = od(zip(hyperparameters, individual.features))
         individual.features = decode(self.variables_range, "FLGBM", **individual.features)
         individual.creation_mode = "initialization"
@@ -250,9 +250,9 @@ class Problem:
                 individual = IndividualFLGBM()
             if kind == 'grea':
                 individual = IndividualFLGBMGrea()
-            hyperparameters = ['lamb', 'num_leaves', 'min_data_in_leaf', 'max_depth', 'learning_rate', 'n_estimators', 'feature_fraction']
+            hyperparameters = ['num_leaves', 'min_data_in_leaf', 'max_depth', 'learning_rate', 'n_estimators', 'feature_fraction', 'fair_param']
         
-        individual.id = ''.join(random.choice(string.ascii_uppercase + string.digits) for _ in range(10))          
+        individual.id = ''.join(random.choice(string.ascii_uppercase + string.digits) for _ in range(10))
         individual.features = [random.uniform(*x) for x in self.variables_range]
         individual.features = od(zip(hyperparameters, individual.features))
         individual.features = decode(self.variables_range, self.model, **individual.features)
@@ -275,7 +275,7 @@ class Problem:
         if self.expand and not individual.calc_objectives:
             individual.calc_objectives=True
             hyperparameters = individual.features
-            learner = train_model(self.x_train, self.y_train, self.variable_name, self.seed, self.model, **hyperparameters) #Model training
+            learner = train_model(self.x_train, self.y_train, self.variable_name, self.seed, self.model, self.x_val, self.y_val, **hyperparameters) #Model training
             pred = val_model(self.x_val, learner)          #Model validation
 
             y_fair = evaluate_fairness(self.x_val, self.y_val, pred, self.variable_name)        #For getting objectives using validation data
@@ -324,9 +324,11 @@ class Problem:
                 
             elif first_individual and (self.model == "FLGBM"):
                 var_range_list = list(self.variables_range)
-                var_range_list[3] = (self.variables_range[3][0], get_max_depth_FLGBM(self.x_train, self.y_train, self.variable_name, self.seed, **hyperparameters)) #Model training
+                var_range_list[2] = (self.variables_range[2][0], get_max_depth_FLGBM(self.x_train, self.y_train, self.variable_name, self.seed, **hyperparameters)) #Model training
+                var_range_list[5] = (1.0 / float(self.x_train.shape[1]), self.variables_range[5][1])
                 self.variable_range = []
                 self.variables_range = tuple(var_range_list)
+                print(self.variables_range)
             
             if self.model == "DT" or self.model == "FDT":          #Depending on the model we will have different sets of hyperparameters for that model
                 depth, leaves, data_avg_depth, depth_unbalance = print_properties_tree(learner)      #Size attributes for Decision Tree individuals
@@ -460,8 +462,8 @@ class Problem:
                     dict_dataframe = {**dict_general_info, **dict_objectives, **dict_test, **dict_hyperparameters}
 
             if self.model == "FLGBM":
-                lamb, num_leaves, min_data_in_leaf, max_depth, learning_rate, n_estimators, feature_fraction = [item[1] for item in indiv_list]
-                dict_hyperparameters= {'lamb': [lamb], 'num_leaves' : [num_leaves], 'min_data_in_leaf':[min_data_in_leaf], 'max_depth':[max_depth], 'learning_rate': [learning_rate], 'n_estimators': [n_estimators], 'feature_fraction': [feature_fraction]}
+                num_leaves, min_data_in_leaf, max_depth, learning_rate, n_estimators, feature_fraction, fair_param= [item[1] for item in indiv_list]
+                dict_hyperparameters= {'num_leaves' : [num_leaves], 'min_data_in_leaf':[min_data_in_leaf], 'max_depth':[max_depth], 'learning_rate': [learning_rate], 'n_estimators': [n_estimators], 'feature_fraction': [feature_fraction], 'fair_param': [fair_param]}
                 if self.extra != None:
                     dict_dataframe = {**dict_general_info, **dict_objectives, **dict_extra, **dict_test, **dict_extra_test, **dict_hyperparameters}
                 else:
@@ -527,7 +529,7 @@ class Problem:
                     hyperparameters = ['max_iter','tol', 'lambda', 'l1_ratio', 'class_weight']
                 if self.model == "FLGBM":
                     indiv = IndividualFLGBM()
-                    hyperparameters = ['lamb', 'num_leaves', 'min_data_in_leaf', 'max_depth', 'learning_rate', 'n_estimators', 'feature_fraction']
+                    hyperparameters = ['num_leaves', 'min_data_in_leaf', 'max_depth', 'learning_rate', 'n_estimators', 'feature_fraction', 'fair_param']
                 indiv.features = [row[x] for x in hyperparameters]
                 indiv.id = row['ID']
                 indiv.domination_count = 0
@@ -556,7 +558,7 @@ class Problem:
                 all_indivs.append(indiv)
             for indiv in all_indivs:                       #Now we calculate all the individuals non dominated by any other (pareto front)
                 for other_indiv in all_indivs:
-                    if other_indiv.dominates(indiv):                
+                    if other_indiv.dominates(indiv):
                         indiv.domination_count += 1                        #Indiv is dominated by the second
                 if indiv.domination_count == 0:                            #Could be done easily more efficiently, but could be interesting 
                     pareto_optimal.append(indiv)
@@ -572,6 +574,7 @@ class Problem:
                 if not found:
                     pareto_optimal.remove(p)
             #We extract them to a file
+            print('a')
             pareto_optimal_df = pd.concat(pareto_optimal_df)
             pareto_optimal_df = pareto_optimal_df.drop_duplicates(subset=(['seed']+hyperparameters), keep='first')
             pareto_optimal_df.to_csv(f"{PATH_TO_RESULTS}{self.model}/{method}/pareto_individuals/overall/{self.dataset_name}/{self.dataset_name}_seed_{seed}_var_{self.variable_name}_gen_{self.num_of_generations}_indiv_{self.num_of_individuals}_model_{self.model}_obj_{self.get_obj_string()}{self.get_extra_string()}.csv", index = False, header = True, columns = list(pareto_fronts.keys()))

@@ -4,10 +4,9 @@ python ../HyperparameterOptimization/bin/main.py nind=150 ngen=300 alg=nsga2 dat
 
 python ../HyperparameterOptimization/bin/main.py nind=150 ngen=300 alg=nsga2 dat=german bseed=100 nruns=10 model=FLGBM obj=gmean_inv,fpr_diff &
 
-#FALLO
 python ../HyperparameterOptimization/bin/main.py nind=150 ngen=300 alg=nsga2 dat=ricci bseed=100 nruns=10 model=FLGBM obj=gmean_inv,fpr_diff &
 
-python ../HyperparameterOptimization/bin/main.py nind=150 ngen=300 alg=nsga2 dat=obesity bseed=100 nruns=10 model=FLGBM obj=gmean_inv,fpr_diff
+python ../HyperparameterOptimization/bin/main.py nind=150 ngen=300 alg=nsga2 dat=obesity bseed=100 nruns=10 model=FLGBM obj=gmean_inv,fpr_diff &
 
 python ../HyperparameterOptimization/bin/main.py nind=150 ngen=300 alg=nsga2 dat=insurance bseed=100 nruns=10 model=FLGBM obj=gmean_inv,fpr_diff &
 

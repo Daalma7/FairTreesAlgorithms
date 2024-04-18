@@ -191,7 +191,7 @@ class IndividualFDT(Individual):
 
 
     def dominates(self, other_individual):
-        super().dominates_standard(other_individual)
+        return super().dominates_standard(other_individual)
         
 
 ###################################################
@@ -284,7 +284,7 @@ class IndividualLR(Individual):
         super().__init__()
 
     def dominates(self, other_individual):
-        super().dominates_standard(other_individual)
+        return super().dominates_standard(other_individual)
         
 
 ###################################################
@@ -383,7 +383,7 @@ class IndividualFLGBM(Individual):
         super().__init__()
 
     def dominates(self, other_individual):
-        super().dominates_standard(other_individual)
+        return super().dominates_standard(other_individual)
         
 
 

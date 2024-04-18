@@ -49,8 +49,8 @@ class Evolution:
             dict_hyperparameters= {'max_iter': [max_iter], 'tol': [tol], 'lambda': [lambd], 'l1_ratio': [l1_ratio], 'class_weight': [class_weight]}
             dict_dataframe = {**dict_general_info, **dict_objectives, **dict_hyperparameters}
         if self.problem.model == "FLGBM":
-            lamb, num_leaves, min_data_in_leaf, max_depth, learning_rate, n_estimators, feature_fraction = [item[1] for item in indiv_list]
-            dict_hyperparameters= {'lamb': [lamb], 'num_leaves' : [num_leaves], 'min_data_in_leaf':[min_data_in_leaf], 'max_depth':[max_depth], 'learning_rate': [learning_rate], 'n_estimators': [n_estimators], 'feature_fraction': [feature_fraction]}
+            num_leaves, min_data_in_leaf, max_depth, learning_rate, n_estimators, feature_fraction, fair_param= [item[1] for item in indiv_list]
+            dict_hyperparameters= {'num_leaves' : [num_leaves], 'min_data_in_leaf':[min_data_in_leaf], 'max_depth':[max_depth], 'learning_rate': [learning_rate], 'n_estimators': [n_estimators], 'feature_fraction': [feature_fraction], 'fair_param': [fair_param]}
             dict_actual_dimensions = {'n_estimators': indiv.actual_n_estimators, 'n_features': indiv.actual_n_features, 'feature_importance_std': indiv.actual_feature_importance_std}
             dict_dataframe = {**dict_general_info, **dict_objectives, **dict_actual_dimensions, **dict_hyperparameters}
         return pd.DataFrame(dict_dataframe)

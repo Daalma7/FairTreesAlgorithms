@@ -46,7 +46,7 @@ def spacing(indivs):
             - Spacing metric of these individuals
     """
     if len(indivs) < 2:
-        return 1
+        return 0
     else:
         distances = []          #Calculates minimal ||.||_1 distance of each individual to any other individual in the population
         for indiv in indivs:
@@ -58,12 +58,16 @@ def spacing(indivs):
                     cur_dist += abs(indiv.objectives_test[i]-other_indiv.objectives_test[i])
                 if cur_dist < dist and not cur_dist == 0 :
                     dist = cur_dist
-            distances.append(dist)
+            if dist == float('inf'):
+                distances.append(0)
+            else:
+                distances.append(dist)
         mean_dist = np.mean(np.array(distances))
         spac = 0                #Final calculation
         for dist in distances:
             spac += (mean_dist-dist)**2
         return math.sqrt(spac / float(len(distances) -1))
+
 
 
 

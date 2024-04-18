@@ -7,58 +7,23 @@ from sklearn.datasets import load_breast_cancer
 import os
 import contextlib
 
-"""
-def _positive_sigmoid(x):
-    return 1 / (1 + np.exp(-x))
-
-def _negative_sigmoid(x):
-    exp = np.exp(x)
-    return exp / (exp + 1)
-
-def sigmoid(x):
-    positive = x >= 0
-    negative = ~positive
-    result = np.empty_like(x)
-    result[positive] = _positive_sigmoid(x[positive])
-    result[negative] = _negative_sigmoid(x[negative])
-    return result
-"""
-
-
 
     
 class FairLGBM:
+    """
+    Class representing the FairLGBM algorithm.
+    """
     
-    def __init__(self, lamb, proc, fair_c, lgbm_params):
-        self.lamb = lamb
-        self.proc = proc
-        self.fair_c = fair_c
-        #lgb.register_obj(self.bce_fair_loss)
+    def __init__(self, fair_param, prot, fair_fun, lgbm_params):
+        self.fair_param = fair_param
+        self.prot = prot
+        self.fair_fun = fair_fun
+        assert self.fair_fun in ['fpr_diff', 'ppv_diff', 'pnr_diff']
+        self.C = None
         lgbm_params['objective'] = self.bce_fair_loss
         self.lgbm_params = lgbm_params
         self.model = None
 
-    def _positive_sigmoid(self, x):
-        """
-        Auxiliary method for calculating positive sigmoids
-            Parameters:
-                - x: value for which compute the sigmoid function
-            Returns:
-                - Value of the sigmoid function
-        """
-        return 1 / (1 + np.exp(-x))
-    
-    def _negative_sigmoid(self, x):
-        """
-        Auxiliary method for calculating negative sigmoids
-            Parameters:
-                - x: value for which compute the sigmoid function
-            Returns:
-                - Value of the sigmoid function
-        """
-        exp = np.exp(x)
-        return exp / (exp + 1)
-        
     def sigmoid(self, x):
         """
         Calculation of a sigmoid value
@@ -67,12 +32,7 @@ class FairLGBM:
             Returns:
                 - Value of the sigmoid function
         """
-        positive = x >= 0
-        negative = ~positive
-        result = np.empty_like(x)
-        result[positive] = self._positive_sigmoid(x[positive])
-        result[negative] = self._negative_sigmoid(x[negative])
-        return result
+        return 1 / (1 + np.exp(-x))
 
 
     def _positive_softplus(self, x):
@@ -126,29 +86,9 @@ class FairLGBM:
         grad = 0
         hess = 0
         y = data.get_label()
-        p = data.get_data()[self.proc]
-        t = self.sigmoid(z)
-
-        if self.fair_c == 'fpr':
-            s01 = (np.logical_and(y==1, p==1)).astype(int)
-            s00 = (np.logical_and(y==1, p==0)).astype(int)
-            sum_s01 = np.sum(s01)
-            sum_s00 = np.sum(s00)
-            fracdiff = np.dot(sum_s00 * s01 - sum_s01 * s00, t) / (sum_s01 * sum_s00)
-            
-            if not fracdiff == 0:
-                lastpart = (s01 / sum_s01 - s00 / sum_s00) * np.sign(fracdiff) 
-                grad = self.lamb * (t - y) + (1 - self.lamb) * (1 - y) * t * (1 - t) * lastpart
-                hess = self.lamb * t * (1 - t) + (1 - self.lamb) * (1 - y) * t * (1 - t) * (1 - 2*t) * lastpart
-            else:
-                grad = (t - y)
-                hess = t * (1 - t)
-        
-        if self.fair_c == 'ppv':
-            pass
-
-        if self.fair_c == 'pnr':
-            pass
+        s = self.sigmoid(z)
+        grad = (1 - self.fair_param) * (s - y) - self.fair_param * self.C * s * (1 - s)
+        hess = (1 - self.fair_param) * s * (1 - s) - self.fair_param * self.C * ((s * (1 - s)**2) - (s**2 * (1 - s)))
         return grad, hess
         
 
@@ -162,10 +102,10 @@ class FairLGBM:
                 - grad : Gradient of the loss function
                 - hess: Hessian of the loss function
         """
-        t = data.get_label()
-        y = self.sigmoid(z)
-        grad = y - t
-        hess = y * (1 - y)
+        y = data.get_label()
+        s = self.sigmoid(z)
+        grad = s - y
+        hess = s * (1 - s)
         return grad, hess
 
 
@@ -193,7 +133,8 @@ class FairLGBM:
                 - Metric name, value for the metric, and Boolean value indicating if a higher value is better or not
         """
         y = data.get_label()
-        loss = y * self.softplus(-z) + (1 - y) * (self.softplus(z) - np.abs(np.dot(sum_s00 * s01 - sum_s01 * s00, self.softplus(z)) / (sum_s01 * sum_s00)))
+        s = self.sigmoid(z)
+        loss = - (1-self.fair_param) * (y * np.log(s) + (1 - y) * np.log(1 - s))- self.fair_param * np.abs(np.dot(self.p_01_val, s) / np.sum(self.p_01_val) - np.dot(self.p_00_val, s) / np.sum(self.p_00_val))
         return 'bce_fair', loss.mean(), False
 
 
@@ -208,11 +149,24 @@ class FairLGBM:
             Returns:
                 - a copy of the object, with the trained objective function
         """
+
         lgb_train = lgb.Dataset(X_train, y_train, free_raw_data=False)
-        #with open(os.devnull, 'w') as f, contextlib.redirect_stdout(f):
-        #self.model = lgb.train(self.lgbm_params, lgb_train, feval=self.bce_eval)
+        if self.fair_fun == 'fpr_diff':
+            self.p_00 = np.where( (y_train == 0) & (X_train[self.prot] == 0), 1, 0)
+            self.p_01 = np.where( (y_train == 0) & (X_train[self.prot] == 1), 1, 0)
+            self.C = np.abs(self.p_01 / np.sum(self.p_01) - self.p_00 / np.sum(self.p_00))
+            if not X_val is None and not y_val is None:
+                self.p_00_val = np.where( (y_val == 0) & (X_val[self.prot] == 0), 1, 0)
+                self.p_01_val = np.where( (y_val == 0) & (X_val[self.prot] == 1), 1, 0)
+
+        elif self.fair_fun == 'ppv_diff':
+            pass
+        elif self.fair_fun == 'pnr_diff':
+            pass
+
         if not X_val is None and not y_val is None:
-            self.model = lgb.train(self.lgbm_params, lgb_train, eval_set=[X_val, y_val])
+            lgb_val = lgb.Dataset(data=X_val, label=y_val, reference=lgb_train)
+            self.model = lgb.train(self.lgbm_params, lgb_train, valid_sets=[lgb_val], feval=self.bce_fair_eval, callbacks=[lgb.early_stopping(10)])
         else:
             self.model = lgb.train(self.lgbm_params, lgb_train)
         return self
@@ -226,9 +180,6 @@ class FairLGBM:
             Returns:
                 - predictions
         """
-        #print(self.model.predict(X_test))
-        #print(self.sigmoid(self.model.predict(X_test)))
-        #print((self.sigmoid(self.model.predict(X_test)) > 0.5).astype(int))
         return (self.sigmoid(self.model.predict(X_test)) > 0.5).astype(int)
 
 

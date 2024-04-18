@@ -17,26 +17,22 @@ from joblib import Parallel, delayed
 import time
 
 class Genetic_Pruning_Process():
-
     """
     Class that repreesents a genetic process.
     """
 
     indiv_class = Individual
 
-
     def __init__(self, struc, objs_string, num_gen, num_indiv, prob_cross, prob_mutation):
-
         """
         Class constructor
-
-        Parameters:
-        - struc: Tree structure with all calculated metrics, from the individual.Tree_Structure class
-        - objs_string: Strings defining our objective functions for the optimization process
-        - num_gen: Number of generations
-        - num_indiv: Number of individuals of our population
-        - prob_cross: Probability of crossover
-        - prob_mutation: Probability of mutation
+            Parameters:
+                - struc: Tree structure with all calculated metrics, from the individual.Tree_Structure class
+                - objs_string: Strings defining our objective functions for the optimization process
+                - num_gen: Number of generations
+                - num_indiv: Number of individuals of our population
+                - prob_cross: Probability of crossover
+                - prob_mutation: Probability of mutation
         """
 
         self.struc = struc
@@ -53,7 +49,6 @@ class Genetic_Pruning_Process():
     def initial_population(self):
         """
         Creates the initial population.
-        
         In this case, it is equally likely to prune each node at equal depth.
         """
 
@@ -100,16 +95,14 @@ class Genetic_Pruning_Process():
     def lex_compare(self, a, b):
         """
         Auxiliary function for lexicographical comparison between 2 arrays
-
-        Parameters:
-        - a: First array
-        - b: Second array
-
-        Returns:
-        - c: Code of which array goest first wrt lexicographical order
-            0 if both are equal
-            1 if a < b (a is lower)
-            2 if a > b (b is lower)
+            Parameters:
+                - a: First array
+                - b: Second array
+            Returns:
+                - c: Code of which array goest first wrt lexicographical order
+                    0 if both are equal
+                    1 if a < b (a is lower)
+                    2 if a > b (b is lower)
         """
 
         newa = np.array(a[:min(len(a), len(b))])  # Subarray with the length of the shortests one
@@ -130,14 +123,12 @@ class Genetic_Pruning_Process():
     def crossover(self, indiv1, indiv2):
         """
         Crossover between 2 individuals
-        
-        Parameters:
-        - indiv1: First parent individual
-        - indiv2: Second parent individual
-
-        Returns:
-        - newindiv1: First child individual
-        - newindiv2: Second child individual
+            Parameters:
+                - indiv1: First parent individual
+                - indiv2: Second parent individual
+            Returns:
+                - newindiv1: First child individual
+                - newindiv2: Second child individual
         """
         
         # If both individuals represent no prunings, they will be returned
@@ -238,9 +229,8 @@ class Genetic_Pruning_Process():
         """
         Applies tournament criterion over population, returning parents population.
         It is currently implemented for single objective functions
-
-        Returns:
-        - new_pop: parents population
+            Returns:
+                - new_pop: parents population
         """
         
         new_pop = []    # Population of nodes winning the tournament
@@ -282,9 +272,8 @@ class Genetic_Pruning_Process():
     def pop_crossover(self, parents, parallel=False):
         """
         Applies crossover over parents population
-
-        Returns:
-        - new_pop: new children population
+            Returns:
+                - new_pop: new children population
         """
         new_pop = []                    # Children population
         longi = len(parents)
@@ -309,13 +298,11 @@ class Genetic_Pruning_Process():
         """
         Return an element given a probability dictionary, and a random value
         This is an auxiliary function
-
-        Parameters:
-        - prob_dict: dictionary with probabilities. The sum of the values has to be 1
-        - rand: random value between 0 and 1
-
-        Returns:
-        - k: selected key from the dictionary
+            Parameters:
+                - prob_dict: dictionary with probabilities. The sum of the values has to be 1
+                - rand: random value between 0 and 1
+            Returns:
+                - k: selected key from the dictionary
         """
         total = 0
         for k, v in prob_dict.items():
@@ -328,12 +315,10 @@ class Genetic_Pruning_Process():
     def mutation(self, indiv):
         """
         Applies mutations randomly over an individual. The mutations may not happen at all, depends of probability
-
-        Parameters:
-        - indiv: individual for which the mutation will be done
-
-        Returns:
-        - objectives_val: its objectives value
+            Parameters:
+                - indiv: individual for which the mutation will be done
+            Returns:
+                - objectives_val: its objectives value
         """
 
         rand_modify = np.random.random()
@@ -538,12 +523,10 @@ class Genetic_Pruning_Process():
     def genetic_optimization(self, seed):
         """
         Defines the whole optimization process
-
-        Parameters:
-        - seed: Random seed
-
-        Returns:
-        - self.population: Population after the genetic optimization process
+            Parameters:
+                - seed: Random seed
+            Returns:
+                - self.population: Population after the genetic optimization process
         """
 
         np.random.seed(seed)
@@ -571,11 +554,9 @@ class Genetic_Pruning_Process_NSGA2(Genetic_Pruning_Process):
 
     """
     Class repreesenting a Genetic Pruning Process.
-
     It inherits all methods and structures from the Genetic_Pruning_Process class. Some of them
-    will be redefined
-
-    The individual class from the general file will Individual_NSGA2
+    will be redefined.
+    The individual class from the general file will Individual_NSGA2.
     """
 
     indiv_class = Individual_NSGA2
@@ -585,14 +566,13 @@ class Genetic_Pruning_Process_NSGA2(Genetic_Pruning_Process):
 
         """
         Class constructor
-
-        Parameters:
-        - struc: tree structure with all calculated metrics, from the general.Tree_Structure class
-        - objs: Strings defining the objective functions for the optimization process
-        - num_gen: Number of generations
-        - num_indiv: Number of individuals of the population
-        - prob_cross: Probability of crossover
-        - prob_mutation: Probability of mutation
+            Parameters:
+                - struc: tree structure with all calculated metrics, from the general.Tree_Structure class
+                - objs: Strings defining the objective functions for the optimization process
+                - num_gen: Number of generations
+                - num_indiv: Number of individuals of the population
+                - prob_cross: Probability of crossover
+                - prob_mutation: Probability of mutation
         """
 
         Genetic_Pruning_Process.__init__(self, struc, objs, num_gen, num_indiv, prob_cross, prob_mutation)
@@ -609,9 +589,8 @@ class Genetic_Pruning_Process_NSGA2(Genetic_Pruning_Process):
 
         """
         Calculates the crowding distance of all individuals belonging to a given front
-
-        Parameters:
-        - front: Front for which calculate the crowding distance of each individual
+            Parameters:
+                - front: Front for which calculate the crowding distance of each individual
         """
         if len(front) > 0:
             solutions_num = len(front)
@@ -666,9 +645,8 @@ class Genetic_Pruning_Process_NSGA2(Genetic_Pruning_Process):
     def tournament(self):
         """
         Applies tournament criterion over population, returning parents population.
-
-        Returns:
-        - new_pop: parents population
+            Returns:
+                - new_pop: parents population
         """
 
         self.fast_nondominated_sort()

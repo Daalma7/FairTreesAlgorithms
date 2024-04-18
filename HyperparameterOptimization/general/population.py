@@ -1,7 +1,9 @@
 import math
 
 class Population:
-
+    """
+    Class representing a population of individuals
+    """
     def __init__(self):
         self.population = []
         self.fronts = []
@@ -13,23 +15,39 @@ class Population:
         return self.population.__iter__()
 
     def extend(self, new_individuals):
+        """
+        Extend the population with new individuals
+            Parameters:
+                - new_individuals: New individuals to extend the population
+        """
         self.population.extend(new_individuals)
 
     def append(self, new_individual):
+        """
+        Append the population with a new individual
+            Parameters:
+                - new_individuals: New individual to append to the population
+        """
         self.population.append(new_individual)
 
 
 class PopulationGrea(Population):
-
+    """
+    Class reprsenting a population of individuals, using the GrEA algorithm
+    """
     def __init__(self, div):
         super().__init__()
         self.upper = [] #Upper boundries for each grid dimension
         self.lower = [] #Lower boundries for each grid dimension
         self.div = div  #Number of divisions to make in each dimension of the grid
     
-    #Returns grid boundries for that population
-    #HAS TO BE INVOKED AFTER EVERY POPULATION SELECTION or initialization
     def calculate_grid_boundries(self):
+        """
+        Calculate grid boundries for that population
+        Has to be invoked after every population selection or initialization
+            Returns:
+                - grid boundries for that population
+        """
         self.upper = []
         self.lower = []
         for i in range(0, len(self.population[0].objectives)):
@@ -43,8 +61,10 @@ class PopulationGrea(Population):
             self.upper.append(min - (max - min) / (2 * self.div))   #Then apply following formulas
             self.lower.append(max + (max - min) / (2 * self.div))
 
-    #Calculates and updates grid location of all population individuals
     def calculate_grid_locations(self):
+        """
+        Calculates and updates grid location of all population individuals
+        """
         for indiv in self.population:
             loc = []
             for k in range(0, len(self.upper)):
@@ -55,9 +75,12 @@ class PopulationGrea(Population):
                     loc.append(math.floor(float(indiv.objectives[k]-self.lower[k])/d))
             indiv.grid_coordinates = loc
     
-    #Finds the best solution of the current population, having been initialized the
-    #quality measures of all its individuals
+
     def findout_best(self):
+        """
+        Finds the best solution of the current population, having been initialized the
+        quality measures of all its individuals
+        """
         best = self.population[0]
         for i in range(1, len(self.population)):
             if self.population[i].grid_rating < best.grid_rating:
@@ -73,6 +96,9 @@ class PopulationGrea(Population):
         return best
 
     def GR_adjustment(self,q):
+        """
+        Adjust the grid rating of the individuals using a new population.
+        """
         E = [] #Individuals in P which grid difference to q is 0
         N = [] #Individuals in P which grid difference to q is < nº of objectives (neighbours)
         G = [] #Individuals in P which are grid-dominated by q

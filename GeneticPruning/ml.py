@@ -17,16 +17,33 @@ from individual import Individual_NSGA2
 PATH_TO_RESULTS = os.path.dirname(os.path.dirname(os.path.dirname(__file__))) + '/results/GP'
 PATH_TO_DATA = os.path.dirname(os.path.dirname(os.path.dirname(__file__))) + '/datasets/data'
 
-#Reads the dataset to work with. You have to work with preprocessed data, and to ensure it, we will only read the files ending with _preproc
 def read_data(df_name):
+    """
+    Reads the dataset to work with. You have to work with preprocessed data, 
+    and to ensure it, we will only read the files ending with _preproc
+        Parameters:
+            - df_name: Dataset name to read
+        Returns:
+            - df: DataFrame with the information read.
+    """
     df = pd.read_csv(f"{PATH_TO_DATA}/{df_name}.csv", sep = ',')
     if 'Unnamed: 0' in df.columns:
         df = df.drop('Unnamed: 0', axis=1)
     return df
 
 
-#Data preprocessing and splits dataframe into train and test
+
+
+
 def get_matrices(df_name, y_col, seed):
+    """
+    Data preprocessing and splits dataframe into train and test
+        Parameters:
+            - y_col: Name of the attribute to predict
+            - seed: Random seed to make the partition
+        Returns:
+            - X_train, X_val, X_test, y_train, y_val, y_test : Training, validation and tests set divided by X and y
+    """
     df = read_data(df_name)
 
     if df_name == 'compas':
@@ -46,8 +63,19 @@ def get_matrices(df_name, y_col, seed):
     X_train, X_val, y_train, y_val = train_test_split(X_train, y_train, random_state = seed)
     return X_train, X_val, X_test, y_train, y_val, y_test
 
-#Exports to csv files train, validation and test sets
+
+
+
+
 def write_train_val_test(df_name, prot_col, seed, X_train, X_val, X_test, y_train, y_val, y_test):
+    """
+    Exports to csv files train, validation and test sets
+        Parameters:
+            - df_name: Dataset name
+            - prot_col: Name of the protected column
+            - seed: Random seed
+            - X_train, X_val, X_test, y_train, y_val, y_test : Training, validation and tests set divided by X and y
+    """
     train = X_train
     train['y'] = y_train.tolist()
     train.to_csv(f"{PATH_TO_DATA}/train_val_test_standard/{df_name}/{df_name}_{prot_col}_train_seed_{seed}.csv", index = False)
@@ -58,45 +86,107 @@ def write_train_val_test(df_name, prot_col, seed, X_train, X_val, X_test, y_trai
     test['y'] = y_test.tolist()
     test.to_csv(f"{PATH_TO_DATA}/train_val_test_standard/{df_name}/{df_name}_{prot_col}_test_seed_{seed}.csv", index = False)
 
-#Exports obtained decision tree to a png file
+
+
+
+
 def print_tree(classifier, features):
+    """
+    Exports obtained decision tree to a png file
+        Parameters:
+            - classifier: Classifier to print
+            - features: Features names
+    """
     dot_data = StringIO()
     export_graphviz(classifier, out_file = dot_data, feature_names = features)
     graph = pydotplus.graph_from_dot_data(dot_data.getvalue())
     graph.write_png("./results/trees/tree.png")
 
-#Returns depth and leaves given a decision tree
+
+
+
+
 def print_properties_tree(learner):
+    """
+    Returns depth and leaves given a decision tree
+        Parameters:
+            - learner: model to get properties
+        Returns:
+            - depth: depth of the model
+            - leaves: number of leaves of the model
+            - w_avg_depth: depth weighted by the number of instances that fall into each leaf.
+    """
     depth = learner.get_depth()
     leaves = learner.get_n_leaves()
     w_avg_depth = data_weight_avg_depth(learner)
     return depth, leaves, w_avg_depth
 
-# TODO: modificar esto
-def save_model(learner, dataset_name, seed, variable_name, num_of_generations, num_of_individuals, individual_id, model, method, objectives):
-    # save the model to disk
+def save_model(learner, seed, prot, num_of_generations, num_of_individuals, individual_id, objectives):
+    """
+    Saves the model to disk
+        Parameters:
+            - learner: Learner to save
+            - seed: Random seed
+            - prot: Name of the protected attribute
+            - num_of_generations: Number of generations
+            - num_of_individuals: Number of individuals
+            - individual_id: ID of the individual
+            - objectives: objectives function as a string
+    """
     str_obj = objectives[0].__name__
     for i in range(1, len(objectives)):
         str_obj += "__" + objectives[i].__name__
 
-    path = f"./results/{method}/models/{model}/{dataset_name}/"
-    filename =  f"model_id_{individual_id}_seed_{seed}_var_{variable_name}_gen_{num_of_generations}_indiv_{num_of_individuals}_obj_{str_obj}.sav"
+    path = f"{PATH_TO_RESULTS}/graphics/trees/"
+    filename =  f"model_id_{individual_id}_seed_{seed}_var_{prot}_gen_{num_of_generations}_indiv_{num_of_individuals}_obj_{str_obj}.sav"
     pickle.dump(learner, open(path + filename, 'wb'))
     return
 
-#TODO Revisar que se ha hecho bien
-#Validates the classifier (comparison with validation set)
+
+
+
+
 def val_model(X_val, learner):
+    """
+    Validates the classifier (comparison with validation set)
+        Parameters:
+            - X_val: Validation dataset
+            - learner: learner to validate
+        Returns:
+            - results of validation
+    """
     return learner.predict(X_val)
 
-#TODO Revisar que se ha hecho bien
-#Tests the classifier (comparison with test set)
+
+
+
+
+
 def test_model(X_test, learner):
+    """
+    Tests the classifier (comparison with test set)
+        Parameters:
+            - X_test: Test dataset
+            - learner: learner to validate
+        Returns:
+            - results of test
+    """
     return learner.predict(X_test)
 
-#Second complexity measure, that complements the first one.
-#Return the weighted average of the depth of all leaves nodes, considering the number of training samples that fell on each one.
+
+
+
+
 def data_weight_avg_depth(learner):
+    """
+    Second complexity measure, that complements the first one.
+    Return the weighted average of the depth of all leaves nodes,
+    considering the number of training samples that fell on each one.
+        Parameters:
+            - learner: learner to calculate the measures
+        Returns:
+            - weighted average depth
+    """
     stack = [(0,0)]                     #Root node id and its depth
     total_w_depth = 0.0
     tree = learner.tree_
@@ -111,13 +201,30 @@ def data_weight_avg_depth(learner):
     return total_w_depth
 
 
+
+
+
 def generate_random_string(length):
+    """
+    Generates a random string
+        Parameters:
+            - length: length of the string 
+        Returns:
+            - Random string
+    """
     letters_and_digits = string.ascii_uppercase + string.digits
     return ''.join(random.choices(letters_and_digits, k=length))
 
 
-def create_gen_stats_df():
 
+
+
+def create_gen_stats_df():
+    """
+    Creates the dataframe to store generations data
+        Returns:
+            - DataFrame for containing generations data 
+    """
     store_dimensions = ['prunings', 'leaves', 'depth', 'data_avg_depth', 'depth_unbalance']
     
     new_dict = {}
@@ -132,8 +239,20 @@ def create_gen_stats_df():
     return pd.DataFrame(data=new_dict)
 
 
-def update_gen_stats_df(store_df, newpop, p_time, t_time):
 
+
+
+def update_gen_stats_df(store_df, newpop, p_time, t_time):
+    """
+    Updates the generations info dataframe to store info of a new generation
+        Parameters:
+            - store_df: Dataframe which stores generations data
+            - newpop: Population of the new generation
+            - p_time: Process time for creating the new population
+            - t_time: Total time for creating the new population
+        Returns:
+            - Dataframe containing the updated information
+    """
     store_dimensions = ['prunings', 'leaves', 'depth', 'data_avg_depth', 'depth_unbalance']
     
     dict_store = {}
@@ -163,7 +282,17 @@ def update_gen_stats_df(store_df, newpop, p_time, t_time):
     return pd.concat([store_df, pd.DataFrame([new_row])], ignore_index=True)
 
 
-def create_gen_population_df(obj, seed):
+
+
+
+def create_gen_population_df(obj):
+    """
+    Creates the Dataframe for storing individual information
+        Parameters:
+            - obj: Objectives to optimize
+        Returns:
+            - Dataframe for storing individuals information
+    """
     dict_individual = {'ID': [], 'seed': [], 'creation_mode': []}
 
     for elem in obj:
@@ -175,7 +304,21 @@ def create_gen_population_df(obj, seed):
     
     return pd.DataFrame(dict_individual)
 
+
+
+
+
 def update_gen_population(pop_df, new_pop, obj, seed):
+    """
+    Stores informations of new individuals into the population dataframe
+        Parameters:
+            - pop_df: Dataframe which stores information about individuals
+            - new_pop: List containing new individuals for which to store information
+            - obj: List of objective functions
+            - seed: Random seed
+        Returns:
+            - Dataframe which stores information about individuals with updated information
+    """
     dict_individual = {'ID': [], 'seed': [], 'creation_mode': []}
 
     for elem in obj:
@@ -211,10 +354,26 @@ def update_gen_population(pop_df, new_pop, obj, seed):
 
 
 
-def test_and_save_results(x_test, y_test, prot_test, classifiers, gen_stats_df, population_df, objectives, nind, ngen, dat, var, seed, obj, extra):
-    
+def test_and_save_results(x_test, y_test, prot_test, classifiers, gen_stats_df, population_df, nind, ngen, dat, var, seed, obj, extra):
+    """
+    Test considered models and store the results
+        Parameters:
+            - x_test: Predictor attributes for test datset
+            - y_test: Attribute to predict for test set
+            - prot_test: Protected attribute for test test
+            - classifiers: Classifers to test and store
+            - gen_stats_df: Dataframe containing information of the execution of each generation
+            - population_df: Dataframe containing information of individuals
+            - nind: Number of individuals contained in the population
+            - ngen: Number of generations
+            - dat: Dataset name
+            - var: Name of the protected attribute
+            - seed: Random seed
+            - obj: List of objective functions
+            - extra: Extra objective functions for which the process did optimized
+    """
     save_population_name = save_gen_name = save_pareto_run_name = ''
-    obj_str = '__'.join(objectives)
+    obj_str = '__'.join(obj)
     extra_str = ''
     if not extra is None:
         extra_str = '__'.join(extra)
@@ -264,7 +423,26 @@ def test_and_save_results(x_test, y_test, prot_test, classifiers, gen_stats_df, 
 
 
 
+
+
+# TODO: CAMBIAR LA PARTE DE STRUC, CADA SEED TIENE UN STRUC
 def calculate_pareto_optimal(dat, var, objectives, nind, ngen, seed, runs, extra, struc):
+    """
+    Calculates Pareto optimal individuals from results of all runs
+        Parameters:
+            - dat: Dataset name
+            - var: Protected attribute name
+            - objectives: list of objective functions
+            - nind: Number of individuals contained in the populatin
+            - ngen: Number of generations
+            - seed: Random seed
+            - runs: Number of runs 
+            - extra: Extra objective functions for which the process did optimized
+            - struc: Tree structure of matrix tree
+        Returns:
+            - pareto_optimal: List of Pareto optimal individuals
+            - pareto_optimal_df: Dataframe of Pareto optimal individuals
+    """
     pareto_fronts = []
     all_indivs = []
     pareto_optimal = []

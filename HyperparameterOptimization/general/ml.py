@@ -71,7 +71,10 @@ def decode(var_range, model, **features):
         else:                                   #In other case, we use the upper predefined bound (in fairness.py)
             features['max_depth'] = var_range[1][1]
 
-        features['min_samples_split'] = int(round(features['min_samples_split']))
+        if features['min_samples_split'] is not None:   #If a limit was specified
+            features['min_samples_split'] = int(round(features['min_samples_split']))
+        else:
+            features['max_depth'] = var_range[2][1]
 
         if features['max_leaf_nodes'] is not None:
             features['max_leaf_nodes'] = int(round(features['max_leaf_nodes']))
@@ -80,6 +83,8 @@ def decode(var_range, model, **features):
 
         if features['class_weight'] is not None:        #In case it's None, all classes are supposed to have weight 1
             features['class_weight'] = int(round(features['class_weight']))
+        else:
+            features['class_weight'] = 5
         
         if features['fair_param'] is not None:
             features['fair_param'] = int(round(features['fair_param']))
@@ -100,18 +105,15 @@ def decode(var_range, model, **features):
         hyperparameters = ['max_iter', 'tol', 'lambda', 'l1_ratio', 'class_weight']
         
     if model == "FLGBM":
-        if features['lamb'] is None:
-            features['lamb'] = var_range[0][1]
-        
         if features['num_leaves'] is not None:
             features['num_leaves'] = int(round(features['num_leaves']))
         else:
-            features['num_leaves'] = var_range[1][1]
+            features['num_leaves'] = var_range[0][1]
         
         if features['min_data_in_leaf'] is not None:
             features['min_data_in_leaf'] = int(round(features['min_data_in_leaf']))
         else:
-            features['min_data_in_leaf'] = var_range[2][1]
+            features['min_data_in_leaf'] = var_range[1][1]
 
         if features['max_depth'] is not None:
             features['max_depth'] = int(round(features['max_depth']))
@@ -119,18 +121,24 @@ def decode(var_range, model, **features):
             features['max_depth'] = -1
         
         if features['learning_rate'] is None:
-            features['learning_rate'] = var_range[4][1]
+            features['learning_rate'] = var_range[3][1]
 
         if features['n_estimators'] is not None:
             features['n_estimators'] = int(round(features['n_estimators']))
         else:
-            features['n_estimators'] = var_range[5][1]
+            features['n_estimators'] = var_range[4][1]
         
         if features['feature_fraction'] is None:
-            features['feature_fraction'] = var_range[6][1]
+            features['feature_fraction'] = var_range[5][1]
+
+        if features['fair_param'] is not None:
+            features['fair_param'] = int(round(features['fair_param']))
+        else:                                           #In case it's None, it is supposed that fairness will not be taken into account (classical DT)
+            features['fair_param'] = var_range[6][0]
+
             
         
-        hyperparameters = ['lamb', 'num_leaves', 'min_data_in_leaf', 'max_depth', 'learning_rate', 'n_estimators', 'feature_fraction']
+        hyperparameters = ['num_leaves', 'min_data_in_leaf', 'max_depth', 'learning_rate', 'n_estimators', 'feature_fraction', 'fair_param']
         
     list_of_hyperparameters = [(hyperparameter, features[hyperparameter]) for hyperparameter in hyperparameters]
     features = collections.OrderedDict(list_of_hyperparameters)
@@ -307,7 +315,7 @@ def print_properties_flgbm(learner):
 
 #TODO Revisar que se ha hecho bien
 #TODO Incluir validación en LightGBM
-def train_model(X_train, y_train, prot_col, seed, model, **features):
+def train_model(X_train, y_train, prot_col, seed, model, X_val=None, y_val=None, **features):
     """
     Classifier training
         Parameters:
@@ -368,14 +376,14 @@ def train_model(X_train, y_train, prot_col, seed, model, **features):
         'feature_fraction': features['feature_fraction'],
         'verbose_eval': False
         }
-        clf = FairLGBM(lamb=features['lamb'], proc=prot_col, fair_c='fpr', lgbm_params=lgbm_params)
+        clf = FairLGBM(fair_param=features['fair_param'], prot=prot_col, fair_fun='fpr_diff', lgbm_params=lgbm_params)
     
     if model == "FDT":
         learner = clf.fit(X_train, y_train, prot = prot.to_numpy())
     elif model == "FLGBM":
-        learner = clf.fit(X_train, y_train)
+        learner = clf.fit(X_train, y_train, X_val, y_val)
     else:
-        learner = clf.fit(X_train, y_train)
+        learner = clf.fit(X_train, y_train, X_val, y_val)
 
     return learner
 
@@ -411,7 +419,7 @@ def get_max_depth_FLGBM(X_train, y_train, prot_col, seed, **features):
     'feature_fraction': features['feature_fraction']
     }
     
-    clf = FairLGBM(lamb=features['lamb'], proc=prot_col, fair_c='fpr', lgbm_params=lgbm_params)
+    clf = FairLGBM(fair_param=features['fair_param'], prot=prot_col, fair_fun='fpr_diff', lgbm_params=lgbm_params)
     learner = clf.fit(X_train, y_train)
     return learner.model.trees_to_dataframe()['node_depth'].max()
 

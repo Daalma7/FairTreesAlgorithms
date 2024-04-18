@@ -194,7 +194,7 @@ for run in range(n_runs):
                 print(objectives[i], indiv.objectives[i])
         """
         
-        test_and_save_results(x_test, y_test, prot_test, indivs, gen_stats_df, population_df, objectives, individuals, generations, dataset, sens_col, set_seed, objectives, extraobj)
+        test_and_save_results(x_test, y_test, prot_test, indivs, gen_stats_df, population_df, individuals, generations, dataset, sens_col, set_seed, objectives, extraobj)
 
 
 x_train, x_val, x_test, y_train, y_val, y_test = get_matrices(dataset, y_col, set_seed)

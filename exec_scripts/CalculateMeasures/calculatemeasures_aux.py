@@ -2,14 +2,8 @@ import matplotlib.pyplot as plt
 import pandas as pd
 import seaborn as sns
 import numpy as np
-from math import ceil
-import random
-import csv
 import sys
-import time
-import importlib
 import os
-import re
 import warnings
 warnings.filterwarnings("ignore")
 
@@ -21,6 +15,30 @@ datasetlist = ['academic','adult','arrhythmia','bank','catalunya','compas','cred
 dict_outcomes = {'academic': 'atd','adult': 'income','arrhythmia': 'arrhythmia','bank': 'Subscribed','catalunya': 'recid','compas': 'score','credit': 'NoDefault','crime': 'ViolentCrimesPerPop','default': 'default','diabetes-w': 'Outcome','diabetes': 'readmitted','drugs': 'Coke','dutch': 'status','german': 'Label','heart': 'class','hrs': 'score','insurance': 'charges','kdd-census': 'Label','lsat':'ugpa','nursery': 'class','obesity': 'NObeyesdad','older-adults': 'mistakes','oulad': 'Grade','parkinson': 'total_UPDRS','ricci': 'Combine','singles': 'income','student': 'G3','tic': 'income', 'wine': 'quality','synthetic-athlete': 'Label','synthetic-disease': 'Label','toy': 'Label'}
 dict_protected = {'academic': 'ge','adult': 'Race','arrhythmia': 'sex','bank': 'AgeGroup','catalunya': 'foreigner','compas': 'race','credit': 'sex','crime': 'race','default': 'SEX','diabetes-w': 'Age','diabetes': 'Sex','drugs': 'Gender','dutch': 'Sex','german': 'Sex','heart': 'Sex','hrs': 'gender','insurance': 'sex','kdd-census': 'Sex','lsat':'race','nursery': 'finance','obesity': 'Gender','older-adults': 'sex','oulad': 'Sex','parkinson': 'sex','ricci': 'Race','singles': 'sex','student': 'sex','tic': 'religion','wine': 'color','synthetic-athlete': 'Sex','synthetic-disease': 'Age','toy': 'sst'}
 
+
+hyperparams_alg= {
+    'DT': ['criterion', 'max_depth', 'min_samples_split', 'max_leaf_nodes', 'class_weight'],
+    'FDT': ['criterion', 'max_depth', 'min_samples_split', 'max_leaf_nodes', 'class_weight', 'fair_param'],
+    'GP': ['prunings', 'leaves', 'depth', 'data_avg_depth', 'depth_unbalance'],
+    'FLGBM': ['num_leaves', 'min_data_in_leaf', 'max_depth', 'learning_rate', 'n_estimators', 'feature_fraction', 'fair_param']
+}
+colors_hyperparams = {'criterion': '#f44336',           # Red
+                      'max_depth': '#e81e63',           # Pink
+                      'min_samples_split': '#9c27b0',   # Purple
+                      'max_leaf_nodes': '#673ab7',      # Deep Purple
+                      'class_weight': '#3f51b5',        # Indigo 
+                      'fair_param': '#2196f3',          # Blue
+                      'prunings': '#03a9f4',            # Light Blue
+                      'leaves': '#00bcd4',              # Cyan
+                      'depth': '#009688',               # Teal
+                      'data_avg_depth': '#4caf50',      # Green
+                      'depth_unbalance': '#8bc34a',     # Light Green
+                      'num_leaves': '#cddc39',          # Lime
+                      'min_data_in_leaf': '#ffeb3b',    # Yellow
+                      'learning_rate': '#ffc107',       # Amber
+                      'n_estimators': '#ff9800',        # Orange
+                      'feature_fraction': '#ff5722'     # Deep Orange
+                      }
 
 palette = {'DT': '#1f77b4', 'FDT': '#ff7f0e', 'GP': '#2ca02c', 'FLGBM': '#9467bd', 'Total':'#d62728'}
 palette_obj = {'gmean_inv': '#a1c9f4', 'fpr_diff': '#8de5a1'}
@@ -152,14 +170,14 @@ def read_overall_pareto_files(dataname, models, bseed, nind, ngen, obj, extra):
         indivs.append(new_indiv_list)
 
 
-    plt.title(f"{dataname} individuals' validation objectives")
+    plt.title(f"Pareto optimal sets for {dataname} dataset by algorithm (validation)")
     sns.scatterplot(pd.DataFrame(dict_plot), x=obj[0], y=obj[1], hue='algorithm', alpha=0.5, palette=palette)
-    plt.savefig(f"{PATH_TO_RESULTS}/GeneralGraphics/{dataname}/scatter_val_{dataname}", dpi=200, bbox_inches='tight')
+    plt.savefig(f"{PATH_TO_RESULTS}/GeneralGraphics/{dataname}/scatter_val_{dataname}.pdf", format='pdf', bbox_inches='tight')
     plt.close()
 
-    plt.title(f"{dataname} individuals' test objectives")
+    plt.title(f"Pareto optimal sets for {dataname} dataset by algorithm (test)")
     sns.scatterplot(pd.DataFrame(dict_plot_test), x=obj[0], y=obj[1], hue='algorithm', alpha=0.5, palette=palette)
-    plt.savefig(f"{PATH_TO_RESULTS}/GeneralGraphics/{dataname}/scatter_test_{dataname}", dpi=200, bbox_inches='tight')
+    plt.savefig(f"{PATH_TO_RESULTS}/GeneralGraphics/{dataname}/scatter_test_{dataname}.pdf", format='pdf', bbox_inches='tight')
     plt.close()
 
     return indivs
@@ -167,14 +185,13 @@ def read_overall_pareto_files(dataname, models, bseed, nind, ngen, obj, extra):
 
 
 
-def create_total_pareto_optimal(df_indivs, dataname, models, bseed, nind, ngen, obj, extra):
+def create_total_pareto_optimal(df_indivs, dataname, bseed, nind, ngen, obj, extra):
     """
     Creates the pareto_optimal individuals using all information available of all algorithms.
     It also stores the information in memory.
         Parameters:
             - indivs: List containing all individuals from the overall pareto files for the rest of the parameters
             - dataname: Dataset name to read the files
-            - models: Execution models from which to read (FDT, FLGBM, GP...)
             - bseed: Base seed (only for file name)
             - nind: Number of individuals (only for file name)
             - ngen: Number of generations (only for file name)
@@ -206,7 +223,6 @@ def create_total_pareto_optimal(df_indivs, dataname, models, bseed, nind, ngen, 
                 individual.domination_count += 1                        # We add 1 to its domination count
 
     for individual in df_indivs:
-        stop = 0
         if individual.domination_count == 0:                            # If any solution dominates it
             pareto_optimal.append(individual)
             for feat in individual.features:
@@ -245,14 +261,14 @@ def create_total_pareto_optimal(df_indivs, dataname, models, bseed, nind, ngen, 
     store_df = pd.DataFrame(data=columns)
     store_df.to_csv(f"{PATH_TO_RESULTS}/ParetoOptimal/{dataname}/{dataname}_seed_{bseed}_var_{dict_protected[dataname]}_gen_{ngen}_indiv_{nind}_obj_{obj_str}{extra_str}.csv", index=False)
 
-    plt.title(f"{dataname} individuals' validation objectives")
+    plt.title(f"Pareto optimal set for {dataname} dataset (validation)")
     sns.scatterplot(pd.DataFrame(dict_plot), x=obj[0], y=obj[1], hue='algorithm', alpha=0.5, palette=palette)
-    plt.savefig(f"{PATH_TO_RESULTS}/GeneralGraphics/{dataname}/scatter_po_val_{dataname}", dpi=200, bbox_inches='tight')
+    plt.savefig(f"{PATH_TO_RESULTS}/GeneralGraphics/{dataname}/scatter_po_val_{dataname}.pdf", format='pdf', bbox_inches='tight')
     plt.close()
 
-    plt.title(f"{dataname} individuals' test objectives")
+    plt.title(f"Pareto optimal set for {dataname} dataset (test)")
     sns.scatterplot(pd.DataFrame(dict_plot_test), x=obj[0], y=obj[1], hue='algorithm', alpha=0.5, palette=palette)
-    plt.savefig(f"{PATH_TO_RESULTS}/GeneralGraphics/{dataname}/scatter_po_test_{dataname}", dpi=200, bbox_inches='tight')
+    plt.savefig(f"{PATH_TO_RESULTS}/GeneralGraphics/{dataname}/scatter_po_test_{dataname}.pdf", format='pdf', bbox_inches='tight')
     plt.close()
     return pareto_optimal
     
@@ -287,7 +303,7 @@ def calculate_quality_metrics():
 
 
 
-def calculate_general_pareto_front_measures(pareto_optimal, dataname, obj, extra):
+def calculate_general_pareto_front_measures(pareto_optimal, dataname, obj, extra=None):
     """
     Calculate quality metrics and all other kinds of metrics for the general pareto front
         Parameters:
@@ -325,7 +341,7 @@ def calculate_general_pareto_front_measures(pareto_optimal, dataname, obj, extra
         return my_format
     plt.pie(results['Proportion'].values(), labels = results['Proportion'].keys(), autopct=autopct_format(results['Proportion'].values()), colors=[palette[x] for x in results['Proportion'].keys()])
     plt.title(f"Pie plot showing proportion of each algorithm for {dataname} dataset")
-    plt.savefig(f"{PATH_TO_RESULTS}/GeneralGraphics/{dataname}/pie_proportion_{dataname}", dpi=200, bbox_inches='tight')
+    plt.savefig(f"{PATH_TO_RESULTS}/GeneralGraphics/{dataname}/pie_proportion_{dataname}.pdf", format='pdf', bbox_inches='tight')
     plt.close()
     return results
 
@@ -333,11 +349,12 @@ def calculate_general_pareto_front_measures(pareto_optimal, dataname, obj, extra
 
 
 
-def calculate_algorithm_pareto_front_measures(indivs, pareto_optimal, obj, extra):
+def calculate_algorithm_pareto_front_measures(indivs, pareto_optimal):
     """
     Calculate quality metrics and all other kinds of metrics for the overall pareto front of a given algorithm
         Parameters:
-            - indivs: list of the pareto optimal individuals to which calculate the metrics
+            - indivs: list of individuals (typically pareto optimal individuals of some algorithm) which calculate the metrics
+            - pareto_optimal: list of pareto optimal solutions among all algorithms and runs, the best of the best
         Returns:
             - results: Measured metrics
     """
@@ -350,12 +367,20 @@ def calculate_algorithm_pareto_front_measures(indivs, pareto_optimal, obj, extra
     results['Generational Distance'] = generational_distance(indivs, pareto_optimal)                  # Generational distance
     results['Inverted Generational Distance'] = inverted_generational_distance(indivs, pareto_optimal)        # Inverted generational distance
 
-
     return results
 
 
-# TODO: Poner bonita
-def plot_diff_val_test(dataname, models, indivs_list, obj):
+def plot_diff_val_test(dataname, models, indivs_list, obj, filter=True, p_iqr=5):
+    """
+    Plots the difference between validation and test sets
+        Parameters:
+            - dataname: Name of the dataset
+            - models: list containing the name of the algorithms to evaluate
+            - indivs_list: list containing the individuals for which to calculate
+            - obj: objectives to calculate the difference
+            - filter: boolean value which indicates wether to filter really extreme values or not
+            - p_iqr: multiplying parameter for iqr to select individuals to filter
+    """
     cumm_df = None
     for i in range(len(models)):
         if cumm_df is None:
@@ -363,10 +388,23 @@ def plot_diff_val_test(dataname, models, indivs_list, obj):
         else:
             cumm_df = pd.concat([cumm_df, diff_val_test_rate(models[i], indivs_list[i], obj)])
     
-    sns.barplot(cumm_df, x='algorithm', y='val-test', hue='measure', palette=[palette_obj[x] for x in obj])
+    print("PREV: ", cumm_df)
+    # Filtering (greatly benefits the graphic)
+    if filter:
+        for alg in models:
+            part_cumm_df = cumm_df.loc[cumm_df['algorithm'] == alg]
+            iqr = part_cumm_df['val-test'].quantile(0.75) - part_cumm_df['val-test'].quantile(0.25)
+            mean = part_cumm_df['val-test'].mean()
+            cumm_df = cumm_df.drop(cumm_df.loc[(cumm_df['algorithm'] == 'alg') & (cumm_df['val-test'] > mean + p_iqr*iqr)].index)
+            cumm_df = cumm_df.drop(cumm_df.loc[(cumm_df['algorithm'] == 'alg') & (cumm_df['val-test'] < mean - p_iqr*iqr)].index)
+
+    print("POST: ", cumm_df)
+
+    
+    sns.violinplot(cumm_df, x='algorithm', y='val-test', width=0.9, hue='measure', palette=[palette_obj[x] for x in obj], density_norm='width')
     plt.title("Relation between validation and test results (overfit)")
     plt.ylabel('Validation - Test results')
-    plt.savefig(f"{PATH_TO_RESULTS}/GeneralGraphics/{dataname}/barplot_overfit_{dataname}.png", dpi=200, bbox_inches='tight')
+    plt.savefig(f"{PATH_TO_RESULTS}/GeneralGraphics/{dataname}/violin_overfit_{dataname}.pdf", format='pdf', bbox_inches='tight')
     plt.close()
 
 
@@ -451,10 +489,12 @@ def calculate_median_values():
 
 def plot_algorithm_metrics(results, po_results, models, dataname):
     """
-    Plot results metrics for each dataset
+    Plot comparative barplots showing quality metrics among models
         Parameters:
             - results: Results dictionary
+            - po_result: 
             - models: All considered models
+            - dataname: Name of the dataset
     """
     highlow_dict = {'Hypervolume': 'Higher',
                     'Spacing': 'Higher',
@@ -484,7 +524,7 @@ def plot_algorithm_metrics(results, po_results, models, dataname):
             if not elem == 'models':
                 sns.barplot(data, x='models', y=elem, hue='models', palette=[palette[x] for x in data['models']])
                 plt.title(f"Barplot showing {elem} for {dataname} dataset\n({highlow_dict[elem]} is better)")
-                plt.savefig(f"{PATH_TO_RESULTS}/GeneralGraphics/{dataname}/barplot_{elem}_{dataname}.png", dpi=200, bbox_inches='tight')
+                plt.savefig(f"{PATH_TO_RESULTS}/GeneralGraphics/{dataname}/barplot_{elem}_{dataname}.pdf", format="pdf", bbox_inches='tight')
                 plt.close()
     
     
@@ -498,7 +538,7 @@ def coverage_analysis(algorithms, indiv_lists, dataname):
     Performs a coverage analysis over the pareto front individuals belonging to the given populations
         Parameters:
             - algorithms: Different algorithms employed
-            - indiv_list: Lists of individual object which are the solutions for each algorithm
+            - indiv_list: List of individual object which are the solutions for each algorithm
             - dataname: Name of the dataset
     """
     # TODO: Drop duplicate individuals
@@ -510,17 +550,19 @@ def coverage_analysis(algorithms, indiv_lists, dataname):
             df_algorithms[algorithms[j]].append(coverage(indiv_lists[i], indiv_lists[j]))
     
     df = pd.DataFrame(df_algorithms, index=algorithms)
-    print(df)
-    sns.heatmap(df, annot=True, cmap='Blues', fmt=".4f", annot_kws={'size':16})
+    #print(df)
+    sns.heatmap(df, annot=True, cmap='Blues', vmin=0, vmax=1, fmt=".4f", annot_kws={'size':16})
     plt.xlabel("Covered")
     plt.ylabel("Covering")
-    plt.savefig(f"{PATH_TO_RESULTS}/GeneralGraphics/{dataname}/coverage_{dataname}.png", dpi=200, bbox_inches='tight')
+    plt.savefig(f"{PATH_TO_RESULTS}/GeneralGraphics/{dataname}/coverage_{dataname}.pdf", format='pdf', bbox_inches='tight')
     plt.close()
 
 
 
 def plot_generation_stats(dataname, models, bseed, runs, nind, ngen, obj, extra):
-
+    """
+    Previous function which calls to the line_evolution function. It specifies the parameters to execute it.
+    """
     obj_str, extra_str = get_str(obj, extra)
 
     # First step, read all dataframes containing generation stats
@@ -559,7 +601,19 @@ def plot_generation_stats(dataname, models, bseed, runs, nind, ngen, obj, extra)
     
    
 def line_evolution(dataname, model, mean_df, std_df, metrics, include_ext=True, plot_std=True, store=False):
-
+    """
+    Plot line plots showing evolution of different parameters through generations
+        Parameters:
+            - dataname: Name of the dataset
+            - model: String containing the algorithm employed 
+            - bseed: Base random seed
+            - ngen: Number of generations
+            - indiv: Number of individuals within the population
+            - obj_str: String containing the objective functions
+            - metrics: Metrics to take into account
+            - include_ext: Include extra objectives or not 
+            - store: Boolean attribute. If true, the graphic is stored. In any other case, it will be plotted on screen
+    """
     fig, axes = plt.subplots(len(metrics), 1, figsize=(15, 3*len(metrics)), sharey=False)
     fig.suptitle(f"Metrics of Fair Decision Trees in each generation")
     plt.gcf().subplots_adjust(bottom=0.1)
@@ -601,8 +655,71 @@ def line_evolution(dataname, model, mean_df, std_df, metrics, include_ext=True, 
     fig.tight_layout()
 
     if store:
-        plt.savefig(f"{PATH_TO_RESULTS}/GeneralGraphics/{dataname}/gen_evolution_{dataname}_{model}.png", dpi=200, bbox_inches='tight')
+        plt.savefig(f"{PATH_TO_RESULTS}/GeneralGraphics/{dataname}/gen_evolution_{dataname}_{model}.pdf", format='pdf', bbox_inches='tight')
         plt.close()
     else:
         plt.show()
 
+
+
+
+def metrics_ranking(models, results):
+    """
+    Plot rankinkgs as barplots of each quality metric for all datasets
+        Parameters:
+            - models: list containing strings of names of algorithms which were used
+            - results: dictionary containing each metric as key, and the rankings of each model as value
+    """
+    for elem in results:
+        sns.barplot(x=models, y=results[elem], hue=models, palette=[palette[x] for x in models])
+        plt.title(f"Barplot showing rakings for {elem} metric")
+        plt.savefig(f"{PATH_TO_RESULTS}/GeneralGraphics/rankings/ranking_{elem}.pdf", format="pdf", bbox_inches='tight')
+        plt.close()
+
+
+
+def hyperparameter_plots(algorithms, indiv_lists, dataname=None):
+    """
+    Plots violinplots for every attribute on a Pareto front set.
+        Parameters:
+            - algorithms: Different algorithms employed
+            - indiv_list: List of individual object which are the solutions for each algorithm
+            - dataname: Name of the dataset
+    """
+    print(dataname)
+    for alg, ind_list in zip(algorithms, indiv_lists):
+        hyperparam_df = pd.DataFrame(data={param:[ind.features[param] for ind in ind_list] for param in hyperparams_alg[alg]})
+        if alg == 'FDT':
+            hyperparam_df = hyperparam_df.fillna(5)
+        
+        # Assert there aren't any null value
+        assert(hyperparam_df, hyperparam_df.isnull().sum().sum() == 0)
+
+        correlation = hyperparam_df.corr()
+
+        # Correlation heatmap (Corrplot)
+        sns.heatmap(correlation, annot=True, cmap='coolwarm', vmin=-1, vmax=1, fmt=".2f", annot_kws={'size':16})
+        if dataname is None:
+            plt.title(f"Corrplot of hyperparameters for {alg} and all datasets")
+            plt.savefig(f"{PATH_TO_RESULTS}/GeneralGraphics/hyperparameters/corrplot_{alg}.pdf", format="pdf", bbox_inches='tight')
+            plt.close()
+        else:
+            plt.title(f"Corrplot of hyperparameters for {alg} and {dataname} dataset")
+            plt.savefig(f"{PATH_TO_RESULTS}/GeneralGraphics/{dataname}/corrplot_{alg}_{dataname}.pdf", format="pdf", bbox_inches='tight')
+            plt.close()
+
+        # Violinplot for each hyperparameter
+        for param in hyperparams_alg[alg]:
+            sns.violinplot(hyperparam_df, y=param, width=0.8, color=colors_hyperparams[param])
+            if dataname is None:
+                plt.title(f"Violin plot of {param} for {alg} and all datasets")
+                plt.ylabel(f"{param}")
+                plt.xlabel("Density")
+                plt.savefig(f"{PATH_TO_RESULTS}/GeneralGraphics/hyperparameters/violin_{alg}_{param}.pdf", format="pdf", bbox_inches='tight')
+                plt.close()
+            else:
+                plt.title(f"Violin plot of {param} for {alg} and {dataname} dataset")
+                plt.ylabel(f"{param}")
+                plt.xlabel("Density")
+                plt.savefig(f"{PATH_TO_RESULTS}/GeneralGraphics/{dataname}/violin_{alg}_{param}_{dataname}.pdf", format="pdf", bbox_inches='tight')
+                plt.close()

@@ -19,14 +19,13 @@ class Tree_Structure:
 
         """
         Class constructor
-
-        Parameters:
-        - x_train: Prediction information with which our base decision tree will be trained
-        - y_train: Class information with which our base decision tree will be trained
-        - prot_train: Protected attribute information with which our base decision tree will be trained
-        - x_val: Prediction information values for validation
-        - y_val: Class information values for validation
-        - prot_val: Protected attribute valuess for validation
+            Parameters:
+                - x_train: Prediction information with which our base decision tree will be trained
+                - y_train: Class information with which our base decision tree will be trained
+                - prot_train: Protected attribute information with which our base decision tree will be trained
+                - x_val: Prediction information values for validation
+                - y_val: Class information values for validation
+                - prot_val: Protected attribute valuess for validation
         """
 
         self.x_train = x_train
@@ -63,19 +62,16 @@ class Tree_Structure:
         """
         This function calculates different structures for the base classifier in order to be more
         efficient calculating each individual objectives metrics
-
-        Returns:
-        - fair_dict: Dictionary indicating well classified examples inside that node
-            - keys: set representing the node using its decision path
-            - values: list of lists of integers indicating the class and the protected attribute of the node.
-                - First dimension = class
-                - Second dimension = protected attribute
-
-        - total_samples_dict: Dictionary indicating total amount of training examples that fall into that node
-            - keys: set representing the node using its decision path
-            - values: integer indicating the total amount of training examples that fall in that node
-        
-        - base_leaves: Array containing the representation of the leave nodes that the base tree has 
+            Returns:
+                - fair_dict: Dictionary indicating well classified examples inside that node
+                    - keys: set representing the node using its decision path
+                    - values: list of lists of integers indicating the class and the protected attribute of the node.
+                        - First dimension = class
+                        - Second dimension = protected attribute
+                - total_samples_dict: Dictionary indicating total amount of training examples that fall into that node
+                    - keys: set representing the node using its decision path
+                    - values: integer indicating the total amount of training examples that fall in that node
+                - base_leaves: Array containing the representation of the leave nodes that the base tree has 
         """
         children_left = self.clf.tree_.children_left
         children_right = self.clf.tree_.children_right
@@ -97,9 +93,6 @@ class Tree_Structure:
             fair_template.append([])
             for j in range(pd.unique(self.prot_train).shape[0]):   # Second dimension represents the protected attribute
                 fair_template[i].append(0)
-        
-
-        
         
         list_ids = [] # List of node ids
         stack = [(0, [])]  # start with the root node id (0) and its depth (0)
@@ -220,10 +213,8 @@ class Tree_Structure:
     def calc_pruning_space(self, verbose=False):
         """
         This function defines the pruning (search) space. 
-        
-        Returns:
-        - repr_space: Tuple containing all possible node codes from which the prunings
-                    can be done
+            Returns:
+                - repr_space: Tuple containing all possible node codes from which the prunings can be done
         """
 
         children_left = self.clf.tree_.children_left
@@ -255,11 +246,9 @@ class Tree_Structure:
         """
         Defines the probability of each node for being selected if our population
         in each initial population individual. 
-        
         The strategy which is followed is to give each depth the same probability to be prunned.
-        
-        Returns:
-        - dict_prob: Dictionary containing the probability for each node of being selected
+            Returns:
+                - dict_prob: Dictionary containing the probability for each node of being selected
         """
 
         maxlen = 0
@@ -278,12 +267,10 @@ class Tree_Structure:
     def node_accuracy(self, repre):
         """
         Calculates the accuracy of a given node of the tree.
-
-        Parameters:
-        - repr: Representation of the node
-
-        Returns:
-        - accuracy: Accuracy of the node
+            Parameters:
+                - repr: Representation of the node
+            Returns:
+                - accuracy: Accuracy of the node
         """
 
         acc = []
@@ -297,12 +284,10 @@ class Tree_Structure:
     def number_of_indivs(self, repre):
         """
         Calculates the number of individuals in a given node.
-
-        Parameters:
-        - repr: Representation of the node
-
-        Returns:
-        - num: Amount of individuals in the node
+            Parameters:
+                - repr: Representation of the node
+            Returns:
+                - num: Amount of individuals in the node
         """
 
         num = 0
@@ -316,12 +301,10 @@ class Tree_Structure:
     def children_nodes(self, sing_prun):
         """
         Returns which are the children nodes from a pruning space, if they exist.
-
-        Parameters:
-        - sing_prun: the pruning code from which calculate the children nodes
-
-        Returns:
-        - children: the children codes of the pruning, if any. They are returned as tuples
+            Parameters:
+                - sing_prun: the pruning code from which calculate the children nodes
+            Returns:
+                - children: the children codes of the pruning, if any. They are returned as tuples
         """
 
         children = []
@@ -350,11 +333,10 @@ class Individual:
 
         """
         Class constructor
-
-        Parameters:
-        - struc: tree structure with all calculated metrics, from the general.Tree_Structure class
-        - objs_string: Strings defining the objective functions for the optimization process
-        - repr: Representation of the individual
+            Parameters:
+                - struc: tree structure with all calculated metrics, from the general.Tree_Structure class
+                - objs_string: Strings defining the objective functions for the optimization process
+                - repr: Representation of the individual
         """
 
         self.struc = struc
@@ -377,9 +359,8 @@ class Individual:
         Calculates the objectives value of a certain individual. For doing so, the actual
         pruning is calculated over the base classifier and its results are used.
         Result metrics for the optimization process are computed used validation data.
-
-        Returns:
-        - objectives_val: its objectives value
+            Returns:
+                - objectives_val: its objectives value
         """
 
         true_clf = self.get_tree()
@@ -458,12 +439,10 @@ class Individual:
         """
         Checks if the individual dominates another one.
         We understand this problem as a minimization one.
-
-        Parameters:
-        - other: other individual to be checked
-
-        Returns:
-        - True if the individual dominates the other one, False otherwise
+            Parameters:
+                - other: other individual to be checked
+            Returns:
+                - True if the individual dominates the other one, False otherwise
         """
         and_condition = True
         or_condition = False
@@ -476,9 +455,8 @@ class Individual:
     def get_tree(self):
         """
         Returns the actual tree, given the current representation
-
-        Returns:
-        - The DecisionTreeClassifier associated with the current individual's representation
+            Returns:
+                - The DecisionTreeClassifier associated with the current individual's representation
         """
     
         # We will modify in this case the internal tree structure. More precisely, the structure controlling right and left children
@@ -532,13 +510,12 @@ class Individual:
         Calculates the objectives value of a certain individual. For doing so, the actual
         pruning is calculated over the base classifier and its results are used.
         Result metrics for the optimization process are computed used test data.
-
-        Parameters:
-        - x_test: x test information the same way as in x_train and x_val
-        - y_test: y test information the same way as in y_train and y_val
-        - prot_test: prot test information the same way as in prot_train and prot_val
-        Returns:
-        - objectives_val: its objectives value
+            Parameters:
+                - x_test: x test information the same way as in x_train and x_val
+                - y_test: y test information the same way as in y_train and y_val
+                - prot_test: prot test information the same way as in prot_train and prot_val
+            Returns:
+                - objectives_val: its objectives value
         """
 
         true_clf = self.get_tree()
@@ -618,10 +595,8 @@ class Individual:
         """
         Returns individual's representation using the nodes id of the prunings, instead
         of the code which represent how to travel the tree to get to them
-
-
-        Returns:
-        - id_repre: individual's representation in terms of node ids
+            Returns:
+                - id_repre: individual's representation in terms of node ids
         """
         
         id_repre = []
@@ -649,10 +624,9 @@ class Individual_NSGA2(Individual):
     def __init__(self, struc, objs_string, repre, creation_mode, objectives=None):
         """
         Class constructor
-
-        Parameters:
-        - struc: tree structure with all calculated metrics, from the general.Tree_Structure class
-        - repr: Representation of the individual
+            Parameters:
+                - struc: tree structure with all calculated metrics, from the general.Tree_Structure class
+                - repr: Representation of the individual
         """
         Individual.__init__(self, struc, objs_string, repre, creation_mode, objectives)
         self.domination_count=0

@@ -23,7 +23,19 @@ print(obj_str)
 
 
 def line_evolution(dataname, model, bseed, ngen, indiv, obj_str, metrics, include_ext=True, store=False):
-
+    """
+    Plot line plots showing evolution of different parameters through generations
+        Parameters:
+            - dataname: Name of the dataset
+            - model: String containing the algorithm employed 
+            - bseed: Base random seed
+            - ngen: Number of generations
+            - indiv: Number of individuals within the population
+            - obj_str: String containing the objective functions
+            - metrics: Metrics to take into account
+            - include_ext: Include extra objectives or not 
+            - store: Boolean attribute. If true, the graphic is stored. In any other case, it will be plotted on screen
+    """
     if not model is 'GP':
         data = pd.read_csv(f"{PATH_TO_RESULTS}/{model}/nsga2/generation_stats/{dataname}/{dataname}_seed_{bseed}_var_{dict_protected[dataname]}_gen_{ngen}_indiv_{indiv}_model_{model}_obj_{obj_str}.csv")
     else:
@@ -54,15 +66,25 @@ def line_evolution(dataname, model, bseed, ngen, indiv, obj_str, metrics, includ
     fig.tight_layout()
 
     if store:
-        plt.savefig(f"{PATH_TO_RESULTS}/FDT/nsga2/graphics/{dataname}/{dataname}_evolution_lines.png")
+        plt.savefig(f"{PATH_TO_RESULTS}/FDT/nsga2/graphics/{dataname}/{dataname}_evolution_lines.pdf", format="pdf")
     else:
         plt.show()
 
 
 
 
-def plot_2d_solutions(dataname, model, bseed, ngen, indiv, obj_str, metrics, store=False):
-
+def plot_2d_solutions(dataname, model, bseed, ngen, indiv, obj_str, store=False):
+    """
+    Does a scatterplot of solutions
+        Parameters:
+            - dataname: Name of the dataset
+            - model: String containing the algorithm employed
+            - bseed: Base random seed
+            - ngen: Number of generations
+            - indiv: Number of individuals within the population
+            - obj_str: String containing the objective functions
+            - store: Boolean attribute. If true, the graphic is stored. In any other case, it will be plotted on screen
+    """
     if not model is 'GP':
         data = pd.read_csv(f"{PATH_TO_RESULTS}/{model}/nsga2/generation_stats/{dataname}/{dataname}_seed_{bseed}_var_{dict_protected[dataname]}_gen_{ngen}_indiv_{indiv}_model_{model}_obj_{obj_str}.csv")
     else:
@@ -104,6 +126,34 @@ def plot_scatter_matrix():
 
 def plot_correlation_heatmap():
     pass
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 """
 #data is supposed to be 2d data
 def plot_2d_mean_pareto(nonsortdata, pre_objectives, title, filename):
