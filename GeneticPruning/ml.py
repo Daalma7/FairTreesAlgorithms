@@ -423,10 +423,68 @@ def test_and_save_results(x_test, y_test, prot_test, classifiers, gen_stats_df, 
 
 
 
+def correct_pareto_optimal(dat, var, objectives, nind, ngen, seed, i, extra, struc):
 
+    obj_str = '__'.join(objectives) 
+    extra_str = ''
+    if not extra is None:
+        extra_str = '__'.join(extra)
+        extra_str = '_ext_' + extra_str
+
+    all_indivs = []
+    pareto_optimal = []
+    pareto_fronts = pd.read_csv(f"{PATH_TO_RESULTS}/pareto_individuals/runs/{dat}/{dat}_seed_{seed + i}_var_{var}_gen_{ngen}_indiv_{nind}_model_GP_obj_{obj_str}{extra_str}.csv")
+    hyperparameters = []
+    pareto_fronts.reset_index(drop=True, inplace=True)                  #Reset index because for each run all rows have repeated ones
+    for index, row in pareto_fronts.iterrows():                         #We create an individual object associated with each row
+        indiv = Individual_NSGA2(struc, objectives, row['repre'], row['creation_mode'], [float(row[f"{obj}_val"]) for obj in objectives])
+        hyperparameters = ['repre']
+        indiv.features = [row[x] for x in hyperparameters]
+        indiv.id = row['ID']
+        indiv.domination_count = 0
+        indiv.features = od(zip(hyperparameters, indiv.features))
+        indiv.objectives = []
+        for obj in objectives:
+            if not obj == "None":                   #The objective doesn't need to be normalized to the range [0,1]
+                indiv.objectives.append(float(row[f"{obj}_val"]))
+            else:                                   #In other case
+                indiv.objectives.append(float(row[f"{obj}_val"]) / pareto_fronts[f"{obj}_val"].max())
+        #The same with extra objectives
+        indiv.extra = []
+        if not extra is None: 
+            for ext in extra:
+                # We will insert all objectives, normalizing every objective that should be
+                if not extra == "None":                   #The objective doesn't need to be normalized to the range [0,1]
+                    indiv.extra.append(float(row[f"{ext}_val"]))
+                else:                                   #In other case
+                    indiv.extra.append(float(row[f"{ext}_val"]) / pareto_fronts[f"{ext}_val"].max())
+        indiv.creation_mode = row['creation_mode']
+        all_indivs.append(indiv)
+    for indiv in all_indivs:                       #Now we calculate all the individuals non dominated by any other (pareto front)
+        indiv.domination_count == 0
+        for other_indiv in all_indivs:
+            if other_indiv.dominates(indiv):                
+                indiv.domination_count += 1                        #Indiv is dominated by the second
+        if indiv.domination_count == 0:                            #Could be done easily more efficiently, but could be interesting 
+            pareto_optimal.append(indiv)
+    pareto_optimal_df = []
+    for p in pareto_optimal:                #We select individuals from the files corresponding to the pareto front ones (we filter by id)
+        curr_id = p.id                      #BUT IF THERE ARE MORE THAN 1 INDIVIDUAL WITH THE SAME ID THEY WILL ALL BE ADDED, EVEN THOUGHT ONLY 1 OF THEM IS A PARETO OPTIMAL SOLUTION
+        found = False                       #Which is by the way really unlikely since there are 36^10 possibilities for an id
+        for index, row in pareto_fronts.iterrows():
+            if row['ID'] == curr_id:
+                pareto_optimal_df.append(pd.DataFrame({x : row[x] for x in pareto_fronts.columns.tolist()}, index=[0])) #We introduce here the not-normalized version of them
+                found = True
+        if not found:
+            pareto_optimal.remove(p)
+    #We extract them to a file
+    pareto_optimal_df = pd.concat(pareto_optimal_df)
+    pareto_optimal_df = pareto_optimal_df.drop_duplicates(subset=(['seed']+hyperparameters), keep='first')
+
+    pareto_optimal_df.to_csv(f"{PATH_TO_RESULTS}/pareto_individuals/runs/{dat}/{dat}_seed_{seed + i}_var_{var}_gen_{ngen}_indiv_{nind}_model_GP_obj_{obj_str}{extra_str}.csv", index=False)
 
 # TODO: CAMBIAR LA PARTE DE STRUC, CADA SEED TIENE UN STRUC
-def calculate_pareto_optimal(dat, var, objectives, nind, ngen, seed, runs, extra, struc):
+def calculate_pareto_optimal(dat, var, objectives, nind, ngen, seed, runs, extra, struc, correct=True):
     """
     Calculates Pareto optimal individuals from results of all runs
         Parameters:
@@ -453,6 +511,8 @@ def calculate_pareto_optimal(dat, var, objectives, nind, ngen, seed, runs, extra
         extra_str = '_ext_' + extra_str
     
     for i in range(runs):
+        if correct:
+            correct_pareto_optimal(dat, var, objectives, nind, ngen, seed, i, extra, struc)
         save_pareto_run_name = f"{PATH_TO_RESULTS}/pareto_individuals/runs/{dat}/{dat}_seed_{seed + i}_var_{var}_gen_{ngen}_indiv_{nind}_model_GP_obj_{obj_str}{extra_str}.csv"
         read = pd.read_csv(save_pareto_run_name)
         pareto_fronts.append(read)
@@ -460,7 +520,6 @@ def calculate_pareto_optimal(dat, var, objectives, nind, ngen, seed, runs, extra
     hyperparameters = []
     pareto_fronts = pd.concat(pareto_fronts)                            #Union of all pareto fronts got in each run
     pareto_fronts.reset_index(drop=True, inplace=True)                  #Reset index because for each run all rows have repeated ones
-    print(pareto_fronts)
     for index, row in pareto_fronts.iterrows():                         #We create an individual object associated with each row
         indiv = Individual_NSGA2(struc, objectives, row['repre'], row['creation_mode'], [float(row[f"{obj}_val"]) for obj in objectives])
         hyperparameters = ['repre']

@@ -1,7 +1,10 @@
 import matplotlib.pyplot as plt
 import pandas as pd
 import seaborn as sns
+sns.set_theme()
+
 import numpy as np
+from scipy.interpolate import PchipInterpolator
 import sys
 import os
 import warnings
@@ -40,9 +43,15 @@ colors_hyperparams = {'criterion': '#f44336',           # Red
                       'feature_fraction': '#ff5722'     # Deep Orange
                       }
 
-palette = {'DT': '#1f77b4', 'FDT': '#ff7f0e', 'GP': '#2ca02c', 'FLGBM': '#9467bd', 'Total':'#d62728'}
+palette = {'DT': '#1f77b4', 'DT-mean': '#0e3653',
+           'FDT': '#ff7f0e', 'FDT-mean': '#8f4300',
+           'GP': '#2ca02c', 'GP-mean': '#185818',
+           'FLGBM': '#9467bd', 'FLGBM-mean': '#553375',
+           'Total':'#d62728'}
 palette_obj = {'gmean_inv': '#a1c9f4', 'fpr_diff': '#8de5a1'}
-sns.set_style("darkgrid")
+
+sns.set_theme(style='darkgrid', palette='bright')
+sns.set_style('darkgrid')
 
 class Individual(object):
     """
@@ -111,7 +120,7 @@ def create_results_df():
 
 
 
-def read_overall_pareto_files(dataname, models, bseed, nind, ngen, obj, extra):
+def read_runs_pareto_files(dataname, models, bseed, nind, ngen, obj, extra, n_runs=10):
     """
     Read all individuals of the overall pareto files, for each model considered
         Parameters:
@@ -129,6 +138,7 @@ def read_overall_pareto_files(dataname, models, bseed, nind, ngen, obj, extra):
     obj_str, extra_str = get_str(obj, extra)
     
     indivs = []
+    indivs_part = []
 
     dict_plot = {obj[i]: [] for i in range(len(obj))}
     dict_plot['algorithm'] = []
@@ -136,38 +146,42 @@ def read_overall_pareto_files(dataname, models, bseed, nind, ngen, obj, extra):
     dict_plot_test['algorithm'] = []
 
     for model in models:
-        new_indiv_list = []
+        indivs_part = []
         if model in ['DT', 'FDT', 'FLGBM']:
             prev_path = f"{PATH_TO_RESULTS}/{model}/nsga2/"
         else:
             prev_path = f"{PATH_TO_RESULTS}/{model}"
+        for run in range(n_runs):
+            new_indiv_list = []
+            pareto_optimal_df = pd.read_csv(f"{prev_path}/pareto_individuals/runs/{dataname}/{dataname}_seed_{bseed + run}_var_{dict_protected[dataname]}_gen_{ngen}_indiv_{nind}_model_{model}_obj_{obj_str}{extra_str}.csv")
 
-        pareto_optimal_df = pd.read_csv(f"{prev_path}/pareto_individuals/overall/{dataname}/{dataname}_seed_{bseed}_var_{dict_protected[dataname]}_gen_{ngen}_indiv_{nind}_model_{model}_obj_{obj_str}{extra_str}.csv")
+            exclude = ['ID', 'creation_mode']
+            for x in obj:
+                exclude.append(x+'_val')
+                exclude.append(x+'_test')
+            for index, row in pareto_optimal_df.iterrows():                         #We create an individual object associated with each row
+                indiv = Individual()
+                indiv.id = row['ID']
+                indiv.algorithm = model
+                indiv.creation_mode = row['creation_mode']
+                indiv.objectives = [row[x+'_val'] for x in obj]
+                indiv.objectives_test = [row[x+'_test'] for x in obj]
+                indiv.rank = None
+                indiv.crowding_distance = None
+                indiv.domination_count = 0
+                indiv.dominated_solutions = 0
+                indiv.features = {a: row[a] for a in pareto_optimal_df.columns if not a in exclude}
+                new_indiv_list.append(indiv)
 
-        exclude = ['ID', 'creation_mode']
-        for x in obj:
-            exclude.append(x+'_val')
-            exclude.append(x+'_test')
-        for index, row in pareto_optimal_df.iterrows():                         #We create an individual object associated with each row
-            indiv = Individual()
-            indiv.id = row['ID']
-            indiv.algorithm = model
-            indiv.creation_mode = row['creation_mode']
-            indiv.objectives = [row[x+'_val'] for x in obj]
-            indiv.objectives_test = [row[x+'_test'] for x in obj]
-            indiv.rank = None
-            indiv.crowding_distance = None
-            indiv.domination_count = 0
-            indiv.dominated_solutions = 0
-            indiv.features = {a: row[a] for a in pareto_optimal_df.columns if not a in exclude}
-            new_indiv_list.append(indiv)
-
-            [dict_plot[obj[i]].append(indiv.objectives[i]) for i in range(len(obj))]
-            dict_plot['algorithm'].append(model)
-            [dict_plot_test[obj[i]].append(indiv.objectives_test[i]) for i in range(len(obj))]
-            dict_plot_test['algorithm'].append(model)
-        
-        indivs.append(new_indiv_list)
+                [dict_plot[obj[i]].append(indiv.objectives[i]) for i in range(len(obj))]
+                dict_plot['algorithm'].append(model)
+                [dict_plot_test[obj[i]].append(indiv.objectives_test[i]) for i in range(len(obj))]
+                dict_plot_test['algorithm'].append(model)
+            indivs_part.append(new_indiv_list)
+        indivs.append([])
+        for lista in indivs_part:
+            for indiv in lista:
+                indivs[-1].append(indiv)
 
 
     plt.title(f"Pareto optimal sets for {dataname} dataset by algorithm (validation)")
@@ -184,8 +198,7 @@ def read_overall_pareto_files(dataname, models, bseed, nind, ngen, obj, extra):
 
 
 
-
-def create_total_pareto_optimal(df_indivs, dataname, bseed, nind, ngen, obj, extra):
+def create_total_pareto_optimal(df_indivs, dataname, bseed, nind, ngen, obj, extra, nruns=10):
     """
     Creates the pareto_optimal individuals using all information available of all algorithms.
     It also stores the information in memory.
@@ -197,11 +210,10 @@ def create_total_pareto_optimal(df_indivs, dataname, bseed, nind, ngen, obj, ext
             - ngen: Number of generations (only for file name)
             - obj: Objectives to consider
             - extra: Extra objectives, for which the algorithm will not optimize
+            - nruns: Number of runs that were executed
         Returns:
             - pareto_optimal: List containing all pareto-optimal individuals
     """
-
-    obj_str, extra_str = get_str(obj, extra)
 
     columns = {'ID': [], 'algorithm':[], 'creation_mode':[]}
     for o in obj:
@@ -209,68 +221,146 @@ def create_total_pareto_optimal(df_indivs, dataname, bseed, nind, ngen, obj, ext
     for o in obj:
         columns[f"{o}_test"] = []
 
-    all_features = []
 
+    # In the first place, we will calculate the synthetic individuals which will conform the 'Pareto Front' for each algorithm
+
+    # We first consider, for each individual, the algorithm which generated it and its objectives values
+    temp_columns = {'algorithm':[]}
+    for o in obj:
+        temp_columns[f"{o}"] = []
+    
+    for indiv in df_indivs:
+        temp_columns['algorithm'].append(indiv.algorithm)
+        for i, o in enumerate(obj):
+            temp_columns[f"{o}"].append(indiv.objectives_test[i])
+
+    # Then we convert it to a pandas DataFrame
+    df_calculate = pd.DataFrame(data=temp_columns)
+    models = df_calculate['algorithm'].unique()
+
+    pareto_optimal_alg = []
+
+    # Finally, we calculate the average pareto optimal set
+    for model in models:
+        pareto_optimal_alg.append([])
+        df_model = df_calculate.loc[df_calculate['algorithm'] == model]
+        num_indivs = round(float(df_model.shape[0]) / nruns)
+        print(model, num_indivs)
+        prev_objectives = [None, None]
+        for i in range(num_indivs):
+            # Ensure that do not consider repeated individuals
+            cur_objectives = [df_model.loc[:, f'{obj[0]}'].quantile(float(i)/(num_indivs-1)), df_model.loc[:, f'{obj[1]}'].quantile(1.0 - float(i)/(num_indivs-1))]
+            if not prev_objectives == cur_objectives:
+                # Correct x values for plotting purposes.
+                if not prev_objectives[0] is None and cur_objectives[0] <= prev_objectives[0]:
+                    cur_objectives[0] = prev_objectives[0] + 1e-15
+                if not prev_objectives[1] is None and cur_objectives[1] >= prev_objectives[1]:
+                    cur_objectives[1] = prev_objectives[1] - 1e-15
+                new_indiv = Individual()
+                new_indiv.algorithm = model
+                new_indiv.creation_mode = 'Pareto Quantile'
+                new_indiv.objectives_test = cur_objectives
+                prev_objectives = cur_objectives
+                pareto_optimal_alg[-1].append(new_indiv)
+        
+        # The correction done can surpass the limits established for the objective space, reason why we need to correct them
+        if pareto_optimal_alg[-1][0].objectives_test[0] < 0 or pareto_optimal_alg[-1][-1].objectives_test[0] > 1:
+            cur_min = pareto_optimal_alg[-1][0].objectives_test[0]
+            cur_max = pareto_optimal_alg[-1][-1].objectives_test[0]
+            for i in range(len(pareto_optimal_alg[-1])):
+                pareto_optimal_alg[-1][i].objectives_test[0] = (pareto_optimal_alg[-1][i].objectives_test[0] - cur_min) / (cur_max - cur_min)
+        if pareto_optimal_alg[-1][0].objectives_test[1] > 1 or pareto_optimal_alg[-1][-1].objectives_test[1] < 0:
+            cur_min = pareto_optimal_alg[-1][-1].objectives_test[1]
+            cur_max = pareto_optimal_alg[-1][0].objectives_test[1] 
+            for i in range(len(pareto_optimal_alg[-1])):
+                pareto_optimal_alg[-1][i].objectives_test[1] = (pareto_optimal_alg[-1][i].objectives_test[1] - cur_min) / (cur_max - cur_min)
+    
+    # After it, we will calculate the optimal individuals among them, to be the 'Total Pareto front'
     # Calculation of optimal individuals
+    allindivs = [indiv for alg in pareto_optimal_alg for indiv in alg]
+
     pareto_optimal = []
-    for individual in df_indivs:
+    for individual in allindivs:
         individual.domination_count = 0
         individual.dominated_solutions = []
-        for other_individual in df_indivs:
+        for other_individual in allindivs:
             if individual.dominates(other_individual):                  # If the current individual dominates the other
                 individual.dominated_solutions.append(other_individual) # It is added to its list of dominated solutions
             elif other_individual.dominates(individual):                # If the other dominates the current
                 individual.domination_count += 1                        # We add 1 to its domination count
 
-    for individual in df_indivs:
+    for individual in allindivs:
         if individual.domination_count == 0:                            # If any solution dominates it
             pareto_optimal.append(individual)
-            for feat in individual.features:
-                columns[feat] = []
-                all_features.append(feat)
-    
-    all_features = set(all_features)
 
     # Pareto optimal individuals calculated
-    # Creating now the store dataset 
-    dict_plot = {obj[i]: [] for i in range(len(obj))}
-    dict_plot['algorithm'] = []
-    dict_plot_test = {obj[i]: [] for i in range(len(obj))}
-    dict_plot_test['algorithm'] = []
+    # Creating now the store dataset
+
+    dfs_plot_alg = []
+
+    for indiv_alg_list in pareto_optimal_alg:
+        dict_plot_alg = {}
+        dict_plot_alg['algorithm'] = []
+        for i in range(len(obj)):
+            dict_plot_alg[obj[i]] = [] 
+
+        for individual in indiv_alg_list:
+            columns['algorithm'].append(individual.algorithm)
+            columns['creation_mode'].append(individual.creation_mode)
+
+            for i in range(len(obj)):
+                columns[f"{obj[i]}_test"].append(individual.objectives_test[i])
+            
+            dict_plot_alg['algorithm'].append(individual.algorithm)
+            for i in range(len(obj)):
+                dict_plot_alg[obj[i]].append(individual.objectives_test[i])
+        dfs_plot_alg.append(pd.DataFrame(dict_plot_alg))
+        
+    
+    dict_plot_total = {}
+    dict_plot_total['algorithm'] = []
+    for i in range(len(obj)):
+        dict_plot_total[obj[i]] = [] 
 
     for individual in pareto_optimal:
-        columns['ID'].append(individual.id)
         columns['algorithm'].append(individual.algorithm)
         columns['creation_mode'].append(individual.creation_mode)
 
         for i in range(len(obj)):
-            columns[f"{obj[i]}_val"].append(individual.objectives[i])
             columns[f"{obj[i]}_test"].append(individual.objectives_test[i])
         
-        for feat in all_features:
-            if feat in individual.features:
-                columns[feat].append(individual.features[feat])
-            else:
-                columns[feat].append("-")
+        dict_plot_total['algorithm'].append(individual.algorithm)
+        for i in range(len(obj)):
+            dict_plot_total[obj[i]].append(individual.objectives_test[i])
 
-        [dict_plot[obj[i]].append(individual.objectives[i]) for i in range(len(obj))]
-        dict_plot['algorithm'].append(individual.algorithm)
-        [dict_plot_test[obj[i]].append(individual.objectives_test[i]) for i in range(len(obj))]
-        dict_plot_test['algorithm'].append(individual.algorithm)
+    df_plot_total = pd.DataFrame(data=dict_plot_total).sort_values(by=[obj[0]]).reset_index(drop=True)
+    #store_df = pd.DataFrame(data=columns)
+    #store_df.to_csv(f"{PATH_TO_RESULTS}/ParetoOptimal/{dataname}/{dataname}_seed_{bseed}_var_{dict_protected[dataname]}_gen_{ngen}_indiv_{nind}_obj_{obj_str}{extra_str}.csv", index=False)
 
-    store_df = pd.DataFrame(data=columns)
-    store_df.to_csv(f"{PATH_TO_RESULTS}/ParetoOptimal/{dataname}/{dataname}_seed_{bseed}_var_{dict_protected[dataname]}_gen_{ngen}_indiv_{nind}_obj_{obj_str}{extra_str}.csv", index=False)
 
-    plt.title(f"Pareto optimal set for {dataname} dataset (validation)")
-    sns.scatterplot(pd.DataFrame(dict_plot), x=obj[0], y=obj[1], hue='algorithm', alpha=0.5, palette=palette)
-    plt.savefig(f"{PATH_TO_RESULTS}/GeneralGraphics/{dataname}/scatter_po_val_{dataname}.pdf", format='pdf', bbox_inches='tight')
+    # Plot data by algorithm
+    plt.title(f"Synthetic Pareto front by algorithm for {dataname} dataset")
+    sns.scatterplot(df_calculate, x=obj[0], y=obj[1], hue='algorithm', alpha=0.3, palette=palette, legend=False)
+
+    for model, df in zip(models, dfs_plot_alg):
+        x_interp = np.linspace(df[obj[0]].min(), df[obj[0]].max(), 1000)
+        y_interp = PchipInterpolator(df[obj[0]], df[obj[1]], extrapolate=True)(x_interp)
+        sns.lineplot(x=x_interp, y=y_interp, color=palette[model])
+        sns.scatterplot(df, x=obj[0], y=obj[1], hue='algorithm', palette=palette)
+    plt.savefig(f"{PATH_TO_RESULTS}/GeneralGraphics/{dataname}/scatter_po_algorithm_{dataname}.pdf", format='pdf', bbox_inches='tight')
     plt.close()
 
-    plt.title(f"Pareto optimal set for {dataname} dataset (test)")
-    sns.scatterplot(pd.DataFrame(dict_plot_test), x=obj[0], y=obj[1], hue='algorithm', alpha=0.5, palette=palette)
-    plt.savefig(f"{PATH_TO_RESULTS}/GeneralGraphics/{dataname}/scatter_po_test_{dataname}.pdf", format='pdf', bbox_inches='tight')
+    # Plot general optimal data
+    plt.title(f"Synthetic general Pareto front for {dataname} dataset")
+    x_interp = np.linspace(df_plot_total[obj[0]].min(), df_plot_total[obj[0]].max(), 1000)
+    y_interp = PchipInterpolator(df_plot_total.drop_duplicates(obj[0])[obj[0]], df_plot_total.drop_duplicates(obj[0])[obj[1]], extrapolate=True)(x_interp)
+    sns.lineplot(x=x_interp, y=y_interp, color='r')
+    sns.scatterplot(df_plot_total, x=obj[0], y=obj[1], hue='algorithm', alpha=0.9, palette=palette)
+    for model, df in zip(models, dfs_plot_alg):
+        sns.scatterplot(df, x=obj[0], y=obj[1], hue='algorithm', alpha=0.3, palette=palette, legend=False)
+    plt.savefig(f"{PATH_TO_RESULTS}/GeneralGraphics/{dataname}/scatter_po_total_{dataname}.pdf", format='pdf', bbox_inches='tight')
     plt.close()
-    return pareto_optimal
+    return pareto_optimal_alg, pareto_optimal
     
 
 
@@ -340,7 +430,7 @@ def calculate_general_pareto_front_measures(pareto_optimal, dataname, obj, extra
             return '{v:d}'.format(v=val)
         return my_format
     plt.pie(results['Proportion'].values(), labels = results['Proportion'].keys(), autopct=autopct_format(results['Proportion'].values()), colors=[palette[x] for x in results['Proportion'].keys()])
-    plt.title(f"Pie plot showing proportion of each algorithm for {dataname} dataset")
+    plt.title(f"Proportion of individuals by algorithm in the synthetic Pareto front for {dataname} dataset")
     plt.savefig(f"{PATH_TO_RESULTS}/GeneralGraphics/{dataname}/pie_proportion_{dataname}.pdf", format='pdf', bbox_inches='tight')
     plt.close()
     return results
@@ -388,7 +478,6 @@ def plot_diff_val_test(dataname, models, indivs_list, obj, filter=True, p_iqr=5)
         else:
             cumm_df = pd.concat([cumm_df, diff_val_test_rate(models[i], indivs_list[i], obj)])
     
-    print("PREV: ", cumm_df)
     # Filtering (greatly benefits the graphic)
     if filter:
         for alg in models:
@@ -398,11 +487,10 @@ def plot_diff_val_test(dataname, models, indivs_list, obj, filter=True, p_iqr=5)
             cumm_df = cumm_df.drop(cumm_df.loc[(cumm_df['algorithm'] == 'alg') & (cumm_df['val-test'] > mean + p_iqr*iqr)].index)
             cumm_df = cumm_df.drop(cumm_df.loc[(cumm_df['algorithm'] == 'alg') & (cumm_df['val-test'] < mean - p_iqr*iqr)].index)
 
-    print("POST: ", cumm_df)
 
     
     sns.violinplot(cumm_df, x='algorithm', y='val-test', width=0.9, hue='measure', palette=[palette_obj[x] for x in obj], density_norm='width')
-    plt.title("Relation between validation and test results (overfit)")
+    plt.title(f"Relation between validation and test results (overfit) for {dataname} dataset")
     plt.ylabel('Validation - Test results')
     plt.savefig(f"{PATH_TO_RESULTS}/GeneralGraphics/{dataname}/violin_overfit_{dataname}.pdf", format='pdf', bbox_inches='tight')
     plt.close()
@@ -550,8 +638,8 @@ def coverage_analysis(algorithms, indiv_lists, dataname):
             df_algorithms[algorithms[j]].append(coverage(indiv_lists[i], indiv_lists[j]))
     
     df = pd.DataFrame(df_algorithms, index=algorithms)
-    #print(df)
     sns.heatmap(df, annot=True, cmap='Blues', vmin=0, vmax=1, fmt=".4f", annot_kws={'size':16})
+    plt.title(f"Coverage analysis using synthetic Pareto fronts by algorithm for {dataname} dataset")
     plt.xlabel("Covered")
     plt.ylabel("Covering")
     plt.savefig(f"{PATH_TO_RESULTS}/GeneralGraphics/{dataname}/coverage_{dataname}.pdf", format='pdf', bbox_inches='tight')
@@ -586,10 +674,6 @@ def plot_generation_stats(dataname, models, bseed, runs, nind, ngen, obj, extra)
         mean_df = grouped.mean()
         std_df = grouped.std()
 
-        #print("Mean:\n", mean_df)
-        #print("Standard Deviation:\n", std_df)
-        #print(mean_df.columns)
-
         if model in ['DT', 'FDT']:
             metrics = ['leaves', 'depth', 'data_avg_depth', 'depth_unbalance']
         elif model == 'GP':
@@ -617,9 +701,6 @@ def line_evolution(dataname, model, mean_df, std_df, metrics, include_ext=True, 
     fig, axes = plt.subplots(len(metrics), 1, figsize=(15, 3*len(metrics)), sharey=False)
     fig.suptitle(f"Metrics of Fair Decision Trees in each generation")
     plt.gcf().subplots_adjust(bottom=0.1)
-
-    #print(mean_df.columns, std_df.columns)
-
 
     metric_colors = {'strong_prunings': 'darkorange', 'medium_prunings': 'orange', 'weak_prunings': 'gold',
                      'strong_leaves': 'darkgreen', 'medium_leaves': 'forestgreen', 'weak_leaves': 'lightgreen',
@@ -672,7 +753,7 @@ def metrics_ranking(models, results):
     """
     for elem in results:
         sns.barplot(x=models, y=results[elem], hue=models, palette=[palette[x] for x in models])
-        plt.title(f"Barplot showing rakings for {elem} metric")
+        plt.title(f"Barplot showing rakings for {elem} metric considering all datasets")
         plt.savefig(f"{PATH_TO_RESULTS}/GeneralGraphics/rankings/ranking_{elem}.pdf", format="pdf", bbox_inches='tight')
         plt.close()
 
@@ -686,7 +767,6 @@ def hyperparameter_plots(algorithms, indiv_lists, dataname=None):
             - indiv_list: List of individual object which are the solutions for each algorithm
             - dataname: Name of the dataset
     """
-    print(dataname)
     for alg, ind_list in zip(algorithms, indiv_lists):
         hyperparam_df = pd.DataFrame(data={param:[ind.features[param] for ind in ind_list] for param in hyperparams_alg[alg]})
         if alg == 'FDT':

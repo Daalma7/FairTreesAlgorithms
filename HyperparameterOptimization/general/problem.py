@@ -206,9 +206,9 @@ class Problem:
             individual = IndividualFLGBMGrea()
         individual.id = ''.join(random.choice(string.ascii_uppercase + string.digits) for _ in range(10))
         if num == 'first':
-            individual.features = [31, 20, None, 0.1, 100, 1.0, 20, 1]
+            individual.features = [31, 20, None, 0.1, 100, 1.0, 0]
         else:
-            individual.features = [31, 20, None, 0.01, 100, 1.0, 20, 1]
+            individual.features = [31, 20, None, 0.01, 100, 1.0, 0]
         hyperparameters = ['num_leaves', 'min_data_in_leaf', 'max_depth', 'learning_rate', 'n_estimators', 'feature_fraction', 'fair_param']
         individual.features = od(zip(hyperparameters, individual.features))
         individual.features = decode(self.variables_range, "FLGBM", **individual.features)
@@ -281,7 +281,6 @@ class Problem:
             y_fair = evaluate_fairness(self.x_val, self.y_val, pred, self.variable_name)        #For getting objectives using validation data
             individual.objectives = []
 
-            # TODO: Fallos
             for x in self.objectives:
                 if x.__name__ == 'gmean_inv':
                     individual.objectives.append(gmean_inv(self.y_val, pred))
@@ -328,7 +327,6 @@ class Problem:
                 var_range_list[5] = (1.0 / float(self.x_train.shape[1]), self.variables_range[5][1])
                 self.variable_range = []
                 self.variables_range = tuple(var_range_list)
-                print(self.variables_range)
             
             if self.model == "DT" or self.model == "FDT":          #Depending on the model we will have different sets of hyperparameters for that model
                 depth, leaves, data_avg_depth, depth_unbalance = print_properties_tree(learner)      #Size attributes for Decision Tree individuals
@@ -478,10 +476,94 @@ class Problem:
     
 
 
+    #Calculate file with the general pareto front using all pareto fronts in every execution
+    def correct_pareto(self, seed, run, method):
+        
+        all_indivs = []
+        pareto_optimal = []
+        #ATTENTION!!! As we could want to compute the hypervolume, and for returning a structure independent from the measures we use, we should NORMALIZE HERE
+        objectives_results_dict = {'gmean_inv': 'gmean_inv_test', 'fpr_diff': 'fpr_diff_test', 'ppv_diff': 'ppv_diff_test', 'pnr_diff': 'pnr_diff_test'}
+        objectives_results_norm_dict = {'num_leaves': 'num_leaves_test', 'data_weight_avg_depth': 'data_weight_avg_depth_test'}
+        pareto_fronts = []
+        read = pd.read_csv(f"{PATH_TO_RESULTS}{self.model}/{method}/pareto_individuals/runs/{self.dataset_name}/{self.dataset_name}_seed_{seed + run}_var_{self.variable_name}_gen_{self.num_of_generations}_indiv_{self.num_of_individuals}_model_{self.model}_obj_{self.get_obj_string()}{self.get_extra_string()}.csv")
+        pareto_fronts.append(read)
+
+
+        hyperparameters = []
+        pareto_fronts = pd.concat(pareto_fronts)                            #Union of all pareto fronts got in each run
+        pareto_fronts.reset_index(drop=True, inplace=True)                  #Reset index because for each run all rows have repeated ones
+        for index, row in pareto_fronts.iterrows():                         #We create an individual object associated with each row
+            if self.model == "DT":
+                indiv = IndividualDT()
+                hyperparameters = ['criterion','max_depth', 'min_samples_split', 'max_leaf_nodes', 'class_weight']
+                indiv.actual_leaves = row['leaves']
+                indiv.actual_depth = row['depth']
+                indiv.actual_data_avg_depth = row['data_avg_depth']
+                indiv.actual_depth_unbalance = row['depth_unbalance']
+            if self.model == "FDT":
+                indiv = IndividualDT()
+                hyperparameters = ['criterion','max_depth', 'min_samples_split', 'max_leaf_nodes', 'class_weight', 'fair_param']
+                indiv.actual_leaves = row['leaves']
+                indiv.actual_depth = row['depth']
+                indiv.actual_data_avg_depth = row['data_avg_depth']
+                indiv.actual_depth_unbalance = row['depth_unbalance']
+            if self.model == "LR":
+                indiv = IndividualLR()
+                hyperparameters = ['max_iter','tol', 'lambda', 'l1_ratio', 'class_weight']
+            if self.model == "FLGBM":
+                indiv = IndividualFLGBM()
+                hyperparameters = ['num_leaves', 'min_data_in_leaf', 'max_depth', 'learning_rate', 'n_estimators', 'feature_fraction', 'fair_param']
+            indiv.features = [row[x] for x in hyperparameters]
+            indiv.id = row['ID']
+            indiv.domination_count = 0
+            indiv.features = od(zip(hyperparameters, indiv.features))
+            indiv.objectives = []
+            for x in self.objectives:
+                # We will insert all objectives, normalizing every objective that should be
+                obj = objectives_results_dict.get(x.__name__, "None")
+                if not obj == "None":                   #The objective doesn't need to be normalized to the range [0,1]
+                    indiv.objectives.append(float(row[obj]))
+                else:                                   #In other case
+                    obj = objectives_results_norm_dict.get(x.__name__)
+                    indiv.objectives.append(float(row[obj]) / pareto_fronts[obj].max())
+            #The same with extra objectives
+            indiv.extra = []
+            if not self.extra == None: 
+                for x in self.extra:
+                    # We will insert all objectives, normalizing every objective that should be
+                    ext = objectives_results_dict.get(x.__name__, "None")
+                    if not ext == "None":                   #The objective doesn't need to be normalized to the range [0,1]
+                        indiv.extra.append(float(row[ext]))
+                    else:                                   #In other case
+                        ext = objectives_results_norm_dict.get(x.__name__)
+                        indiv.extra.append(float(row[ext]) / pareto_fronts[ext].max())
+            indiv.creation_mode = row['creation_mode']
+            all_indivs.append(indiv)
+        for indiv in all_indivs:                       #Now we calculate all the individuals non dominated by any other (pareto front)
+            for other_indiv in all_indivs:
+                if other_indiv.dominates(indiv):
+                    indiv.domination_count += 1                        #Indiv is dominated by the second
+            if indiv.domination_count == 0:                            #Could be done easily more efficiently, but could be interesting 
+                pareto_optimal.append(indiv)
+        
+        pareto_optimal_df = []
+        for p in pareto_optimal:                #We select individuals from the files corresponding to the pareto front ones (we filter by id)
+            curr_id = p.id                      #BUT IF THERE ARE MORE THAN 1 INDIVIDUAL WITH THE SAME ID THEY WILL ALL BE ADDED, EVEN THOUGHT ONLY 1 OF THEM IS A PARETO OPTIMAL SOLUTION
+            found = False                       #Which is by the way really unlikely since there are 36^10 possibilities for an id
+            for index, row in pareto_fronts.iterrows():
+                if row['ID'] == curr_id:
+                    pareto_optimal_df.append(pd.DataFrame({x : row[x] for x in pareto_fronts.columns.tolist()}, index=[0])) #We introduce here the not-normalized version of them
+                    found = True
+            if not found:
+                pareto_optimal.remove(p)
+        pareto_optimal_df = pd.concat(pareto_optimal_df)
+        pareto_optimal_df.to_csv(f"{PATH_TO_RESULTS}{self.model}/{method}/pareto_individuals/runs/{self.dataset_name}/{self.dataset_name}_seed_{seed + run}_var_{self.variable_name}_gen_{self.num_of_generations}_indiv_{self.num_of_individuals}_model_{self.model}_obj_{self.get_obj_string()}{self.get_extra_string()}.csv", index = False, header = True, columns = list(pareto_fronts.keys()))
+        return pd.read_csv(f"{PATH_TO_RESULTS}{self.model}/{method}/pareto_individuals/runs/{self.dataset_name}/{self.dataset_name}_seed_{seed + run}_var_{self.variable_name}_gen_{self.num_of_generations}_indiv_{self.num_of_individuals}_model_{self.model}_obj_{self.get_obj_string()}{self.get_extra_string()}.csv")
+        
 
 
     #Calculate file with the general pareto front using all pareto fronts in every execution
-    def calculate_pareto_optimal(self, seed, runs, method):
+    def calculate_pareto_optimal(self, seed, runs, method, correct=True):
         """
         Calculates pareto optimal individuals from the optimization process.
         ATTENTION: It supooses that all runs have been executed, so the pareto optimal individulas will be
@@ -503,7 +585,10 @@ class Problem:
             objectives_results_norm_dict = {'num_leaves': 'num_leaves_test', 'data_weight_avg_depth': 'data_weight_avg_depth_test'}
 
             for i in range(runs):
-                read = pd.read_csv(f"{PATH_TO_RESULTS}{self.model}/{method}/pareto_individuals/runs/{self.dataset_name}/{self.dataset_name}_seed_{seed + i}_var_{self.variable_name}_gen_{self.num_of_generations}_indiv_{self.num_of_individuals}_model_{self.model}_obj_{self.get_obj_string()}{self.get_extra_string()}.csv")
+                if correct:
+                    read = self.correct_pareto(seed, i, method)
+                else:
+                    read = pd.read_csv(f"{PATH_TO_RESULTS}{self.model}/{method}/pareto_individuals/runs/{self.dataset_name}/{self.dataset_name}_seed_{seed + i}_var_{self.variable_name}_gen_{self.num_of_generations}_indiv_{self.num_of_individuals}_model_{self.model}_obj_{self.get_obj_string()}{self.get_extra_string()}.csv")
                 pareto_fronts.append(read)
 
             hyperparameters = []

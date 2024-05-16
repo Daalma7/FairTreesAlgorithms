@@ -101,6 +101,7 @@ class Evolution:
             self.population = new_population
             children = self.utils.create_children(self.population, self.problem.model)
         
+        self.utils.fast_nondominated_sort(self.population)
         generations_df.to_csv(f"{PATH_TO_RESULTS}{self.model_name}/nsga2/generation_stats/{self.dataset_name}/{self.dataset_name}_seed_{self.utils.problem.seed}_var_{self.protected_variable}_gen_{self.num_of_generations}_indiv_{self.num_of_individuals}_model_{self.problem.model}_obj_{str_obj}{self.problem.get_extra_string()}.csv", index = False, header = True)
         self.utils.fast_nondominated_sort(self.population)  #Once we've finished, let's return only nondominated individuals
         return self.population.fronts[0]

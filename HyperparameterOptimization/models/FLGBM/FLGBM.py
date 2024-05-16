@@ -87,8 +87,8 @@ class FairLGBM:
         hess = 0
         y = data.get_label()
         s = self.sigmoid(z)
-        grad = (1 - self.fair_param) * (s - y) - self.fair_param * self.C * s * (1 - s)
-        hess = (1 - self.fair_param) * s * (1 - s) - self.fair_param * self.C * ((s * (1 - s)**2) - (s**2 * (1 - s)))
+        grad = (1 - self.fair_param) * (s - y) + self.fair_param * self.C * s * (1 - s)
+        hess = (1 - self.fair_param) * s * (1 - s) + self.fair_param * self.C * ((s * (1 - s)**2) - (s**2 * (1 - s)))
         return grad, hess
         
 
@@ -134,7 +134,7 @@ class FairLGBM:
         """
         y = data.get_label()
         s = self.sigmoid(z)
-        loss = - (1-self.fair_param) * (y * np.log(s) + (1 - y) * np.log(1 - s))- self.fair_param * np.abs(np.dot(self.p_01_val, s) / np.sum(self.p_01_val) - np.dot(self.p_00_val, s) / np.sum(self.p_00_val))
+        loss = - (1-self.fair_param) * (y * np.log(s) + (1 - y) * np.log(1 - s)) + self.fair_param * np.abs(np.dot(self.p_01_val, s) / np.sum(self.p_01_val) - np.dot(self.p_00_val, s) / np.sum(self.p_00_val))
         return 'bce_fair', loss.mean(), False
 
 

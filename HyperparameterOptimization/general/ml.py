@@ -86,9 +86,7 @@ def decode(var_range, model, **features):
         else:
             features['class_weight'] = 5
         
-        if features['fair_param'] is not None:
-            features['fair_param'] = int(round(features['fair_param']))
-        else:                                           #In case it's None, it is supposed that fairness will not be taken into account (classical DT)
+        if features['fair_param'] is None:              #In case it's None, it is supposed that fairness will not be taken into account (classical DT)
             features['fair_param'] = var_range[5][0]
 
         hyperparameters = ['criterion', 'max_depth', 'min_samples_split', 'max_leaf_nodes', 'class_weight', 'fair_param']
@@ -131,9 +129,7 @@ def decode(var_range, model, **features):
         if features['feature_fraction'] is None:
             features['feature_fraction'] = var_range[5][1]
 
-        if features['fair_param'] is not None:
-            features['fair_param'] = int(round(features['fair_param']))
-        else:                                           #In case it's None, it is supposed that fairness will not be taken into account (classical DT)
+        if features['fair_param'] is None:                          #In case it's None, it is supposed that fairness will not be taken into account (classical DT)
             features['fair_param'] = var_range[6][0]
 
             
@@ -314,7 +310,6 @@ def print_properties_flgbm(learner):
 
 
 #TODO Revisar que se ha hecho bien
-#TODO Incluir validación en LightGBM
 def train_model(X_train, y_train, prot_col, seed, model, X_val=None, y_val=None, **features):
     """
     Classifier training
@@ -346,14 +341,14 @@ def train_model(X_train, y_train, prot_col, seed, model, X_val=None, y_val=None,
     if model == "FDT":
         if features['class_weight'] is not None:
             if(features['criterion'] <= 0.5):
-                clf = FairDecisionTreeClassifier(criterion = 'gini_fair', max_depth = features['max_depth'], min_samples_split = features['min_samples_split'], max_leaf_nodes = features['max_leaf_nodes'], class_weight = {0:features['class_weight'], 1:(10-features['class_weight'])}, f_lambda = float((2**features['fair_param'] - 1) / 2**10), random_state=seed)
+                clf = FairDecisionTreeClassifier(criterion = 'gini_fair', max_depth = features['max_depth'], min_samples_split = features['min_samples_split'], max_leaf_nodes = features['max_leaf_nodes'], class_weight = {0:features['class_weight'], 1:(10-features['class_weight'])}, f_lambda = features['fair_param'], random_state=seed)
             else:
-                clf = FairDecisionTreeClassifier(criterion = 'entropy_fair', max_depth = features['max_depth'], min_samples_split = features['min_samples_split'], max_leaf_nodes = features['max_leaf_nodes'], class_weight = {0:features['class_weight'], 1:(10-features['class_weight'])}, f_lambda = float((2**features['fair_param'] - 1) / 2**10), random_state=seed)
+                clf = FairDecisionTreeClassifier(criterion = 'entropy_fair', max_depth = features['max_depth'], min_samples_split = features['min_samples_split'], max_leaf_nodes = features['max_leaf_nodes'], class_weight = {0:features['class_weight'], 1:(10-features['class_weight'])}, f_lambda = features['fair_param'], random_state=seed)
         else:
             if features['criterion'] <= 0.5:
-                clf = FairDecisionTreeClassifier(criterion = 'gini_fair', max_depth = features['max_depth'], min_samples_split = features['min_samples_split'], max_leaf_nodes = features['max_leaf_nodes'], class_weight = features['class_weight'], f_lambda = float((2**features['fair_param'] - 1) / 2**10), random_state=seed)
+                clf = FairDecisionTreeClassifier(criterion = 'gini_fair', max_depth = features['max_depth'], min_samples_split = features['min_samples_split'], max_leaf_nodes = features['max_leaf_nodes'], class_weight = features['class_weight'], f_lambda = features['fair_param'], random_state=seed)
             else:
-                clf = FairDecisionTreeClassifier(criterion = 'entropy_fair', max_depth = features['max_depth'], min_samples_split = features['min_samples_split'], max_leaf_nodes = features['max_leaf_nodes'], class_weight = features['class_weight'], f_lambda = float((2**features['fair_param'] - 1) / 2**10), random_state=seed)
+                clf = FairDecisionTreeClassifier(criterion = 'entropy_fair', max_depth = features['max_depth'], min_samples_split = features['min_samples_split'], max_leaf_nodes = features['max_leaf_nodes'], class_weight = features['class_weight'], f_lambda = features['fair_param'], random_state=seed)
     
     if model == "LR":
         if features['class_weight'] is not None:
