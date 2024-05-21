@@ -159,7 +159,8 @@ def read_runs_pareto_files(dataname, models, bseed, nind, ngen, obj, extra, n_ru
             for x in obj:
                 exclude.append(x+'_val')
                 exclude.append(x+'_test')
-            for index, row in pareto_optimal_df.iterrows():                         #We create an individual object associated with each row
+            seen_test_objs = []                                                     # We do not want repeated individuals
+            for index, row in pareto_optimal_df.iterrows():                         # We create an individual object associated with each row
                 indiv = Individual()
                 indiv.id = row['ID']
                 indiv.algorithm = model
@@ -171,7 +172,9 @@ def read_runs_pareto_files(dataname, models, bseed, nind, ngen, obj, extra, n_ru
                 indiv.domination_count = 0
                 indiv.dominated_solutions = 0
                 indiv.features = {a: row[a] for a in pareto_optimal_df.columns if not a in exclude}
-                new_indiv_list.append(indiv)
+                if not indiv.objectives_test in seen_test_objs:
+                    new_indiv_list.append(indiv)
+                    seen_test_objs.append(indiv.objectives_test)
 
                 [dict_plot[obj[i]].append(indiv.objectives[i]) for i in range(len(obj))]
                 dict_plot['algorithm'].append(model)
@@ -244,12 +247,17 @@ def create_total_pareto_optimal(df_indivs, dataname, bseed, nind, ngen, obj, ext
     for model in models:
         pareto_optimal_alg.append([])
         df_model = df_calculate.loc[df_calculate['algorithm'] == model]
-        num_indivs = round(float(df_model.shape[0]) / nruns)
+        num_indivs = int(np.ceil(float(df_model.shape[0]) / nruns))
+        if num_indivs < 1:
+            num_indivs = 1
         print(model, num_indivs)
         prev_objectives = [None, None]
         for i in range(num_indivs):
             # Ensure that do not consider repeated individuals
-            cur_objectives = [df_model.loc[:, f'{obj[0]}'].quantile(float(i)/(num_indivs-1)), df_model.loc[:, f'{obj[1]}'].quantile(1.0 - float(i)/(num_indivs-1))]
+            if num_indivs > 1:
+                cur_objectives = [df_model.loc[:, f'{obj[0]}'].quantile(float(i)/(num_indivs-1)), df_model.loc[:, f'{obj[1]}'].quantile(1.0 - float(i)/(num_indivs-1))]
+            else:
+                cur_objectives = [df_model.loc[:, f'{obj[0]}'].median(), df_model.loc[:, f'{obj[1]}'].median()]
             if not prev_objectives == cur_objectives:
                 # Correct x values for plotting purposes.
                 if not prev_objectives[0] is None and cur_objectives[0] <= prev_objectives[0]:
@@ -264,17 +272,36 @@ def create_total_pareto_optimal(df_indivs, dataname, bseed, nind, ngen, obj, ext
                 pareto_optimal_alg[-1].append(new_indiv)
         
         # The correction done can surpass the limits established for the objective space, reason why we need to correct them
-        if pareto_optimal_alg[-1][0].objectives_test[0] < 0 or pareto_optimal_alg[-1][-1].objectives_test[0] > 1:
-            cur_min = pareto_optimal_alg[-1][0].objectives_test[0]
-            cur_max = pareto_optimal_alg[-1][-1].objectives_test[0]
+        # First dimension correction, applying linear recalculation of range
+        cur_min = next_min = pareto_optimal_alg[-1][0].objectives_test[0]
+        cur_max = next_max = pareto_optimal_alg[-1][-1].objectives_test[0]
+        renorm = False
+        if pareto_optimal_alg[-1][0].objectives_test[0] < 0:
+            next_min = 0
+            renorm = True
+        if pareto_optimal_alg[-1][-1].objectives_test[0] > 1:
+            next_max = 1
+            renorm = True
+        if cur_max == cur_min:
+            renorm = False
+        if renorm:
             for i in range(len(pareto_optimal_alg[-1])):
-                pareto_optimal_alg[-1][i].objectives_test[0] = (pareto_optimal_alg[-1][i].objectives_test[0] - cur_min) / (cur_max - cur_min)
-        if pareto_optimal_alg[-1][0].objectives_test[1] > 1 or pareto_optimal_alg[-1][-1].objectives_test[1] < 0:
-            cur_min = pareto_optimal_alg[-1][-1].objectives_test[1]
-            cur_max = pareto_optimal_alg[-1][0].objectives_test[1] 
+                pareto_optimal_alg[-1][i].objectives_test[0] = ((next_max - next_min) / (cur_max - cur_min)) * (pareto_optimal_alg[-1][i].objectives_test[0] - cur_max) + next_max
+        
+        # Second dimension correction, applying linear recalculation of range
+        cur_min = next_min = pareto_optimal_alg[-1][-1].objectives_test[1]
+        cur_max = next_max = pareto_optimal_alg[-1][0].objectives_test[1]
+        if pareto_optimal_alg[-1][0].objectives_test[1] > 1:
+            next_max = 1
+            renorm = True
+        if pareto_optimal_alg[-1][-1].objectives_test[1] < 0:
+            next_min = 0
+            renorm = True
+        if cur_max == cur_min:
+            renorm = False
+        if renorm:
             for i in range(len(pareto_optimal_alg[-1])):
-                pareto_optimal_alg[-1][i].objectives_test[1] = (pareto_optimal_alg[-1][i].objectives_test[1] - cur_min) / (cur_max - cur_min)
-    
+                pareto_optimal_alg[-1][i].objectives_test[1] = ((next_max - next_min) / (cur_max - cur_min)) * (pareto_optimal_alg[-1][i].objectives_test[1] - cur_max) + next_max
     # After it, we will calculate the optimal individuals among them, to be the 'Total Pareto front'
     # Calculation of optimal individuals
     allindivs = [indiv for alg in pareto_optimal_alg for indiv in alg]
@@ -753,7 +780,7 @@ def metrics_ranking(models, results):
     """
     for elem in results:
         sns.barplot(x=models, y=results[elem], hue=models, palette=[palette[x] for x in models])
-        plt.title(f"Barplot showing rakings for {elem} metric considering all datasets")
+        plt.title(f"Barplot showing rakings for {elem} metric\nconsidering all datasets (The higher the better)")
         plt.savefig(f"{PATH_TO_RESULTS}/GeneralGraphics/rankings/ranking_{elem}.pdf", format="pdf", bbox_inches='tight')
         plt.close()
 

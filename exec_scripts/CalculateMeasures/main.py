@@ -201,13 +201,20 @@ for dataset in ['adult', 'compas', 'german', 'ricci', 'obesity', 'insurance', 's
     results = None
     for alist in pareto_optimal_algorithms:
         new_results = calculate_algorithm_pareto_front_measures(alist, pareto_optimal)
+        print()
         if results is None:
             results = {meas: [new_results[meas]] for meas in new_results}
         else:
             [results[meas].append(new_results[meas]) for meas in new_results]
 
     # Store information about quality metrics for final rankings.
+    print(results)
+    print()
     for elem in results:
+        if elem in ['Error ratio', 'Generational distance', 'Inverted Generational Distance']:
+            print(results[elem])
+            results[elem] = [1 - x for x in results[elem]]
+            print(results[elem])
         if not elem in model_ranking:
             model_ranking[elem] = rankdata(results[elem]) - 1
         else:
@@ -221,7 +228,6 @@ for dataset in ['adult', 'compas', 'german', 'ricci', 'obesity', 'insurance', 's
 
 metrics_ranking(models, model_ranking)
 
-print(all_indivs)
 hyperparameter_plots(models, all_indivs)
 
 
