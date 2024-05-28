@@ -21,7 +21,7 @@ warnings.filterwarnings('ignore')
 
 
 PATH_TO_RESULTS = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__)))) + '/results/'
-PATH_TO_DATA = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__)))) + '/datasets/data/'
+PATH_TO_DATA = os.path.dirname(os.path.dirname(os.path.dirname(__file__))) + '/datasets/data/'
 
 sys.path.insert(1, os.path.abspath(os.path.join(os.path.join(os.path.dirname(os.path.dirname(__file__))), 'models')))
 from FairDT._classes import DecisionTreeClassifier as FairDecisionTreeClassifier
@@ -719,7 +719,20 @@ def data_weight_avg_depth(learner):
                 min_depth = current_depth
             if current_depth > max_depth:
                 max_depth = current_depth
-    return total_w_depth / total_samples, float(min_depth) / float(max_depth)
+    
+    dwad = 0
+    unb = 0
+
+    if total_samples > 0:
+        dwad = total_w_depth / total_samples
+    else:
+        dwad = 0
+    
+    if max_depth > 0:
+        unb = float(min_depth) / float(max_depth)
+    else:
+        unb = 0
+    return dwad, unb
 
 
 

@@ -22,7 +22,7 @@ dict_protected = {'academic': 'ge','adult': 'Race','arrhythmia': 'sex','bank': '
 hyperparams_alg= {
     'DT': ['criterion', 'max_depth', 'min_samples_split', 'max_leaf_nodes', 'class_weight'],
     'FDT': ['criterion', 'max_depth', 'min_samples_split', 'max_leaf_nodes', 'class_weight', 'fair_param'],
-    'GP': ['prunings', 'leaves', 'depth', 'data_avg_depth', 'depth_unbalance'],
+    'FGP': ['prunings', 'leaves', 'depth', 'data_avg_depth', 'depth_unbalance'],
     'FLGBM': ['num_leaves', 'min_data_in_leaf', 'max_depth', 'learning_rate', 'n_estimators', 'feature_fraction', 'fair_param']
 }
 colors_hyperparams = {'criterion': '#f44336',           # Red
@@ -45,7 +45,7 @@ colors_hyperparams = {'criterion': '#f44336',           # Red
 
 palette = {'DT': '#1f77b4', 'DT-mean': '#0e3653',
            'FDT': '#ff7f0e', 'FDT-mean': '#8f4300',
-           'GP': '#2ca02c', 'GP-mean': '#185818',
+           'FGP': '#2ca02c', 'FGP-mean': '#185818',
            'FLGBM': '#9467bd', 'FLGBM-mean': '#553375',
            'Total':'#d62728'}
 palette_obj = {'gmean_inv': '#a1c9f4', 'fpr_diff': '#8de5a1'}
@@ -125,7 +125,7 @@ def read_runs_pareto_files(dataname, models, bseed, nind, ngen, obj, extra, n_ru
     Read all individuals of the overall pareto files, for each model considered
         Parameters:
             - dataname: Dataset name to read the files
-            - models: Execution models from which to read (FDT, FLGBM, GP...)
+            - models: Execution models from which to read (FDT, FLGBM, FGP...)
             - bseed: Base seed (only for file name)
             - nind: Number of individuals (only for file name)
             - ngen: Number of generations (only for file name)
@@ -703,7 +703,7 @@ def plot_generation_stats(dataname, models, bseed, runs, nind, ngen, obj, extra)
 
         if model in ['DT', 'FDT']:
             metrics = ['leaves', 'depth', 'data_avg_depth', 'depth_unbalance']
-        elif model == 'GP':
+        elif model == 'FGP':
             metrics = ['prunings', 'leaves', 'depth', 'data_avg_depth', 'depth_unbalance']
         else:
             metrics = ['n_estimators', 'n_features', 'feature_importance_std']

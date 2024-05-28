@@ -27,7 +27,7 @@ alg = dat = var = obj = mod = extra = False        #Possible parameters given
 #########################################################################################################################
 #########################################################################################################################
 
-PATH_TO_RESULTS = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))) + '/results/GP'
+PATH_TO_RESULTS = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))) + '/results/FGP'
 
 nind = ngen = dat = sens_col = bseed = nruns = obj = extra = False        #Possible parameters given
 dataset = None
@@ -158,7 +158,7 @@ if not extraobj is None:
 ###################################################################################################################
 
 #measures_df, measures_df_2 = create_results_df()
-models = ['DT', 'FDT', 'GP', 'FLGBM']
+models = ['DT', 'FDT', 'FGP', 'FLGBM']
 model_ranking = {}
 all_indivs = None
 

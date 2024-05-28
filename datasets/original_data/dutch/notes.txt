@@ -1,0 +1,87 @@
+Sex
+1:Male
+2:Female
+
+Age
+4: 15-19
+5: 20-24
+6: 25-29
+7: 30-34
+8: 35-39
+9: 40-44
+10:45-49
+11:50-54
+12:55-59
+13:60-64
+14:65-69
+15:70-74
+
+HouseholdPosition (guess)
+1131: Spouse or partner of child of head (1)
+1122: Partner in consensual union (2)
+1121: Husband or wife (3)
+1110: Reference person / Head (4)
+1210: Reference person / Head (5)
+1132: Spouse or partner of child of head (6)
+1140: Parent of head, of spouse, or of partner (7)
+1220: Spouse or partner (8)
+
+HouseholdSize
+112: 2 people (2)
+113: 3 people (3)
+114: 4 people (4)
+126: 6 people (6)
+111: 1 people (1)
+125: 5 people (5)
+
+PrevResidencePlace (taken out for similiarity with country)
+1: Netherlands
+2: Non-Netherlands
+
+Citizenship (taken out for similiarity with country)
+1: Netherlands
+2: Rest of Europe
+3: Rest of the world
+
+Country
+1: Netherlands
+2: Rest of Europe
+3: Rest of the world
+
+EducationLevel
+0: Pre-primary
+1: Primary
+2: Lower secondary
+3: Upper secondary
+4: Post secondary
+5: Tertiary
+
+EconomicStatus
+111: At work and student (1)
+120: Have job, not at work in reference period (2)
+112: At work and housework (3)
+
+CurEcoActivity
+131: Wholesale and retail trade, repair of motor vehicles, motor cycles and personal and household goods (1)
+135: Real estate, renting and business activities (2)
+138: Health and social work (3)
+122: Mining and quarrying, manufacturing and electricity, gas and water supply (4)
+137: Education (5)
+136: Public administration and defence and compulsory social security (6)
+133: Transport, storage and communication (7)
+139: Other community, social and personal service activities (8)
+132: Hotels and restaurants (9)
+134: Financial intermediation (10)
+111: Agriculture, hunting, forestry and fishing (11)
+124: Construction (12)
+
+MaritalStatus
+1: Single
+2: Married
+3: Widowed
+4: Divorced
+
+Occupation (class):
+2_1:  Low level (0)
+5_4_9:High level (1)
+

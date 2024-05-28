@@ -10,7 +10,7 @@ from general.ml import decode, print_properties_lgbm, num_leaves, train_model, e
 import os
 import pandas as pd
 
-PATH_TO_DATA = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__)))) + '/datasets/data/'
+PATH_TO_DATA = os.path.dirname(os.path.dirname(os.path.dirname(__file__))) + '/datasets/data/'
 PATH_TO_RESULTS = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))) + '/results/'
 #Clase que representa un problema multiobjetivo
 class Problem:
