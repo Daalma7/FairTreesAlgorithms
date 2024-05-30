@@ -144,6 +144,8 @@ if len(objectives) < 2:
     print("There should be at least 2 objectives. Aborting.")
     sys.exit(1)
 
+dict_strucs = {}
+
 for run in range(n_runs):
     set_seed = set_seed_base + run
 
@@ -154,6 +156,21 @@ for run in range(n_runs):
     extra_str = ''
     if not extraobj is None:
         extra_str = '__'.join(extraobj)
+
+
+    # write datasets
+    x_train, x_val, x_test, y_train, y_val, y_test = get_matrices(dataset, y_col, set_seed)
+    write_train_val_test(dataset, sens_col, set_seed, x_train, x_val, x_test, y_train, y_val, y_test)
+    x_train = x_train.loc[:, x_train.columns != 'y']
+    x_val = x_val.loc[:, x_val.columns != 'y']
+    x_test = x_test.loc[:, x_test.columns != 'y']
+
+    prot_train = x_train[sens_col].astype(int)
+    prot_val = x_val[sens_col].astype(int)
+    prot_test = x_test[sens_col].astype(int)
+    
+    struc = Tree_Structure(x_train, y_train, prot_train, x_val, y_val, prot_val, run)
+    dict_strucs[set_seed] = struc
 
     save_population_name = f"{PATH_TO_RESULTS}/population/{dataset}/{dataset}_seed_{set_seed}_var_{sens_col}_gen_{generations}_indiv_{individuals}_model_FGP_obj_{obj_str}{extra_str}.csv"
     #print(save_population_name)
@@ -168,18 +185,6 @@ for run in range(n_runs):
 
     if execute:
         print("--- RUN:", run)
-        # write datasets
-        x_train, x_val, x_test, y_train, y_val, y_test = get_matrices(dataset, y_col, set_seed)
-        write_train_val_test(dataset, sens_col, set_seed, x_train, x_val, x_test, y_train, y_val, y_test)
-        x_train = x_train.loc[:, x_train.columns != 'y']
-        x_val = x_val.loc[:, x_val.columns != 'y']
-        x_test = x_test.loc[:, x_test.columns != 'y']
-
-        prot_train = x_train[sens_col].astype(int)
-        prot_val = x_val[sens_col].astype(int)
-        prot_test = x_test[sens_col].astype(int)
-        
-        struc = Tree_Structure(x_train, y_train, prot_train, x_val, y_val, prot_val, run)
 
         gen_process = Genetic_Pruning_Process_NSGA2(struc, objectives, generations, individuals, 1, 0.2)
 
@@ -197,20 +202,8 @@ for run in range(n_runs):
         test_and_save_results(x_test, y_test, prot_test, indivs, gen_stats_df, population_df, individuals, generations, dataset, sens_col, set_seed, objectives, extraobj)
 
 
-x_train, x_val, x_test, y_train, y_val, y_test = get_matrices(dataset, y_col, set_seed)
-write_train_val_test(dataset, sens_col, set_seed, x_train, x_val, x_test, y_train, y_val, y_test)
-x_train = x_train.loc[:, x_train.columns != 'y']
-x_val = x_val.loc[:, x_val.columns != 'y']
-x_test = x_test.loc[:, x_test.columns != 'y']
-
-prot_train = x_train[sens_col].astype(int)
-prot_val = x_val[sens_col].astype(int)
-prot_test = x_test[sens_col].astype(int)
-
-struc = Tree_Structure(x_train, y_train, prot_train, x_val, y_val, prot_val, run)
-
 print("Calculating pareto optimal solutions using all runs...")
-calculate_pareto_optimal(dataset, sens_col, objectives, individuals, generations, set_seed_base, n_runs, extraobj, struc)
+calculate_pareto_optimal(dataset, sens_col, objectives, individuals, generations, set_seed_base, n_runs, extraobj, dict_strucs)
 print("Execution succesful!\n------------------------------")
     
 

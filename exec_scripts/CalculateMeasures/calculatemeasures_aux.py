@@ -11,7 +11,7 @@ import warnings
 warnings.filterwarnings("ignore")
 
 sys.path.insert(1, os.path.dirname(os.path.dirname(__file__)))
-from qualitymeasures import hypervolume, spacing, maximum_spread, error_ratio, overall_pareto_front_spread, generational_distance, inverted_generational_distance, ideal_point, nadir_point, algorithm_proportion, diff_val_test_rate, coverage
+from qualitymeasures import hypervolume, spacing, maximum_spread, error_ratio, overall_pareto_front_spread, generational_distance, inverted_generational_distance, ideal_point, nadir_point, algorithm_proportion, div_test_val_rate, coverage
 
 PATH_TO_RESULTS = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))) + '/results'
 datasetlist = ['academic','adult','arrhythmia','bank','catalunya','compas','credit','crime','default','diabetes-w','diabetes','drugs','dutch','german','heart','hrs','insurance','kdd-census','lsat','nursery','obesity', 'older-adults','oulad','parkinson','ricci','singles','student','tic','wine','synthetic-athlete','synthetic-disease','toy']
@@ -487,7 +487,7 @@ def calculate_algorithm_pareto_front_measures(indivs, pareto_optimal):
     return results
 
 
-def plot_diff_val_test(dataname, models, indivs_list, obj, filter=True, p_iqr=5):
+def plot_div_test_val(dataname, models, indivs_list, obj, filter=True, p_iqr=5):
     """
     Plots the difference between validation and test sets
         Parameters:
@@ -501,24 +501,24 @@ def plot_diff_val_test(dataname, models, indivs_list, obj, filter=True, p_iqr=5)
     cumm_df = None
     for i in range(len(models)):
         if cumm_df is None:
-            cumm_df = diff_val_test_rate(models[i], indivs_list[i], obj)
+            cumm_df = div_test_val_rate(models[i], indivs_list[i], obj)
+            cumm_df['test/val'] = cumm_df['test/val'].astype(float)
+
         else:
-            cumm_df = pd.concat([cumm_df, diff_val_test_rate(models[i], indivs_list[i], obj)])
+            cumm_df = pd.concat([cumm_df, div_test_val_rate(models[i], indivs_list[i], obj)])
     
     # Filtering (greatly benefits the graphic)
     if filter:
         for alg in models:
             part_cumm_df = cumm_df.loc[cumm_df['algorithm'] == alg]
-            iqr = part_cumm_df['val-test'].quantile(0.75) - part_cumm_df['val-test'].quantile(0.25)
-            mean = part_cumm_df['val-test'].mean()
-            cumm_df = cumm_df.drop(cumm_df.loc[(cumm_df['algorithm'] == 'alg') & (cumm_df['val-test'] > mean + p_iqr*iqr)].index)
-            cumm_df = cumm_df.drop(cumm_df.loc[(cumm_df['algorithm'] == 'alg') & (cumm_df['val-test'] < mean - p_iqr*iqr)].index)
+            iqr = part_cumm_df['test/val'].quantile(0.75) - part_cumm_df['test/val'].quantile(0.25)
+            mean = part_cumm_df['test/val'].mean()
+            cumm_df = cumm_df.drop(cumm_df.loc[(cumm_df['algorithm'] == 'alg') & (cumm_df['test/val'] > mean + p_iqr*iqr)].index)
+            cumm_df = cumm_df.drop(cumm_df.loc[(cumm_df['algorithm'] == 'alg') & (cumm_df['test/val'] < mean - p_iqr*iqr)].index)
 
-
-    
-    sns.violinplot(cumm_df, x='algorithm', y='val-test', width=0.9, hue='measure', palette=[palette_obj[x] for x in obj], density_norm='width')
-    plt.title(f"Relation between validation and test results (overfit) for {dataname} dataset")
-    plt.ylabel('Validation - Test results')
+    sns.violinplot(cumm_df, x='algorithm', y='test/val', width=0.9, hue='measure', palette=[palette_obj[x] for x in obj], density_norm='width', log_scale=True)
+    plt.title(f"Relation between test and validation (overfit) for {dataname} dataset")
+    plt.ylabel('Test/Validation results')
     plt.savefig(f"{PATH_TO_RESULTS}/GeneralGraphics/{dataname}/violin_overfit_{dataname}.pdf", format='pdf', bbox_inches='tight')
     plt.close()
 

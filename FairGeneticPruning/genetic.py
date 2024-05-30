@@ -1,18 +1,13 @@
-from hashlib import sha256
-from sklearn.datasets import load_iris
-from sklearn.model_selection import cross_val_score
 import numpy as np
-from sklearn.metrics import accuracy_score
-    
 from individual import Individual
 from individual import Individual_NSGA2
 from sympy import symbols, nsolve
 import random
 import copy
 import math
-import pandas as pd
 from ml import create_gen_stats_df, update_gen_stats_df, create_gen_population_df, update_gen_population
 from joblib import Parallel, delayed
+from collections import Counter
 
 import time
 
@@ -133,7 +128,7 @@ class Genetic_Pruning_Process():
         
         # If both individuals represent no prunings, they will be returned
         if len(indiv1.repre) == 0 and len(indiv2.repre) == 0:
-            return indiv1, indiv2
+            return Genetic_Pruning_Process.indiv_class(self.struc, self.objs_string, indiv1.repre, indiv1.creation_mode), Genetic_Pruning_Process.indiv_class(self.struc, self.objs_string, indiv2.repre, indiv2.creation_mode)
 
         # In any other case
         # We will take the prunings done in each individual, and select randomly to which individual we be assigned.
@@ -211,11 +206,7 @@ class Genetic_Pruning_Process():
                         newindiv2.append(selected)
                 else:
                     newindiv2.append(selected)
-        
-        # print("aaaaaaa")
-        # print(dict_newindiv1)
-        # print(dict_newindiv2)
-        # print("aaaaaaa")
+
         dict_newindiv1 = {tuple(k):1 for k in newindiv1}
         dict_newindiv2 = {tuple(k):1 for k in newindiv2}
         assert(len(newindiv1) == len(dict_newindiv1))
@@ -237,16 +228,14 @@ class Genetic_Pruning_Process():
 
         longi = len(self.population)
         for i in range(longi):                      # For each individual in the new population
+            print(i)
             rand1 = np.random.randint(0, longi)     # Randomly select two distinct individuals
             rand2 = np.random.randint(0, longi)
             while rand1 == rand2:
                 rand2 = np.random.randint(0, longi)
 
-            # We select the node with the greates objectives value.
-            objectives_1 = self.population[rand1].objectives
-            objectives_2 = self.population[rand2].objectives
-            
-            if objectives_1 > objectives_2:
+            # We select the best individual.
+            if self.population[rand1].dominates(self.population[rand2]):
                 new_pop.append(self.population[rand1])
             else:
                 new_pop.append(self.population[rand2])
@@ -254,7 +243,6 @@ class Genetic_Pruning_Process():
         return new_pop
 
 
-    # TODO: Parallelize
     def parallel_pop_crossover(self, parent_1, parent_2):
         rand = np.random.random()       # We decide if crossover will be done
         n_p = []
@@ -263,8 +251,8 @@ class Genetic_Pruning_Process():
             n_p.append(new_indiv1)
             n_p.append(new_indiv2)
         else:                           # If not, we return the same parents
-            n_p.append(Genetic_Pruning_Process.indiv_class(self.struc, self.objs_string, parent_1.repre, parent_1.creation_mode, parent_1.objectives))
-            n_p.append(Genetic_Pruning_Process.indiv_class(self.struc, self.objs_string, parent_2.repre, parent_2.creation_mode, parent_2.objectives))
+            n_p.append(Genetic_Pruning_Process.indiv_class(self.struc, self.objs_string, parent_1.repre, parent_1.creation_mode, parent_1.objectives, parent_1.objectives_train))
+            n_p.append(Genetic_Pruning_Process.indiv_class(self.struc, self.objs_string, parent_2.repre, parent_2.creation_mode, parent_2.objectives, parent_2.objectives_train))
         return n_p
     
 
@@ -288,8 +276,8 @@ class Genetic_Pruning_Process():
                     new_pop.append(new_indiv1)
                     new_pop.append(new_indiv2)
                 else:                           # If not, we return the same parents
-                    new_pop.append(Genetic_Pruning_Process.indiv_class(self.struc, self.objs_string, self.population[2*i].repre, self.population[2*i].creation_mode, self.population[2*i].objectives))
-                    new_pop.append(Genetic_Pruning_Process.indiv_class(self.struc, self.objs_string, self.population[(2*i)+1].repre, self.population[(2*i)+1].creation_mode, self.population[(2*i)+1].objectives))
+                    new_pop.append(Genetic_Pruning_Process.indiv_class(self.struc, self.objs_string, self.population[2*i].repre, self.population[2*i].creation_mode, self.population[2*i].objectives, self.population[2*i].objectives_train))
+                    new_pop.append(Genetic_Pruning_Process.indiv_class(self.struc, self.objs_string, self.population[(2*i)+1].repre, self.population[(2*i)+1].creation_mode, self.population[(2*i)+1].objectives, self.population[(2*i)+1].objectives_train))
 
         return new_pop
 
@@ -310,7 +298,6 @@ class Genetic_Pruning_Process():
             if rand <= total:
                 return k
 
-    # TODO: Revisar
     # MODIFIABLE
     def mutation(self, indiv):
         """
@@ -367,7 +354,7 @@ class Genetic_Pruning_Process():
 
             # Select random leaf
             leaf = copy.deepcopy(random.choice(leaves))
-            move_distance = random.randint(1, math.ceilself.struc.clf.tree_.max_depth / 10)
+            move_distance = random.randint(1, math.ceil(self.struc.clf.tree_.max_depth / 10))
             # After having selected the leaf, we will now select the mutation applied over that leaf.
             if random.random() > 0.5:
                 # Move up
@@ -535,11 +522,10 @@ class Genetic_Pruning_Process():
         #print(self.population)              # Print initial population ERASE
         for i in range(self.num_gen):       # For each generation
             parents = self.tournament()     # We select the parent inidividuals
-            children = self.pop_crossover(parents)  # We apply crossover operator
+            children = self.pop_crossover(parents, parallel=False)  # We apply crossover operator
             # TODO: Parallelize
             children = [self.mutation(indiv) for indiv in children] # We apply mutation over individuals
-            
-            #print(i)
+
             self.population = children       # We update the population to the new created one
         print("End")
         return self.population              # Return the last created population
@@ -581,8 +567,6 @@ class Genetic_Pruning_Process_NSGA2(Genetic_Pruning_Process):
             #print(self.population[i].repre)
         # Initialization of other variables needed 
         self.fronts = []
-        self.domination_count = 0
-        self.dominated_solutions = []
 
 
     def crowding_distance(self, front):
@@ -627,6 +611,7 @@ class Genetic_Pruning_Process_NSGA2(Genetic_Pruning_Process):
             if individual.domination_count == 0:                            # If it is not dominated by any other individual
                 individual.rank = 0
                 self.fronts[0].append(individual)
+
         i = 0
         while len(self.fronts[i]) > 0:        # While there are more individuals within the current front
             temp = []
@@ -636,8 +621,8 @@ class Genetic_Pruning_Process_NSGA2(Genetic_Pruning_Process):
                     if other_individual.domination_count == 0:              # If it reaches 0, there are no other individuals which dominate it, so it belongs to the next front
                         other_individual.rank = i+1
                         temp.append(other_individual)
-            i = i+1
             self.fronts.append(temp)
+            i = i+1
         
 
 
@@ -678,22 +663,22 @@ class Genetic_Pruning_Process_NSGA2(Genetic_Pruning_Process):
 
         return new_pop
 
-    def genetic_optimization(self, seed, store=True):
+    def genetic_optimization(self, seed, store=True, parallel=False):
         """
         Defines the whole optimization process
         """
+
         np.random.seed(seed)
+        random.seed(seed)
+
 
         start_p_time = time.process_time()
         start_t_time = time.time()
 
         gen_stats_df = create_gen_stats_df()
-        gen_population_df = create_gen_population_df(self.objs_string, seed)
+        gen_population_df = create_gen_population_df(self.objs_string)
         
         print("Start")
-        #for i in range(len(self.population)):
-            #print(self.population[i].repre)
-        
 
         for i in range(self.num_gen):
             print(f"{i}")
@@ -705,17 +690,22 @@ class Genetic_Pruning_Process_NSGA2(Genetic_Pruning_Process):
             start_t_time = time.time()
 
             # NSGA-II Process
+
             parents = self.tournament()                             # Tournament
-            children = self.pop_crossover(parents)                   # Crossover
+            children = self.pop_crossover(parents, parallel)                   # Crossover
             #list_mutate = [True if np.random.random() < self.prob_mutation else False for x in range(len(children))]
             #print(list_mutate)
-            children = [self.mutation(indiv) for indiv in children]   # Mutation
+            if parallel:
+                children = Parallel(n_jobs=-1)(delayed(self.mutation)(indiv) for indiv in children)
+            else:
+                children = [self.mutation(indiv) for indiv in children]   # Mutation
             self.population.extend(children)                         # Selection
+
             self.fast_nondominated_sort()
 
             new_population = []
             front_num = 0
-            while len(new_population) + len(self.fronts[front_num]) <= self.num_indiv:
+            while len(new_population) + len(self.fronts[front_num]) < self.num_indiv:
                 #print(new_population, len(self.fronts[front_num]))
                 self.crowding_distance(self.fronts[front_num])
                 new_population.extend(self.fronts[front_num])
@@ -726,11 +716,6 @@ class Genetic_Pruning_Process_NSGA2(Genetic_Pruning_Process):
           
             # New generation
             self.population = new_population
-
-
-
-
-
 
         self.fast_nondominated_sort()
         print("End")

@@ -267,24 +267,32 @@ def algorithm_proportion(indivs):
 
 
 
-def diff_val_test_rate(model, indivs, obj):
+def div_test_val_rate(model, indivs, obj):
     """
     Calculates a comparison between validation and test results
-    If mean is > 0, val results are generally better than test ones, which is expected.
-    If >> 0, there's overfit, if < 0, there's underfit
+    If the value is < 1, val results are generally better than test ones, which is expected.
+    If > 1, there's overfit, if < 1, there's underfit
         Parameters:
             - df: Dataframe
             - obj: Objectives 
         Returns
             - Mean and std of the differences between validation and test sets
     """
-    return_df = {'algorithm':[], 'measure':[], 'val-test':[]}
+    return_df = {'algorithm':[], 'measure':[], 'test/val':[]}
     for i in range(len(obj)):
         for indiv in indivs:
             return_df['algorithm'].append(model)
             return_df['measure'].append(obj[i])
-            return_df['val-test'].append(indiv.objectives[i] - indiv.objectives_test[i])
-    
+            dividend = indiv.objectives_test[i]
+            divisor = indiv.objectives[i]
+
+            if dividend == 0:
+                dividend = 1e-5
+            if divisor == 0:
+                divisor = 1e-5
+            
+            return_df['test/val'].append(dividend / divisor)
+
     return pd.DataFrame(return_df)
 
 

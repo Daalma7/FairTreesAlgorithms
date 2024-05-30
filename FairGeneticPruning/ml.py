@@ -1,15 +1,14 @@
 import pandas as pd
-from sklearn.tree import DecisionTreeClassifier
 from sklearn.tree import export_graphviz
 from sklearn.model_selection import train_test_split
 from six import StringIO
 import pydotplus
-from collections import Counter
 import string
 import random
 import pickle
 import os
 import numpy as np
+import ast
 from collections import OrderedDict as od
 from individual import Individual_NSGA2
 
@@ -437,7 +436,7 @@ def correct_pareto_optimal(dat, var, objectives, nind, ngen, seed, i, extra, str
     hyperparameters = []
     pareto_fronts.reset_index(drop=True, inplace=True)                  #Reset index because for each run all rows have repeated ones
     for index, row in pareto_fronts.iterrows():                         #We create an individual object associated with each row
-        indiv = Individual_NSGA2(struc, objectives, row['repre'], row['creation_mode'], [float(row[f"{obj}_val"]) for obj in objectives])
+        indiv = Individual_NSGA2(struc, objectives, struc.node_id_to_repre(ast.literal_eval(row['repre'])), row['creation_mode'], [float(row[f"{obj}_val"]) for obj in objectives])
         hyperparameters = ['repre']
         indiv.features = [row[x] for x in hyperparameters]
         indiv.id = row['ID']
@@ -483,8 +482,10 @@ def correct_pareto_optimal(dat, var, objectives, nind, ngen, seed, i, extra, str
 
     pareto_optimal_df.to_csv(f"{PATH_TO_RESULTS}/pareto_individuals/runs/{dat}/{dat}_seed_{seed + i}_var_{var}_gen_{ngen}_indiv_{nind}_model_FGP_obj_{obj_str}{extra_str}.csv", index=False)
 
-# TODO: CAMBIAR LA PARTE DE STRUC, CADA SEED TIENE UN STRUC
-def calculate_pareto_optimal(dat, var, objectives, nind, ngen, seed, runs, extra, struc, correct=True):
+
+
+
+def calculate_pareto_optimal(dat, var, objectives, nind, ngen, seed, runs, extra, dict_strucs, correct=True):
     """
     Calculates Pareto optimal individuals from results of all runs
         Parameters:
@@ -496,11 +497,11 @@ def calculate_pareto_optimal(dat, var, objectives, nind, ngen, seed, runs, extra
             - seed: Random seed
             - runs: Number of runs 
             - extra: Extra objective functions for which the process did optimized
-            - struc: Tree structure of matrix tree
         Returns:
             - pareto_optimal: List of Pareto optimal individuals
             - pareto_optimal_df: Dataframe of Pareto optimal individuals
     """
+
     pareto_fronts = []
     all_indivs = []
     pareto_optimal = []
@@ -512,7 +513,7 @@ def calculate_pareto_optimal(dat, var, objectives, nind, ngen, seed, runs, extra
     
     for i in range(runs):
         if correct:
-            correct_pareto_optimal(dat, var, objectives, nind, ngen, seed, i, extra, struc)
+            correct_pareto_optimal(dat, var, objectives, nind, ngen, seed, i, extra, dict_strucs[seed + i])
         save_pareto_run_name = f"{PATH_TO_RESULTS}/pareto_individuals/runs/{dat}/{dat}_seed_{seed + i}_var_{var}_gen_{ngen}_indiv_{nind}_model_FGP_obj_{obj_str}{extra_str}.csv"
         read = pd.read_csv(save_pareto_run_name)
         pareto_fronts.append(read)
@@ -520,8 +521,9 @@ def calculate_pareto_optimal(dat, var, objectives, nind, ngen, seed, runs, extra
     hyperparameters = []
     pareto_fronts = pd.concat(pareto_fronts)                            #Union of all pareto fronts got in each run
     pareto_fronts.reset_index(drop=True, inplace=True)                  #Reset index because for each run all rows have repeated ones
+    print(pareto_fronts)
     for index, row in pareto_fronts.iterrows():                         #We create an individual object associated with each row
-        indiv = Individual_NSGA2(struc, objectives, row['repre'], row['creation_mode'], [float(row[f"{obj}_val"]) for obj in objectives])
+        indiv = Individual_NSGA2(dict_strucs[row['seed']], objectives, dict_strucs[row['seed']].node_id_to_repre(ast.literal_eval(row['repre'])), row['creation_mode'], [float(row[f"{obj}_val"]) for obj in objectives])
         hyperparameters = ['repre']
         indiv.features = [row[x] for x in hyperparameters]
         indiv.id = row['ID']

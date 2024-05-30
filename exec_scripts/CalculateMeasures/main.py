@@ -10,8 +10,8 @@ sns.set_theme(style='darkgrid', palette='pastel')
 
 
 sys.path.insert(1, os.path.dirname(os.path.dirname(__file__)))
-from qualitymeasures import hypervolume, spacing, maximum_spread, error_ratio, overall_pareto_front_spread, generational_distance, inverted_generational_distance, ideal_point, nadir_point, algorithm_proportion, diff_val_test_rate, coverage
-from calculatemeasures_aux import read_runs_pareto_files, plot_generation_stats, plot_algorithm_metrics, plot_diff_val_test, create_total_pareto_optimal, calculate_general_pareto_front_measures, calculate_algorithm_pareto_front_measures, calculate_algorithm_pareto_front_measures, coverage_analysis, metrics_ranking, hyperparameter_plots
+from qualitymeasures import hypervolume, spacing, maximum_spread, error_ratio, overall_pareto_front_spread, generational_distance, inverted_generational_distance, ideal_point, nadir_point, algorithm_proportion, div_test_val_rate, coverage
+from calculatemeasures_aux import read_runs_pareto_files, plot_generation_stats, plot_algorithm_metrics, plot_div_test_val, create_total_pareto_optimal, calculate_general_pareto_front_measures, calculate_algorithm_pareto_front_measures, calculate_algorithm_pareto_front_measures, coverage_analysis, metrics_ranking, hyperparameter_plots
 
 #Dictionary to propperly create individuals given the objectives
 quality_measures = ['Mean solutions', 'Proportion', 'Hypervolume', 'Spacing', 'Maximum spread', 'Overall PF spread',  'Error ratio', 'GD', 'Inverted GD']
@@ -194,7 +194,7 @@ for dataset in ['adult', 'compas', 'german', 'ricci', 'obesity', 'insurance', 's
 
 
     print("Calculating difference between validation and test sets...")
-    plot_diff_val_test(dataset, models, indiv_lists, objectives)
+    plot_div_test_val(dataset, models, indiv_lists, objectives)
 
     # Measures for each algorithm's pareto front
     print("Calculating measures for each algorithm's pareto front")
@@ -208,13 +208,12 @@ for dataset in ['adult', 'compas', 'german', 'ricci', 'obesity', 'insurance', 's
             [results[meas].append(new_results[meas]) for meas in new_results]
 
     # Store information about quality metrics for final rankings.
-    print(results)
-    print()
+    # print(results)
     for elem in results:
         if elem in ['Error ratio', 'Generational distance', 'Inverted Generational Distance']:
-            print(results[elem])
+            # print(results[elem])
             results[elem] = [1 - x for x in results[elem]]
-            print(results[elem])
+            # print(results[elem])
         if not elem in model_ranking:
             model_ranking[elem] = rankdata(results[elem]) - 1
         else:

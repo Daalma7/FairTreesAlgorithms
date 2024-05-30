@@ -15,7 +15,7 @@ class Tree_Structure:
     It contains structures in order to the process to be as time efficent as possible
     """
 
-    def __init__(self, x_train, y_train, prot_train, x_val=None, y_val=None, prot_val=None, seed=None):
+    def __init__(self, x_train, y_train, prot_train, x_val=None, y_val=None, prot_val=None, seed=None, combine_train_val=None):
 
         """
         Class constructor
@@ -26,6 +26,8 @@ class Tree_Structure:
                 - x_val: Prediction information values for validation
                 - y_val: Class information values for validation
                 - prot_val: Protected attribute valuess for validation
+                - seed: Random seed
+                - combine_train_val: Combines training and validation samples
         """
 
         self.x_train = x_train
@@ -49,7 +51,19 @@ class Tree_Structure:
             self.seed = 0
         else:
             self.seed = seed
+
+        if combine_train_val is True:
+            new_x = pd.concat([x_train, x_val], ignore_index=True)
+            new_y = pd.concat([y_train, y_val], ignore_index=True)
+            new_prot = pd.concat([prot_train, prot_val], ignore_index=True)
+            self.x_train = new_x
+            self.x_val = new_x
+            self.y_train = new_y
+            self.y_val = new_y
+            self.prot_train = new_prot
+            self.prot_val = new_prot
                     
+        np.random.seed(self.seed)
         self.clf = DecisionTreeClassifier(random_state=self.seed)
         self.clf.fit(x_train, y_train)
 
@@ -320,6 +334,22 @@ class Tree_Structure:
             children.append(tuple(pos_1))
         
         return children
+    
+
+    def node_id_to_repre(self, ids):
+        """
+        Returns individual's representation using the nodes id of the prunings, instead
+        of the code which represent how to travel the tree to get to them
+            Returns:
+                - id_repre: individual's representation in terms of node ids
+        """
+        
+        new_repre = []
+
+        for elem in ids:
+            new_repre.append(self.assoc_dict[elem])
+
+        return new_repre
 
 
 
@@ -329,7 +359,7 @@ class Individual:
     of prunings over the base classifier tree.
     """
     
-    def __init__(self, struc, objs_string, repre, creation_mode, objectives=None):
+    def __init__(self, struc, objs_string, repre, creation_mode, objectives=None, objectives_train=None):
 
         """
         Class constructor
@@ -342,10 +372,11 @@ class Individual:
         self.struc = struc
         self.objs_string = objs_string
         self.repre = repre   # Each individual created needs to have a minimal representation
-        if objectives is None:
-            self.objectives = self.calc_objectives()     # And also its objectives values will be calculated
+        if objectives is None or objectives_train is None:
+            self.objectives, self.objectives_train = self.calc_objectives()     # And also its objectives values will be calculated
         else:
             self.objectives = objectives
+            self.objectives_train = objectives_train
         self.creation_mode = creation_mode
         self.num_prunings = len(repre)
         self.depth = None
@@ -365,7 +396,8 @@ class Individual:
 
         true_clf = self.get_tree()
 
-        ret = []
+        ret_val = None
+        ret_train = None
 
         # For that purpose, we will build the general confusion matrix divided by protected attribute.
             # conf_mat_x: protected attribute value
@@ -379,60 +411,79 @@ class Individual:
             leaf_nodes.append(elem)
         leaf_nodes = self.struc.correct_indiv(leaf_nodes)
         """
-        
-        y_pred = true_clf.predict(self.struc.x_val)
-        pred_df = pd.DataFrame({'y_val': self.struc.y_val, 'y_pred': y_pred, 'prot': self.struc.prot_val})
-        
-        pred_df_p = pred_df.loc[pred_df['prot'] == 1]        #p variables represent data belonging to privileged class
-        pred_df_u = pred_df.loc[pred_df['prot'] != 1]        #u variables represent data belonging to unprivileged class
-        y_val_p = pred_df_p['y_val']
-        y_val_u = pred_df_u['y_val']
-        y_pred_p = pred_df_p['y_pred']
-        y_pred_u = pred_df_u['y_pred']
-        
-        tn_p, fp_p, fn_p, tp_p = confusion_matrix(y_val_p, y_pred_p).ravel()    # Confusion matrix divided by each protected attribute value
-        tn_u, fp_u, fn_u, tp_u = confusion_matrix(y_val_u, y_pred_u).ravel()
-        
-        #print(tn_p, fp_p, fn_p, tp_p, tn_u, fp_u, fn_u, tp_u)        
 
-        for obj in self.objs_string:
-            """
-            You can implement whichever objective you want 
-            """
+        for elem in ['val', 'train']:
+            ret = []
+            x = None
+            y_real = None
+            prot = None
 
-            if obj == 'accuracy':
-
-                ret.append(1-accuracy_score(self.struc.y_val, y_pred))
-                continue
+            if elem == 'val':
+                x = self.struc.x_val
+                y_real = self.struc.y_val
+                prot = self.struc.prot_val
+            elif elem == 'train':
+                x = self.struc.x_train
+                y_real = self.struc.y_train
+                prot = self.struc.prot_train
             
-            if obj == 'tpr_diff':
-                tpr_p = tp_p / (tp_p + fn_p)
-                tpr_u = tp_u / (tp_u + fn_u)
-                ret.append(abs(tpr_p-tpr_u))
-                continue
+            y_pred = true_clf.predict(x)
+            pred_df = pd.DataFrame({'y_val': y_real, 'y_pred': y_pred, 'prot': prot})
             
-            if obj == 'fpr_diff':
-                fpr_p = fp_p / (fp_p + tn_p)
-                fpr_u = fp_u / (fp_u + tn_u)
-                ret.append(abs(fpr_p-fpr_u))
-                continue
+            pred_df_p = pred_df.loc[pred_df['prot'] == 1]        #p variables represent data belonging to privileged class
+            pred_df_u = pred_df.loc[pred_df['prot'] != 1]        #u variables represent data belonging to unprivileged class
+            y_val_p = pred_df_p['y_val']
+            y_val_u = pred_df_u['y_val']
+            y_pred_p = pred_df_p['y_pred']
+            y_pred_u = pred_df_u['y_pred']
+            
+            tn_p, fp_p, fn_p, tp_p = confusion_matrix(y_val_p, y_pred_p).ravel()    # Confusion matrix divided by each protected attribute value
+            tn_u, fp_u, fn_u, tp_u = confusion_matrix(y_val_u, y_pred_u).ravel()
+            
+            #print(tn_p, fp_p, fn_p, tp_p, tn_u, fp_u, fn_u, tp_u)        
+
+            for obj in self.objs_string:
+                """
+                You can implement whichever objective you want 
+                """
+
+                if obj == 'accuracy':
+
+                    ret.append(1-accuracy_score(y_real, y_pred))
+                    continue
                 
-            if obj == 'ppv_diff':
-                ppv_p = tp_p / (tp_p + fp_p)
-                ppv_u = tp_u / (tp_u + fp_u)
-                ret.append(abs(ppv_p-ppv_u))
-                continue
+                if obj == 'tpr_diff':
+                    tpr_p = tp_p / (tp_p + fn_p)
+                    tpr_u = tp_u / (tp_u + fn_u)
+                    ret.append(abs(tpr_p-tpr_u))
+                    continue
+                
+                if obj == 'fpr_diff':
+                    fpr_p = fp_p / (fp_p + tn_p)
+                    fpr_u = fp_u / (fp_u + tn_u)
+                    ret.append(abs(fpr_p-fpr_u))
+                    continue
+                    
+                if obj == 'ppv_diff':
+                    ppv_p = tp_p / (tp_p + fp_p)
+                    ppv_u = tp_u / (tp_u + fp_u)
+                    ret.append(abs(ppv_p-ppv_u))
+                    continue
 
-            if obj == 'pnr_diff':
-                pnr_p = fn_p + tn_p / (fn_p + tn_p + fp_p + tp_p)
-                pnr_u = fn_u + tn_u / (fn_u + tn_u + fp_u + tp_u)
-                ret.append(abs(pnr_p - pnr_u))
-                continue
-            
-            if obj == 'gmean_inv':
-                ret.append(1-geometric_mean_score(self.struc.y_val, y_pred))
+                if obj == 'pnr_diff':
+                    pnr_p = fn_p + tn_p / (fn_p + tn_p + fp_p + tp_p)
+                    pnr_u = fn_u + tn_u / (fn_u + tn_u + fp_u + tp_u)
+                    ret.append(abs(pnr_p - pnr_u))
+                    continue
+                
+                if obj == 'gmean_inv':
+                    ret.append(1-geometric_mean_score(y_real, y_pred))
 
-        return ret
+            if elem == 'val':
+                ret_val = ret
+            elif elem == 'train':
+                ret_train = ret
+        return ret_val, ret_train
     
     
     def dominates(self, other):
@@ -449,8 +500,15 @@ class Individual:
         for first, second in zip(self.objectives, other.objectives):
             and_condition = and_condition and first <= second
             or_condition = or_condition or first < second
+        
+        if not(or_condition) and and_condition:          # If both individuals have the same objective values:
+            for first, second in zip(self.objectives_train, other.objectives_train):
+                and_condition = and_condition and first <= second
+                or_condition = or_condition or first < second
+
         return (and_condition and or_condition)
-    
+
+
     
     def get_tree(self):
         """
@@ -473,11 +531,12 @@ class Individual:
         while len(stack) > 0:
             # `pop` ensures each node is only visited once
             node_id, repr = stack.pop()         # Extract the first node id and its representation
-            
+
             # We now check if the current node is in our pruning list.
             pruning = False
-            if repr in self.repre:                  # In case we have to prune it, we flag it    
+            if repr in self.repre:                  # In case we have to prune it, we flag it
                 pruning = True
+
                 
             # If the left and right child of a node is not the same, we are dealing with a split node (non leaf)
             is_split_node = children_left[node_id] != children_right[node_id]
@@ -613,6 +672,7 @@ class Individual:
 
             id_repre.append(key_list[position])
         return id_repre
+    
 
 
 
@@ -621,14 +681,15 @@ class Individual_NSGA2(Individual):
     Class representing an individual for a NSGA2 optimization process, within this context
     """
 
-    def __init__(self, struc, objs_string, repre, creation_mode, objectives=None):
+    def __init__(self, struc, objs_string, repre, creation_mode, objectives=None, objectives_train=None):
         """
         Class constructor
             Parameters:
                 - struc: tree structure with all calculated metrics, from the general.Tree_Structure class
                 - repr: Representation of the individual
         """
-        Individual.__init__(self, struc, objs_string, repre, creation_mode, objectives)
+        Individual.__init__(self, struc, objs_string, repre, creation_mode, objectives, objectives_train)
         self.domination_count=0
+        self.dominated_solutions = []
         self.rank = None
         self.crowding_distance = None

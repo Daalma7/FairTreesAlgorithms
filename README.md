@@ -3,9 +3,9 @@
 This repository contains the work done on the implementation and testing of 3 different multi-objective algorithms, which include methods for achieving a balance between classification and fairness. This
 
 ## Brief descrition of developed algorithms
-- FairDT (FDT): Modification of the impurity criterion calculation during decision tree training to also consider fairness. The general form it has is: $$(1-\lambda) * \text{gini/entropy} - \lambda * \text{fairness criterion} $$
-- Fair Genetic Pruning (FGP): Consideration of the matrix decision tree (largest decision tree which can be built using the available data that perfectly classifies the training set) for a task and pruning it based on objectives considered.
-- FairLGBM (FLGBM): Modification of the loss function in the LightGBM algorithm to incorporate fairness.
+- **FairDT (FDT)**: Modification of the impurity criterion calculation during decision tree training to also consider fairness. The general form it has is: $$(1-\lambda) * \text{gini/entropy} - \lambda * \text{fairness criterion} $$
+- **Fair Genetic Pruning (FGP)**: Consideration of the matrix decision tree (largest decision tree which can be built using the available data that perfectly classifies the training set) for a task and pruning it based on objectives considered.
+- **FairLGBM (FLGBM)**: Modification of the loss function in the LightGBM algorithm to incorporate fairness.
 
 To see more a detailed explanation of each of this algorithms, refer to the pdf file which describes the whole project.
 
