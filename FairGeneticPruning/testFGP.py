@@ -12,7 +12,7 @@ from individual import Tree_Structure
 
 
 PATH_TO_DATA = os.path.dirname(os.path.dirname(__file__)) + '/datasets/data/'
-PATH_TO_RESULTS = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__)))) + '/results/GraphicsParamFDT/'
+PATH_TO_RESULTS = os.path.dirname(os.path.dirname(os.path.dirname(__file__))) + '/results/TestFGP/'
 DOTS_TO_PRINT = 100
 PRINT_RESULTS = False
 CHECK_STRUC = False
@@ -25,7 +25,7 @@ dict_protected = {'academic': 'ge','adult': 'Race','arrhythmia': 'sex','bank': '
 if CHECK_STRUC:
     last_struc = None
     # Read the data
-    for dataset in ['adult']:
+    for dataset in ['diabetes']:
 
         for i in range(10):
             print(i)
@@ -75,7 +75,7 @@ if TEST_EXEC:
     leaves = []
 
 
-    for dataset in ['adult']:
+    for dataset in ['diabetes']:
     #for dataset in  ['adult', 'compas', 'german', 'ricci', 'obesity', 'insurance', 'student', 'diabetes', 'parkinson', 'dutch']:
         print(f'Calculating values for {dataset} dataset')
 
@@ -114,13 +114,14 @@ if TEST_EXEC:
             gen_process = Genetic_Pruning_Process_NSGA2(struc,
                                                         objs = ['gmean_inv', 'fpr_diff'],
                                                         num_gen = 20,
-                                                        num_indiv = 50,
-                                                        prob_cross = 0.7,
+                                                        num_indiv = 150,
+                                                        prob_cross = 1.0,
                                                         prob_mutation = 0.5)
             
             # Execute the algorithm and get all decision trees found
             indivs, evo_stats_df, pop_stats_df = gen_process.genetic_optimization(777, parallel=False)
 
+            repre = []
             gmean_inv_train = []
             fpr_diff_train = []
             gmean_inv_val = []
@@ -131,6 +132,7 @@ if TEST_EXEC:
             for indiv in indivs:
 
                 objs_val, objs_train = indiv.calc_objectives()
+                repre.append(indiv.repre)
                 gmean_inv_val.append(objs_val[0])
                 fpr_diff_val.append(objs_val[1])
                 gmean_inv_train.append(objs_train[0])
@@ -175,10 +177,19 @@ if TEST_EXEC:
                 
                 fpr_diff_test.append(fpr_diff)
 
-            print(pd.DataFrame({'gmean_inv_train': gmean_inv_train, 'fpr_diff_train': fpr_diff_train,
+            
+            print_df = pd.DataFrame({'gmean_inv_train': gmean_inv_train, 'fpr_diff_train': fpr_diff_train,
                                 'gmean_inv_val': gmean_inv_val, 'fpr_diff_val': fpr_diff_val,
-                                'gmean_inv_test': gmean_inv_test, 'fpr_diff_test': fpr_diff_test}))
+                                'gmean_inv_test': gmean_inv_test, 'fpr_diff_test': fpr_diff_test,
+                                'repre': repre})
 
-                
+            print(print_df)
+            
+            print_df.to_csv(f"{PATH_TO_RESULTS}/results_test.csv")
+
+    
+        # COSAS PARA HACER:
+            #- 1: GUARDAR LOS RESULTADOS EN UN CSV
+            #- 2: HACER QUE NO PUEDA HABER INDIVIDUOS CON LAS MISMAS REPRESENTACIONES EN UNA POBLACIÓN
 
         # Use validation and test dataframes:

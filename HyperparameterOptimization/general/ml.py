@@ -86,7 +86,9 @@ def decode(var_range, model, **features):
         else:
             features['class_weight'] = 5
         
-        if features['fair_param'] is None:              #In case it's None, it is supposed that fairness will not be taken into account (classical DT)
+        if features['fair_param'] is not None:              #In case it's None, it is supposed that fairness will not be taken into account (classical DT)
+            features['fair_param'] = int(round(features['fair_param']))
+        else:
             features['fair_param'] = var_range[5][0]
 
         hyperparameters = ['criterion', 'max_depth', 'min_samples_split', 'max_leaf_nodes', 'class_weight', 'fair_param']
@@ -118,7 +120,9 @@ def decode(var_range, model, **features):
         else:
             features['max_depth'] = -1
         
-        if features['learning_rate'] is None:
+        if features['learning_rate'] is not None:
+            features['learning_rate'] = int(round(features['learning_rate']))
+        else:
             features['learning_rate'] = var_range[3][1]
 
         if features['n_estimators'] is not None:
@@ -126,10 +130,14 @@ def decode(var_range, model, **features):
         else:
             features['n_estimators'] = var_range[4][1]
         
-        if features['feature_fraction'] is None:
+        if features['feature_fraction'] is not None:
+            features['feature_fraction'] = int(round(features['feature_fraction']))
+        else:
             features['feature_fraction'] = var_range[5][1]
 
-        if features['fair_param'] is None:                          #In case it's None, it is supposed that fairness will not be taken into account (classical DT)
+        if features['fair_param'] is not None:                          #In case it's None, it is supposed that fairness will not be taken into account (classical DT)
+            features['fair_param'] = int(round(features['fair_param']))
+        else:
             features['fair_param'] = var_range[6][0]
 
             
@@ -341,14 +349,14 @@ def train_model(X_train, y_train, prot_col, seed, model, X_val=None, y_val=None,
     if model == "FDT":
         if features['class_weight'] is not None:
             if(features['criterion'] <= 0.5):
-                clf = FairDecisionTreeClassifier(criterion = 'gini_fair', max_depth = features['max_depth'], min_samples_split = features['min_samples_split'], max_leaf_nodes = features['max_leaf_nodes'], class_weight = {0:features['class_weight'], 1:(10-features['class_weight'])}, f_lambda = features['fair_param'], random_state=seed)
+                clf = FairDecisionTreeClassifier(criterion = 'gini_fair', max_depth = features['max_depth'], min_samples_split = features['min_samples_split'], max_leaf_nodes = features['max_leaf_nodes'], class_weight = {0:features['class_weight'], 1:(10-features['class_weight'])}, f_lambda = float(features['fair_param']) / 100.0, random_state=seed)
             else:
-                clf = FairDecisionTreeClassifier(criterion = 'entropy_fair', max_depth = features['max_depth'], min_samples_split = features['min_samples_split'], max_leaf_nodes = features['max_leaf_nodes'], class_weight = {0:features['class_weight'], 1:(10-features['class_weight'])}, f_lambda = features['fair_param'], random_state=seed)
+                clf = FairDecisionTreeClassifier(criterion = 'entropy_fair', max_depth = features['max_depth'], min_samples_split = features['min_samples_split'], max_leaf_nodes = features['max_leaf_nodes'], class_weight = {0:features['class_weight'], 1:(10-features['class_weight'])}, f_lambda = float(features['fair_param']) / 100.0, random_state=seed)
         else:
             if features['criterion'] <= 0.5:
-                clf = FairDecisionTreeClassifier(criterion = 'gini_fair', max_depth = features['max_depth'], min_samples_split = features['min_samples_split'], max_leaf_nodes = features['max_leaf_nodes'], class_weight = features['class_weight'], f_lambda = features['fair_param'], random_state=seed)
+                clf = FairDecisionTreeClassifier(criterion = 'gini_fair', max_depth = features['max_depth'], min_samples_split = features['min_samples_split'], max_leaf_nodes = features['max_leaf_nodes'], class_weight = features['class_weight'], f_lambda = float(features['fair_param'])/100.0, random_state=seed)
             else:
-                clf = FairDecisionTreeClassifier(criterion = 'entropy_fair', max_depth = features['max_depth'], min_samples_split = features['min_samples_split'], max_leaf_nodes = features['max_leaf_nodes'], class_weight = features['class_weight'], f_lambda = features['fair_param'], random_state=seed)
+                clf = FairDecisionTreeClassifier(criterion = 'entropy_fair', max_depth = features['max_depth'], min_samples_split = features['min_samples_split'], max_leaf_nodes = features['max_leaf_nodes'], class_weight = features['class_weight'], f_lambda = float(features['fair_param'])/100.0, random_state=seed)
     
     if model == "LR":
         if features['class_weight'] is not None:
@@ -366,12 +374,13 @@ def train_model(X_train, y_train, prot_col, seed, model, X_val=None, y_val=None,
         'num_leaves': features['num_leaves'],
         'min_data_in_leaf': features['min_data_in_leaf'],
         'max_depth': features['max_depth'],
-        'learning_rate': features['learning_rate'],
+        'learning_rate': float(features['learning_rate'])/100.0,
         'n_estimators': features['n_estimators'],
-        'feature_fraction': features['feature_fraction'],
-        'verbose_eval': False
+        'feature_fraction': features['feature_fraction']/X_train.shape[1],
+        'verbose_eval': False,
+        'num_threats': 16
         }
-        clf = FairLGBM(fair_param=features['fair_param'], prot=prot_col, fair_fun='fpr_diff', lgbm_params=lgbm_params)
+        clf = FairLGBM(fair_param=float(features['fair_param'])/100.0, prot=prot_col, fair_fun='fpr_diff', lgbm_params=lgbm_params)
     
     if model == "FDT":
         learner = clf.fit(X_train, y_train, prot = prot.to_numpy())
@@ -409,12 +418,13 @@ def get_max_depth_FLGBM(X_train, y_train, prot_col, seed, **features):
     'num_leaves': features['num_leaves'],
     'min_data_in_leaf': features['min_data_in_leaf'],
     'max_depth': features['max_depth'],
-    'learning_rate': features['learning_rate'],
+    'learning_rate': float(features['learning_rate'])/100,
     'n_estimators': features['n_estimators'],
-    'feature_fraction': features['feature_fraction']
+    'feature_fraction': features['feature_fraction']/X_train.shape[1],
+    'num_threats': 16
     }
     
-    clf = FairLGBM(fair_param=features['fair_param'], prot=prot_col, fair_fun='fpr_diff', lgbm_params=lgbm_params)
+    clf = FairLGBM(fair_param=float(features['fair_param'])/100.0, prot=prot_col, fair_fun='fpr_diff', lgbm_params=lgbm_params)
     learner = clf.fit(X_train, y_train)
     return learner.model.trees_to_dataframe()['node_depth'].max()
 

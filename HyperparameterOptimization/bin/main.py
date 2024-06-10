@@ -217,8 +217,8 @@ if model == "FDT":               #If we're using Fair Decision Trees:
     min_range_class_weight = 1
     max_range_class_weight = 9
 
-    min_fair_param = 0.0
-    max_fair_param = 1.0
+    min_fair_param = 0
+    max_fair_param = 100
 
     variables_range = [(min_range_criterion, max_range_criterion),(min_range_max_depth, max_range_max_depth), (min_range_samples_split, max_range_samples_split), (min_range_leaf_nodes, max_range_leaf_nodes), (min_range_class_weight, max_range_class_weight), (min_fair_param, max_fair_param)]
 
@@ -251,17 +251,17 @@ if model == "FLGBM":               #In case we've devided to use Logistic Regres
     min_range_max_depth = 2
     max_range_max_depth = None
     
-    min_range_learning_rate = 0.01
-    max_range_learning_rate = 0.2
+    min_range_learning_rate = 1
+    max_range_learning_rate = 20
     
     min_range_n_estimators = 50
     max_range_n_estimators = 200
     
-    min_range_feature_fraction = None
-    max_range_feature_fraction = 1.0
+    min_range_feature_fraction = 1
+    max_range_feature_fraction = None
 
-    min_range_fair_param = 0.0
-    max_range_fair_param = 1.0
+    min_range_fair_param = 0
+    max_range_fair_param = 100
 
     variables_range = [(min_range_num_leaves, max_range_num_leaves), (min_range_min_data_in_leaf, max_range_min_data_in_leaf),(min_range_max_depth, max_range_max_depth),(min_range_learning_rate, max_range_learning_rate),(min_range_n_estimators, max_range_n_estimators),(min_range_feature_fraction, max_range_feature_fraction), (min_range_fair_param, max_range_fair_param)]
     

@@ -1,10 +1,9 @@
 import pandas as pd
-from collections import OrderedDict
 import random
 import numpy as np
-import sys
 import os
 import time
+import copy
 
 from algorithms.nsga2.utils import NSGA2Utils
 from general.population import Population
@@ -76,7 +75,6 @@ class Evolution:
         for i in range(self.num_of_generations):
 
             gen_df = self.evolutions_df.copy(deep=True).iloc[0:0]
-            
             results_df = pd.concat(Parallel(n_jobs=-1)(delayed(self.get_dataframes)(indiv) for indiv in self.population.population))                
             gen_df = pd.concat([gen_df, results_df])
             self.evolutions_df = pd.concat([self.evolutions_df, gen_df])
@@ -88,7 +86,27 @@ class Evolution:
             start_total_time = time.time()
             print("GENERATION:",i+1)
             self.population.extend(children)
+            
+
+            # Remove individuals with repeated objective functions:
+            new_pop = []
+            while len(new_pop) < self.num_of_individuals:
+                if len(new_pop) == 0:
+                    all_objectives = []
+                    for indiv in self.population:
+                        if not indiv.objectives in all_objectives:
+                            all_objectives.append(indiv.objectives)
+                            new_pop.append(indiv)
+                else:
+                    new_pop_2 = []
+                    for indiv in new_pop:
+                        new_pop_2.append(copy.deepcopy(indiv))
+                    new_pop = new_pop + new_pop_2
+
+
+            self.population.population = new_pop
             self.utils.fast_nondominated_sort(self.population)
+
             new_population = Population()
             front_num = 0
             while len(new_population) + len(self.population.fronts[front_num]) <= self.num_of_individuals:
@@ -99,7 +117,8 @@ class Evolution:
             self.population.fronts[front_num].sort(key=lambda individual: individual.crowding_distance, reverse=True)
             new_population.extend(self.population.fronts[front_num][0:self.num_of_individuals-len(new_population)])
             self.population = new_population
-            children = self.utils.create_children(self.population, self.problem.model)
+            if i < (self.num_of_generations - 1):
+                children = self.utils.create_children(self.population, self.problem.model)
         
         self.utils.fast_nondominated_sort(self.population)
         generations_df.to_csv(f"{PATH_TO_RESULTS}{self.model_name}/nsga2/generation_stats/{self.dataset_name}/{self.dataset_name}_seed_{self.utils.problem.seed}_var_{self.protected_variable}_gen_{self.num_of_generations}_indiv_{self.num_of_individuals}_model_{self.problem.model}_obj_{str_obj}{self.problem.get_extra_string()}.csv", index = False, header = True)

@@ -7,7 +7,7 @@ import copy
 import math
 from ml import create_gen_stats_df, update_gen_stats_df, create_gen_population_df, update_gen_population
 from joblib import Parallel, delayed
-from collections import Counter
+import multiprocessing
 
 import time
 
@@ -100,18 +100,18 @@ class Genetic_Pruning_Process():
                     2 if a > b (b is lower)
         """
 
-        newa = np.array(a[:min(len(a), len(b))])  # Subarray with the length of the shortests one
-        newb = np.array(b[:min(len(a), len(b))])
-
-        try:
-            idx = np.where( (newa>newb) != (newa<newb) )[0][0]      # Get the index where both differ. If it not exists, returns IndexError
-            if a[idx] < b[idx]: return 1
-            if a[idx] > b[idx]: return 2
-
-        except IndexError:                                          # If both subarrays are equal, compare the length of the real ones
-            if len(a) < len(b): return 1
-            if len(a) > len(b): return 2
-            if len(a) == len(b): return 0
+        minlen = min(len(a), len(b))
+        i = 0
+        while i < minlen:
+            if not a[i] == b[i]:
+                if a[i] < b[i]: return 1
+                if a[i] > b[i]: return 2
+            i += 1
+        
+        # If it has not ended yet
+        if len(a) < len(b): return 1
+        if len(a) > len(b): return 2
+        if len(a) == len(b): return 0
 
 
     # MODIFIABLE
@@ -244,7 +244,7 @@ class Genetic_Pruning_Process():
 
 
     def parallel_pop_crossover(self, parent_1, parent_2):
-        rand = np.random.random()       # We decide if crossover will be done
+        rand = np.random.rand()       # We decide if crossover will be done
         n_p = []
         if rand < self.prob_cross:           # If so, we apply it
             new_indiv1, new_indiv2 = self.crossover(parent_1, parent_2)
@@ -265,12 +265,13 @@ class Genetic_Pruning_Process():
         """
         new_pop = []                    # Children population
         longi = len(parents)
+        parallel = False
         if parallel:
             new_pop = Parallel(n_jobs=-1)(delayed(self.parallel_pop_crossover)(self.population[2*i], self.population[(2*i)+1]) for i in range(int(longi/2)))
             new_pop = [child for children in new_pop for child in children]
         else:
             for i in range(int(longi/2)):       # For each pair or parents
-                rand = np.random.random()       # We decide if crossover will be done
+                rand = np.random.rand()       # We decide if crossover will be done
                 if rand < self.prob_cross:           # If so, we apply it
                     new_indiv1, new_indiv2 = self.crossover(parents[2*i], parents[(2*i)+1])
                     new_pop.append(new_indiv1)
@@ -299,7 +300,7 @@ class Genetic_Pruning_Process():
                 return k
 
     # MODIFIABLE
-    def mutation(self, indiv):
+    def mutation(self, indiv, prob_mutation):
         """
         Applies mutations randomly over an individual. The mutations may not happen at all, depends of probability
             Parameters:
@@ -308,12 +309,13 @@ class Genetic_Pruning_Process():
                 - objectives_val: its objectives value
         """
 
-        rand_modify = np.random.random()
+        rand_modify = np.random.rand()
 
-        if rand_modify < self.prob_mutation:       # If a mutation will be done
-            #print("Begin Mutation")
+        if rand_modify < prob_mutation:       # If a mutation will be done
             # We will calculate the nodes from which a modification of a pruning can be done 
             # We will insert them in an ORDERED way
+            #init_total = time.process_time()
+            #init = time.process_time()
             leaves = indiv.repre.copy()                  # Considering the prunings which have been applied.
             if len(leaves) > 0:
                 # We will now insert all the actual leaves not pruned by any already considered pruning into the representation
@@ -349,55 +351,69 @@ class Genetic_Pruning_Process():
                 while j > -1:
                     leaves.append(self.struc.base_leaves[j])
                     j = j - 1
-            # We will now randomly select one of those leaves. We will select it using equal probabilities
-            new_repre = indiv.repre.copy()
 
-            # Select random leaf
-            leaf = copy.deepcopy(random.choice(leaves))
-            move_distance = random.randint(1, math.ceil(self.struc.clf.tree_.max_depth / 10))
-            # After having selected the leaf, we will now select the mutation applied over that leaf.
-            if random.random() > 0.5:
-                # Move up
-                if len(leaf) > move_distance:                       # If we can traverse up the amount specified in move_distance
-                    leaf = leaf[:-move_distance]
-                else:                                               # In any other case, we have to move up to the root node
-                    leaf = []
-            else:
-                # Move down
-                for i in range(move_distance):                      # We will try to move down the number speficied in move_distance
-                    if random.random() > 0.5:                           # Create the random path
-                        leaf.append(1)
-                    else:
-                        leaf.append(0)
-                
-                is_prun = leaf in self.struc.pruning_space
-                while not is_prun:
-                    leaf = leaf[:-1]
-                    is_prun = leaf in self.struc.pruning_space
+            #print(f"--- Find leaves: {time.process_time() - init}")
+            #init = time.process_time()
+            # Filter only the leaves for which there is a validation sample that falls there
+            leaves = [elem for elem in leaves if elem in self.struc.val_nodes]
+            #print(f"--- Filter leaves: {time.process_time() - init}")
+            # We will now randomly select one of those leaves. We will select it using different probabilities. They are proportional to the number of samples which fall onto each leave.
             
-            # We will now insert it
-            if not leaf in new_repre:
-                # Once we've decided that we will add the new calculated leaf 
-                inserted = False
-                if len(leaf) > 1:                       # It its parent is not the root node
-                    # We will insert it in an ordered way
-                    l = 0
-                    end = False
-                    while l < len(new_repre) and not inserted:
-                        minlen = min(len(new_repre[l]), len(leaf))
-                        res = self.lex_compare(new_repre[l][:minlen], leaf[:minlen])
-                        if res == 0:                    # We need to prune that branch
-                            del new_repre[l]
-                            l = l - 1
-                        if res == 2:                    # We insert the pruning just before
-                            inserted = True
-                            new_repre.insert(l, leaf)
-                
-                        l = l+1
+            new_repre = indiv.repre.copy()
+            # Select random leaf
+            #init = time.process_time()
+            weights = [self.struc.total_samples_dict[tuple(elem)] for elem in leaves]
+            inverted_weights = [1.0 / w for w in weights]
+            sum_inverted_weights = sum(inverted_weights)                                                        # Normalize the inverted weights so they sum to 1
+            for i in range(10):
+                leaf = copy.deepcopy(random.choices(leaves, weights=[w / sum_inverted_weights for w in inverted_weights]))   # Inversely proportional probability
+                move_distance = random.randint(1, math.ceil(self.struc.clf.tree_.max_depth / 10))
+                #print(f"--- Select leaf: {time.process_time() - init}")
+                #init = time.process_time()
+                # After having selected the leaf, we will now select the mutation applied over that leaf.
+                if np.random.random() > 0.5:
+                    # Move up
+                    if len(leaf) > move_distance:                       # If we can traverse up the amount specified in move_distance
+                        leaf = leaf[:-move_distance]
+                    else:                                               # In any other case, we have to move up to the root node
+                        leaf = []
+                else:
+                    # Move down
+                    for i in range(move_distance):                      # We will try to move down the number speficied in move_distance
+                        if np.random.random() > 0.5:                           # Create the random path
+                            leaf.append(1)
+                        else:
+                            leaf.append(0)
                     
-                    if not inserted:
-                        new_repre.append(leaf)
-
+                    is_prun = leaf in self.struc.pruning_space
+                    while not is_prun:
+                        leaf = leaf[:-1]
+                        is_prun = leaf in self.struc.pruning_space
+                
+                # We will now insert it
+                if not leaf in new_repre:
+                    # Once we've decided that we will add the new calculated leaf 
+                    inserted = False
+                    if len(leaf) > 1:                       # It its parent is not the root node
+                        # We will insert it in an ordered way
+                        l = 0
+                        end = False
+                        while l < len(new_repre) and not inserted:
+                            minlen = min(len(new_repre[l]), len(leaf))
+                            res = self.lex_compare(new_repre[l][:minlen], leaf[:minlen])
+                            if res == 0:                    # We need to prune that branch
+                                del new_repre[l]
+                                l = l - 1
+                            if res == 2:                    # We insert the pruning just before
+                                inserted = True
+                                new_repre.insert(l, leaf)
+                    
+                            l = l+1
+                        
+                        if not inserted:
+                            new_repre.append(leaf)
+                #print(f"--- Perform mutation: {time.process_time() - init}")
+                #print(f"+++ Total time: {time.process_time() - init_total}")
             """
             # for leaf in leaves:
                 #probs = {tuple(leaf): 1/len(leaves) for leaf in leaves}
@@ -524,7 +540,7 @@ class Genetic_Pruning_Process():
             parents = self.tournament()     # We select the parent inidividuals
             children = self.pop_crossover(parents, parallel=False)  # We apply crossover operator
             # TODO: Parallelize
-            children = [self.mutation(indiv) for indiv in children] # We apply mutation over individuals
+            children = [self.mutation(indiv, self.prob_mutation) for indiv in children] # We apply mutation over individuals
 
             self.population = children       # We update the population to the new created one
         print("End")
@@ -625,8 +641,6 @@ class Genetic_Pruning_Process_NSGA2(Genetic_Pruning_Process):
             i = i+1
         
 
-
-
     def tournament(self):
         """
         Applies tournament criterion over population, returning parents population.
@@ -663,6 +677,10 @@ class Genetic_Pruning_Process_NSGA2(Genetic_Pruning_Process):
 
         return new_pop
 
+    def __mutate():
+        pass
+
+
     def genetic_optimization(self, seed, store=True, parallel=False):
         """
         Defines the whole optimization process
@@ -690,19 +708,48 @@ class Genetic_Pruning_Process_NSGA2(Genetic_Pruning_Process):
             start_t_time = time.time()
 
             # NSGA-II Process
-
+            #init = time.process_time()
             parents = self.tournament()                             # Tournament
-            children = self.pop_crossover(parents, parallel)                   # Crossover
+            #print(f"- Tournament: {time.process_time() - init}")
+            #init = time.process_time()
+            children = self.pop_crossover(parents, False)                   # Crossover
+            #print(f"- Crossover: {time.process_time() - init}")
             #list_mutate = [True if np.random.random() < self.prob_mutation else False for x in range(len(children))]
             #print(list_mutate)
+            #init = time.process_time()
             if parallel:
-                children = Parallel(n_jobs=-1)(delayed(self.mutation)(indiv) for indiv in children)
+                njobs = 10
+                mut_vec = np.random.rand(len(children))
+                mutate = [indiv for i, indiv in enumerate(children) if mut_vec[i] < self.prob_mutation]
+                non_mutate = [indiv for i, indiv in enumerate(children) if mut_vec[i] >= self.prob_mutation]
+                mutate = Parallel(n_jobs=njobs)(delayed(self.mutation)(indiv, 1) for indiv in mutate)
+                children = non_mutate + mutate
             else:
-                children = [self.mutation(indiv) for indiv in children]   # Mutation
+                children = [self.mutation(indiv, self.prob_mutation) for indiv in children]   # Mutation
             self.population.extend(children)                         # Selection
-
+            #print(f"- Mutation: {time.process_time() - init}")
+            #init = time.process_time()
+            # Remove individuals with repeated representations
+            new_pop = []
+            while len(new_pop) < self.num_indiv:
+                all_repres = []
+                if len(new_pop) == 0:
+                    for indiv in self.population:
+                        if not indiv.repre in all_repres:
+                            all_repres.append(indiv.repre)
+                            new_pop.append(indiv)
+                else:
+                    new_pop_2 = []
+                    for indiv in new_pop:
+                        new_pop_2.append(Genetic_Pruning_Process.indiv_class(self.struc, self.objs_string, indiv.repre, indiv.creation_mode, indiv.objectives, indiv.objectives_train))
+                    new_pop = new_pop + new_pop_2
+            #print(f"- Removal of repeated: {time.process_time() - init}")
+            #print(len(all_repres))
+            #init = time.process_time()
+            self.population = new_pop
             self.fast_nondominated_sort()
-
+            #print(f"- Sorting: {time.process_time() - init}")
+            #init = time.process_time()
             new_population = []
             front_num = 0
             while len(new_population) + len(self.fronts[front_num]) < self.num_indiv:
@@ -713,7 +760,7 @@ class Genetic_Pruning_Process_NSGA2(Genetic_Pruning_Process):
             self.crowding_distance(self.fronts[front_num])
             self.fronts[front_num].sort(key=lambda individual: individual.crowding_distance, reverse=True)
             new_population.extend(self.fronts[front_num][0:self.num_indiv-len(new_population)])
-          
+            #print(f"- Selection: {time.process_time() - init}")
             # New generation
             self.population = new_population
 

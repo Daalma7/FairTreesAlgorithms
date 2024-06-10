@@ -206,9 +206,9 @@ class Problem:
             individual = IndividualFLGBMGrea()
         individual.id = ''.join(random.choice(string.ascii_uppercase + string.digits) for _ in range(10))
         if num == 'first':
-            individual.features = [31, 20, None, 0.1, 100, 1.0, 0]
+            individual.features = [31, 20, None, 1, 100, self.x_train.shape[1], 0]
         else:
-            individual.features = [31, 20, None, 0.01, 100, 1.0, 0]
+            individual.features = [31, 20, None, 10, 100, self.x_train.shape[1], 0]
         hyperparameters = ['num_leaves', 'min_data_in_leaf', 'max_depth', 'learning_rate', 'n_estimators', 'feature_fraction', 'fair_param']
         individual.features = od(zip(hyperparameters, individual.features))
         individual.features = decode(self.variables_range, "FLGBM", **individual.features)
@@ -324,7 +324,7 @@ class Problem:
             elif first_individual and (self.model == "FLGBM"):
                 var_range_list = list(self.variables_range)
                 var_range_list[2] = (self.variables_range[2][0], get_max_depth_FLGBM(self.x_train, self.y_train, self.variable_name, self.seed, **hyperparameters)) #Model training
-                var_range_list[5] = (1.0 / float(self.x_train.shape[1]), self.variables_range[5][1])
+                var_range_list[5] = (1, float(self.x_train.shape[1]))
                 self.variable_range = []
                 self.variables_range = tuple(var_range_list)
             

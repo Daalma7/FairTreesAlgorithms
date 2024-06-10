@@ -67,7 +67,7 @@ class Tree_Structure:
         self.clf = DecisionTreeClassifier(random_state=self.seed)
         self.clf.fit(x_train, y_train)
 
-        self.fair_dict, self.total_samples_dict, self.base_leaves, self.assoc_dict = self.aux_objectives_metrics()
+        self.fair_dict, self.total_samples_dict, self.base_leaves, self.assoc_dict, self.val_nodes = self.aux_objectives_metrics()
         self.pruning_space = self.calc_pruning_space()
 
         
@@ -117,8 +117,6 @@ class Tree_Structure:
             
             assoc_dict[node_id] = repr          # Create the representation for that node.
 
-            total_samples_dict[tuple(repr)] = np.sum(values[node_id])   # First of all we calculate the total amount of training samples in that node
-
             # If the left and right child of a node is not the same, we are dealing with a split node (non leaf)
             is_split_node = children_left[node_id] != children_right[node_id]
         
@@ -140,13 +138,15 @@ class Tree_Structure:
                     
         #Lastly, we change the faif_dict keys to the current used ids.
         fair_dict = {tuple(assoc_dict[k]): v for k, v in fair_dict.items()}
+        total_samples_dict = {key: np.sum(fair_dict[key]) for key in fair_dict}   # Total amount of training samples in that node
+
+        val_nodes = []
         
-        """
-        # We will update each node in the fair structure with the information of the training data
-        node_indicator = self.clf.decision_path(self.x_train)             # First of all we obtain the decision path for each training example
-        leaf_id = self.clf.apply(self.x_train)                            # And we compute where each specific instance falls.
+        # We will update each node in the fair structure with the information of the validation data
+        node_indicator = self.clf.decision_path(self.x_val)             # First of all we obtain the decision path for each training example
+        #leaf_id = self.clf.apply(self.x_val)                            # And we compute where each specific instance falls.
         
-        for sample_id in range(self.x_train.shape[0]):               # For each training example
+        for sample_id in range(self.x_val.shape[0]):               # For each training example
             # obtain ids of the nodes `sample_id` goes through, i.e., row `sample_id`
             node_index = node_indicator.indices[
                 node_indicator.indptr[sample_id] : node_indicator.indptr[sample_id + 1]
@@ -154,20 +154,18 @@ class Tree_Structure:
 
             # We update the fair structure
             for node_id in node_index:
-                # end if the node is a leaf node
-                if leaf_id[sample_id] == node_id:
-                    fair_dict[tuple(assoc_dict[node_id])][self.y_train.iloc[sample_id]][self.prot_train.iloc[sample_id]] += 1
-                    #print(fair_dict[tuple(assoc_dict[node_id])])
-                    continue
+                check = assoc_dict[node_id]
+                if not check in val_nodes:
+                    val_nodes.append(check)
                 
-                fair_dict[tuple(assoc_dict[node_id])][self.y_train.iloc[sample_id]][self.prot_train.iloc[sample_id]] += 1
-        """
         if verbose:
             print("fair_dict", fair_dict)
             print("total_samples_dict: ", total_samples_dict)
             print("base_leaves: ", base_leaves)
         
-        return fair_dict, total_samples_dict, base_leaves, assoc_dict
+        print(len(val_nodes), len(total_samples_dict), "Diferencia:", len(total_samples_dict) - len(val_nodes), ', Relativa:', len(val_nodes) / len(total_samples_dict))
+        
+        return fair_dict, total_samples_dict, base_leaves, assoc_dict, val_nodes
     
     
         """
@@ -497,15 +495,19 @@ class Individual:
         """
         and_condition = True
         or_condition = False
-        for first, second in zip(self.objectives, other.objectives):
+        self_obj = [0.9 * self.objectives[i] + 0.1 * self.objectives_train[i] for i, _ in enumerate(self.objectives)]
+        other_obj = [0.9 * other.objectives[i] + 0.1 * other.objectives_train[i] for i, _ in enumerate(other.objectives)]
+        #for first, second in zip(self.objectives, other.objectives):
+        for first, second in zip(self_obj, other_obj):
             and_condition = and_condition and first <= second
             or_condition = or_condition or first < second
         
+        """
         if not(or_condition) and and_condition:          # If both individuals have the same objective values:
             for first, second in zip(self.objectives_train, other.objectives_train):
                 and_condition = and_condition and first <= second
                 or_condition = or_condition or first < second
-
+        """
         return (and_condition and or_condition)
 
 

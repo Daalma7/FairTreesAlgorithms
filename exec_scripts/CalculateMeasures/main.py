@@ -1,8 +1,8 @@
-from math import ceil
 import sys
 import warnings
 import os
-import numpy as np
+import pandas as pd
+import copy
 from scipy.stats import rankdata
 warnings.filterwarnings("ignore")
 import seaborn as sns
@@ -10,8 +10,7 @@ sns.set_theme(style='darkgrid', palette='pastel')
 
 
 sys.path.insert(1, os.path.dirname(os.path.dirname(__file__)))
-from qualitymeasures import hypervolume, spacing, maximum_spread, error_ratio, overall_pareto_front_spread, generational_distance, inverted_generational_distance, ideal_point, nadir_point, algorithm_proportion, div_test_val_rate, coverage
-from calculatemeasures_aux import read_runs_pareto_files, plot_generation_stats, plot_algorithm_metrics, plot_div_test_val, create_total_pareto_optimal, calculate_general_pareto_front_measures, calculate_algorithm_pareto_front_measures, calculate_algorithm_pareto_front_measures, coverage_analysis, metrics_ranking, hyperparameter_plots
+from calculatemeasures_aux import read_runs_pareto_files, plot_generation_stats, plot_algorithm_metrics, plot_div_test_val, create_total_pareto_optimal, calculate_general_pareto_front_measures, calculate_algorithm_pareto_front_measures, calculate_algorithm_pareto_front_measures, coverage_analysis, metrics_ranking, hyperparameter_plots, calculate_statistical_tests, table_datasets_results
 
 #Dictionary to propperly create individuals given the objectives
 quality_measures = ['Mean solutions', 'Proportion', 'Hypervolume', 'Spacing', 'Maximum spread', 'Overall PF spread',  'Error ratio', 'GD', 'Inverted GD']
@@ -28,6 +27,7 @@ alg = dat = var = obj = mod = extra = False        #Possible parameters given
 #########################################################################################################################
 
 PATH_TO_RESULTS = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))) + '/results/FGP'
+CALC_STAT_TESTS = True
 
 nind = ngen = dat = sens_col = bseed = nruns = obj = extra = False        #Possible parameters given
 dataset = None
@@ -159,10 +159,17 @@ if not extraobj is None:
 
 #measures_df, measures_df_2 = create_results_df()
 models = ['DT', 'FDT', 'FGP', 'FLGBM']
+all_data = ['adult', 'compas', 'german', 'ricci', 'obesity', 'insurance', 'student', 'diabetes', 'parkinson', 'dutch']
+
 model_ranking = {}
 all_indivs = None
+results_stats_tests = None
+print_alg_results = {}
 
-for dataset in ['adult', 'compas', 'german', 'ricci', 'obesity', 'insurance', 'student', 'diabetes', 'parkinson', 'dutch']:
+calculate_statistical_tests(all_data, models, set_seed_base, individuals, generations, objectives, extraobj, n_runs=10)
+
+
+for dataset in all_data:
     print("-----------------")
     print(f"Calculating metrics and images for {dataset} dataset:")
     sens_col = dict_protected[dataset]
@@ -186,7 +193,7 @@ for dataset in ['adult', 'compas', 'german', 'ricci', 'obesity', 'insurance', 's
 
     # Then, we calculate the pareto optimal individuals from all those considered
     print("Calculating optimal pareto individuals from all runs...")
-    pareto_optimal_algorithms, pareto_optimal = create_total_pareto_optimal(indiv_list, dataset, set_seed_base, individuals, generations, objectives, extraobj)
+    pareto_optimal_algorithms, pareto_optimal = create_total_pareto_optimal(indiv_list, dataset, objectives)
 
     # Measures for the general pareto front
     print("Calculating measures for general pareto front...")
@@ -201,12 +208,14 @@ for dataset in ['adult', 'compas', 'german', 'ricci', 'obesity', 'insurance', 's
     results = None
     for alist in pareto_optimal_algorithms:
         new_results = calculate_algorithm_pareto_front_measures(alist, pareto_optimal)
-        print()
         if results is None:
             results = {meas: [new_results[meas]] for meas in new_results}
         else:
             [results[meas].append(new_results[meas]) for meas in new_results]
-
+    
+    results_store = copy.deepcopy(results)
+    
+    #print(results)
     # Store information about quality metrics for final rankings.
     # print(results)
     for elem in results:
@@ -225,9 +234,21 @@ for dataset in ['adult', 'compas', 'german', 'ricci', 'obesity', 'insurance', 's
 
     hyperparameter_plots(models, indiv_lists, dataset)
 
+    results = results_store
+    new_results = calculate_algorithm_pareto_front_measures(pareto_optimal, pareto_optimal)
+    if results is None:
+        results = {meas: [new_results[meas]] for meas in new_results}
+    else:
+        [results[meas].append(new_results[meas]) for meas in new_results]
+    
+    print_alg_results[dataset] = results
+
 metrics_ranking(models, model_ranking)
 
 hyperparameter_plots(models, all_indivs)
+
+table_datasets_results(print_alg_results)
+
 
 
 #calculate_median_values()

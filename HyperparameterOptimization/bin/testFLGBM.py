@@ -23,6 +23,8 @@ dict_protected = {'academic': 'ge','adult': 'Race','arrhythmia': 'sex','bank': '
 
 fdt_res = None
 flgbm_res = None
+lambfdt = 0.0
+lambflgbm = 0.1
 
 #for dataset in ['adult']:
 for dataset in  ['adult', 'compas', 'german', 'ricci', 'obesity', 'insurance', 'student', 'diabetes', 'parkinson', 'dutch']:
@@ -77,7 +79,8 @@ for dataset in  ['adult', 'compas', 'german', 'ricci', 'obesity', 'insurance', '
             'deterministic': True,
             'random_state': 0,
             'verbose': -1,
-            'verbose_eval': False
+            'verbose_eval': False,
+            'num_threads': 16
             }
 
             seeds.append(seed)
@@ -89,16 +92,16 @@ for dataset in  ['adult', 'compas', 'german', 'ricci', 'obesity', 'insurance', '
                 clf = None
                 cut_time = 0
                 if model == 'FDT':
-                    print('- Training FDT with lambda = 0')
+                    print(f"- Training FDT with lambda = {lambfdt}")
                     start = time.process_time()
                     clf = DecisionTreeClassifier(random_state=0, criterion="gini_fair", f_lambda=0, fair_fun='fpr_diff')
                     clf.fit(x_train, y_train, prot=x_train[dict_protected[dataset]].to_numpy())
                     end = time.process_time()
                     curtime = end-start
                 elif model == 'FLGBM':
-                    print('- Train FLGBM with lambda = 0')
+                    print(f"- Train FLGBM with lambda = {lambflgbm}")
                     start = time.process_time()
-                    clf = FairLGBM(fair_param=0, prot=dict_protected[dataset], fair_fun='fpr_diff', lgbm_params=lgbm_params)
+                    clf = FairLGBM(fair_param=0.1, prot=dict_protected[dataset], fair_fun='fpr_diff', lgbm_params=lgbm_params)
                     clf.fit(x_train, y_train, x_val, y_val)
                     end = time.process_time()
                     curtime = end-start

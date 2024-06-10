@@ -87,8 +87,8 @@ class FairLGBM:
         hess = 0
         y = data.get_label()
         s = self.sigmoid(z)
-        grad = (1 - self.fair_param) * (s - y) + self.fair_param * self.C * s * (1 - s)
-        hess = (1 - self.fair_param) * s * (1 - s) + self.fair_param * self.C * ((s * (1 - s)**2) - (s**2 * (1 - s)))
+        grad = 1.443 * (1 - self.fair_param) * (s - y) + self.fair_param * self.C * s * (1 - s)
+        hess = 1.443 * (1 - self.fair_param) * s * (1 - s) + self.fair_param * self.C * ((s * (1 - s)**2) - (s**2 * (1 - s)))
         return grad, hess
         
 

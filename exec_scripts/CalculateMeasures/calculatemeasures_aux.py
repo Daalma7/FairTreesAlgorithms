@@ -2,7 +2,7 @@ import matplotlib.pyplot as plt
 import pandas as pd
 import seaborn as sns
 sns.set_theme()
-
+from scipy.stats import wilcoxon
 import numpy as np
 from scipy.interpolate import PchipInterpolator
 import sys
@@ -12,6 +12,7 @@ warnings.filterwarnings("ignore")
 
 sys.path.insert(1, os.path.dirname(os.path.dirname(__file__)))
 from qualitymeasures import hypervolume, spacing, maximum_spread, error_ratio, overall_pareto_front_spread, generational_distance, inverted_generational_distance, ideal_point, nadir_point, algorithm_proportion, div_test_val_rate, coverage
+
 
 PATH_TO_RESULTS = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))) + '/results'
 datasetlist = ['academic','adult','arrhythmia','bank','catalunya','compas','credit','crime','default','diabetes-w','diabetes','drugs','dutch','german','heart','hrs','insurance','kdd-census','lsat','nursery','obesity', 'older-adults','oulad','parkinson','ricci','singles','student','tic','wine','synthetic-athlete','synthetic-disease','toy']
@@ -201,7 +202,7 @@ def read_runs_pareto_files(dataname, models, bseed, nind, ngen, obj, extra, n_ru
 
 
 
-def create_total_pareto_optimal(df_indivs, dataname, bseed, nind, ngen, obj, extra, nruns=10):
+def create_total_pareto_optimal(df_indivs, dataname, obj, nruns=10):
     """
     Creates the pareto_optimal individuals using all information available of all algorithms.
     It also stores the information in memory.
@@ -225,7 +226,7 @@ def create_total_pareto_optimal(df_indivs, dataname, bseed, nind, ngen, obj, ext
         columns[f"{o}_test"] = []
 
 
-    # In the first place, we will calculate the synthetic individuals which will conform the 'Pareto Front' for each algorithm
+    # In the first place, we will calculate the average individuals which will conform the 'Pareto Front' for each algorithm
 
     # We first consider, for each individual, the algorithm which generated it and its objectives values
     temp_columns = {'algorithm':[]}
@@ -390,6 +391,78 @@ def create_total_pareto_optimal(df_indivs, dataname, bseed, nind, ngen, obj, ext
     return pareto_optimal_alg, pareto_optimal
     
 
+def create_run_alg_pareto_optimal(df_indivs, obj):
+    """
+    Creates the pareto_optimal individuals using all information available of all algorithms.
+    It also stores the information in memory.
+        Parameters:
+            - indivs: List containing all individuals from the overall pareto files for the rest of the parameters
+            - dataname: Dataset name to read the files
+            - bseed: Base seed (only for file name)
+            - nind: Number of individuals (only for file name)
+            - ngen: Number of generations (only for file name)
+            - obj: Objectives to consider
+            - extra: Extra objectives, for which the algorithm will not optimize
+            - nruns: Number of runs that were executed
+        Returns:
+            - pareto_optimal: List containing all pareto-optimal individuals
+    """
+
+    columns = {'ID': [], 'algorithm':[], 'creation_mode':[]}
+    for o in obj:
+        columns[f"{o}_val"] = []
+    for o in obj:
+        columns[f"{o}_test"] = []
+
+
+    # In the first place, we will calculate the average individuals which will conform the 'Pareto Front' for each algorithm
+
+    # We first consider, for each individual, the algorithm which generated it and its objectives values
+    temp_columns = {'algorithm':[]}
+    for o in obj:
+        temp_columns[f"{o}"] = []
+    
+    for indiv in df_indivs:
+        temp_columns['algorithm'].append(indiv.algorithm)
+        for i, o in enumerate(obj):
+            temp_columns[f"{o}"].append(indiv.objectives_test[i])
+
+    # Then we convert it to a pandas DataFrame
+    df_calculate = pd.DataFrame(data=temp_columns)
+    models = df_calculate['algorithm'].unique()
+
+    pareto_optimal_alg = []
+
+    # We convert them to individuals:
+    for model in models:
+        pareto_optimal_alg.append([])
+        df_model = df_calculate.loc[df_calculate['algorithm'] == model].reset_index()
+        for i in range(df_model.shape[0]):
+            # Ensure that do not consider repeated individuals
+            cur_objectives = [df_model.loc[i, f'{obj[0]}'], df_model.loc[i, f'{obj[1]}']]
+            new_indiv = Individual()
+            new_indiv.algorithm = model
+            new_indiv.creation_mode = 'Pareto Quantile'
+            new_indiv.objectives_test = cur_objectives
+            pareto_optimal_alg[-1].append(new_indiv)
+    
+    allindivs = [indiv for alg in pareto_optimal_alg for indiv in alg]
+
+    pareto_optimal = []
+    for individual in allindivs:
+        individual.domination_count = 0
+        individual.dominated_solutions = []
+        for other_individual in allindivs:
+            if individual.dominates(other_individual):                  # If the current individual dominates the other
+                individual.dominated_solutions.append(other_individual) # It is added to its list of dominated solutions
+            elif other_individual.dominates(individual):                # If the other dominates the current
+                individual.domination_count += 1                        # We add 1 to its domination count
+
+    for individual in allindivs:
+        if individual.domination_count == 0:                            # If any solution dominates it
+            pareto_optimal.append(individual)
+
+    return pareto_optimal_alg, pareto_optimal
 
 
 def drop_duplicates():
@@ -457,7 +530,7 @@ def calculate_general_pareto_front_measures(pareto_optimal, dataname, obj, extra
             return '{v:d}'.format(v=val)
         return my_format
     plt.pie(results['Proportion'].values(), labels = results['Proportion'].keys(), autopct=autopct_format(results['Proportion'].values()), colors=[palette[x] for x in results['Proportion'].keys()])
-    plt.title(f"Proportion of individuals by algorithm in the synthetic Pareto front for {dataname} dataset")
+    plt.title(f"Proportion of individuals by algorithm in the\naverage Pareto front for {dataname} dataset")
     plt.savefig(f"{PATH_TO_RESULTS}/GeneralGraphics/{dataname}/pie_proportion_{dataname}.pdf", format='pdf', bbox_inches='tight')
     plt.close()
     return results
@@ -666,7 +739,7 @@ def coverage_analysis(algorithms, indiv_lists, dataname):
     
     df = pd.DataFrame(df_algorithms, index=algorithms)
     sns.heatmap(df, annot=True, cmap='Blues', vmin=0, vmax=1, fmt=".4f", annot_kws={'size':16})
-    plt.title(f"Coverage analysis using synthetic Pareto fronts by algorithm for {dataname} dataset")
+    plt.title(f"Coverage analysis using average Pareto fronts by algorithm for {dataname} dataset")
     plt.xlabel("Covered")
     plt.ylabel("Covering")
     plt.savefig(f"{PATH_TO_RESULTS}/GeneralGraphics/{dataname}/coverage_{dataname}.pdf", format='pdf', bbox_inches='tight')
@@ -830,3 +903,165 @@ def hyperparameter_plots(algorithms, indiv_lists, dataname=None):
                 plt.xlabel("Density")
                 plt.savefig(f"{PATH_TO_RESULTS}/GeneralGraphics/{dataname}/violin_{alg}_{param}_{dataname}.pdf", format="pdf", bbox_inches='tight')
                 plt.close()
+
+
+def calculate_statistical_tests(all_data, models, bseed, nind, ngen, obj, extra, n_runs=10):
+
+    obj_str, extra_str = get_str(obj, extra)
+    results_stats_tests = None
+    
+    indivs_part = []
+
+    dict_plot = {obj[i]: [] for i in range(len(obj))}
+    dict_plot['algorithm'] = []
+    dict_plot_test = {obj[i]: [] for i in range(len(obj))}
+    dict_plot_test['algorithm'] = []
+
+    for dataset in all_data:
+        for run in range(n_runs):
+            indivs = []
+            for model in models:
+                indivs_part = []
+                if model in ['DT', 'FDT', 'FLGBM']:
+                    prev_path = f"{PATH_TO_RESULTS}/{model}/nsga2/"
+                else:
+                    prev_path = f"{PATH_TO_RESULTS}/{model}"
+                new_indiv_list = []
+                pareto_optimal_df = pd.read_csv(f"{prev_path}/pareto_individuals/runs/{dataset}/{dataset}_seed_{bseed + run}_var_{dict_protected[dataset]}_gen_{ngen}_indiv_{nind}_model_{model}_obj_{obj_str}{extra_str}.csv")
+                exclude = ['ID', 'creation_mode']
+                for x in obj:
+                    exclude.append(x+'_val')
+                    exclude.append(x+'_test')
+                seen_test_objs = []                                                     # We do not want repeated individuals
+                for index, row in pareto_optimal_df.iterrows():                         # We create an individual object associated with each row
+                    indiv = Individual()
+                    indiv.id = row['ID']
+                    indiv.algorithm = model
+                    indiv.creation_mode = row['creation_mode']
+                    indiv.objectives = [row[x+'_val'] for x in obj]
+                    indiv.objectives_test = [row[x+'_test'] for x in obj]
+                    indiv.rank = None
+                    indiv.crowding_distance = None
+                    indiv.domination_count = 0
+                    indiv.dominated_solutions = 0
+                    indiv.features = {a: row[a] for a in pareto_optimal_df.columns if not a in exclude}
+                    if not indiv.objectives_test in seen_test_objs:
+                        new_indiv_list.append(indiv)
+                        seen_test_objs.append(indiv.objectives_test)
+                indivs_part.append(new_indiv_list)
+                indivs.append([])
+                for lista in indivs_part:
+                    for indiv in lista:
+                        indivs[-1].append(indiv)
+            
+            results = None
+            indiv_list = [indiv for alist in indivs for indiv in alist]
+            pareto_optimal_algorithms, pareto_optimal = create_run_alg_pareto_optimal(indiv_list, obj)
+            for alist in pareto_optimal_algorithms:
+                new_results = calculate_algorithm_pareto_front_measures(alist, pareto_optimal)
+                if results is None:
+                    results = {meas: [new_results[meas]] for meas in new_results}
+                else:
+                    [results[meas].append(new_results[meas]) for meas in new_results]
+            
+            if results_stats_tests is None:
+                results_stats_tests = {meas: pd.DataFrame({elem: [results[meas][i]] for i, elem in enumerate(models)}) for meas in results}
+            else:
+                for meas in results:
+                    results_stats_tests[meas].loc[len(results_stats_tests[meas])] = results[meas]
+
+    #print(results_stats_tests)
+    print("\\begin{table}[htbp!]")
+    print(f"\\caption{{Paired samples Wilcoxon signed-rank test for all quality metrics using all runs and datasets}}")
+    print("\\label{tab:resultswilcoxon}")
+    for elem in results_stats_tests:
+        #print(elem)
+        cur_results = np.zeros((results_stats_tests[elem].shape[1], results_stats_tests[elem].shape[1])).tolist()
+        for i in range(results_stats_tests[elem].shape[1]):
+            for j in range(i+1, results_stats_tests[elem].shape[1]):
+                #print(results_stats_tests[elem].columns[i], results_stats_tests[elem].columns[j], wilcoxon(results_stats_tests[elem].iloc[:,i], results_stats_tests[elem].iloc[:, j]))
+                cur_results[i][j] = '{:0.2e}'.format(wilcoxon(results_stats_tests[elem].iloc[:,i], results_stats_tests[elem].iloc[:, j])[1], 5)
+                if wilcoxon(results_stats_tests[elem].iloc[:,i], results_stats_tests[elem].iloc[:, j])[1] < 0.05:           # Significative results
+                    if elem in ['Error ratio', 'Generational distance', 'Inverted Generational Distance']:          # The greater the worse
+                        if (results_stats_tests[elem].iloc[:,i] > results_stats_tests[elem].iloc[:, j]).sum() > results_stats_tests[elem].shape[0]/2:
+                            #print(f"- Es significativamente mejor {results_stats_tests[elem].columns[j]}")
+                            cur_results[j][i] = "$\\oplus$"
+                        else:
+                            #print(f"- Es significativamente mejor {results_stats_tests[elem].columns[i]}")
+                            cur_results[j][i] = "$\\ominus$"
+
+                    else:
+                        if (results_stats_tests[elem].iloc[:,i] > results_stats_tests[elem].iloc[:, j]).sum() > results_stats_tests[elem].shape[0]/2:
+                            #print(f"- Es significativamente mejor {results_stats_tests[elem].columns[i]}")
+                            cur_results[j][i] = "$\\ominus$"
+                        else:
+                            #print(f"- Es significativamente mejor {results_stats_tests[elem].columns[j]}")
+                            cur_results[j][i] = "$\\oplus$"
+
+
+                else:
+                    if elem in ['Error ratio', 'Generational distance', 'Inverted Generational Distance']:          # The greater the worse
+                        if (results_stats_tests[elem].iloc[:,i] > results_stats_tests[elem].iloc[:, j]).sum() > 6*results_stats_tests[elem].shape[0]/10:
+                            #print("- Es mejor ", results_stats_tests[elem].columns[j])
+                            cur_results[j][i] = "$-$"
+                        elif (results_stats_tests[elem].iloc[:,i] < results_stats_tests[elem].iloc[:, j]).sum() > 6*results_stats_tests[elem].shape[0]/10:
+                            #print("- Es mejor ", results_stats_tests[elem].columns[i])
+                            cur_results[j][i] = "$+$"
+                        else:
+                            #print("- Ninguno es mejor")
+                            cur_results[j][i] = "$=$"
+
+                    else:                                                                                           # The greater the better
+                        if (results_stats_tests[elem].iloc[:,i] > results_stats_tests[elem].iloc[:, j]).sum() > 6*results_stats_tests[elem].shape[0]/10:
+                            #print("- Es mejor ", results_stats_tests[elem].columns[i])
+                            cur_results[j][i] = "$+$"
+                        elif (results_stats_tests[elem].iloc[:,i] < results_stats_tests[elem].iloc[:, j]).sum() > 6*results_stats_tests[elem].shape[0]/10:
+                            #print("- Es mejor ", results_stats_tests[elem].columns[j])
+                            cur_results[j][i] = "$-$"
+                        else:
+                            #print("- Ninguno es mejor")
+                            cur_results[j][i] = "$=$"
+
+
+        print("\\begin{subtable}[t]{\\textwidth}")
+        print(f"\\caption{{Wilcoxon signed-rank test for {elem} metric}}")
+        print("\\centering")
+        #print("\\begin{adjustbox}{max width=\textwidth}")
+        print("\\begin{tabular}{ccccc}")
+        print("\\toprule")
+        print(f" & \\textbf{{DT}} & \\textbf{{FDT}} & \\textbf{{FGP}}   & \\textbf{{FLGBM}} \\\\ \\hline")
+        print(f"\\textbf{{DT}}          &    & \\num{{{cur_results[0][1]}}} & \\num{{{cur_results[0][2]}}}   & \\num{{{cur_results[0][3]}}}  \\\\")
+        print(f"\\textbf{{FDT}}         & {cur_results[1][0]}  &     & \\num{{{cur_results[1][2]}}} & \\num{{{cur_results[1][3]}}}   \\\\")
+        print(f"\\textbf{{FGP}}         & {cur_results[2][0]}  & {cur_results[2][1]}   &       & \\num{{{cur_results[2][3]}}}   \\\\")
+        print(f"\\textbf{{FLGBM}}       & {cur_results[3][0]}  & {cur_results[3][1]}   & {cur_results[3][2]}     &      \\\\")
+        print("\\bottomrule")
+        print("\\end{tabular}")
+        print("\\label{tab:label_test}")
+        #print("\\end{adjustbox}")
+        print("\\end{subtable}")
+    print("\\end{table}")
+
+
+
+def table_datasets_results(results):
+
+    print_metric_df = {'Hypervolume': 'Hypervolume', 'Spacing': 'Spacing', 'Maximum Spread': 'Maximum Spread' , 'Overall Pareto Front Spread': 'Overall PF Spread', 'Error ratio': 'Error Ratio', 'Generational Distance': 'GD', 'Inverted Generational Distance': 'Inverted GD'}
+    print("-----")
+    print("\\newpage")
+    print("\\begin{center}")
+    print("\\begin{longtable}{ccccccc}")
+    print(f"\\caption{{Average Pareto fronts quality metrics for each dataset}} \\label{{tab:tableresults}} \\\\")
+    print("\\textbf{Data}                                                      & \\textbf{Quality Metric}    & \\textbf{DT} & \\textbf{FDT} & \\textbf{FGP} & \\textbf{FLGBM} & \\textbf{P.Front} \\\\ \hline")
+    
+    for j, data in enumerate(results):
+        print(f"\\multirow{{8}}{{*}}{{\\rotatebox{{90}}{{\\textbf{{{data}}}}}}} & {print_metric_df[list(results[data].keys())[0]]} & ${'{:0.5f}'.format(results[data][list(results[data].keys())[0]][0])}$  & ${'{:0.5f}'.format(results[data][list(results[data].keys())[0]][1])}$   & ${'{:0.5f}'.format(results[data][list(results[data].keys())[0]][2])}$   & ${'{:0.5f}'.format(results[data][list(results[data].keys())[0]][3])}$     & ${'{:0.5f}'.format(results[data][list(results[data].keys())[0]][4])}$       \\\\")
+        i = 1
+        while i < len(list(results[data].keys())):
+            print(f"& {print_metric_df[list(results[data].keys())[i]]} & ${'{:0.5f}'.format(results[data][list(results[data].keys())[i]][0])}$  & ${'{:0.5f}'.format(results[data][list(results[data].keys())[i]][1])}$  & ${'{:0.5f}'.format(results[data][list(results[data].keys())[i]][2])}$   & ${'{:0.5f}'.format(results[data][list(results[data].keys())[i]][3])} $    & ${'{:0.5f}'.format(results[data][list(results[data].keys())[i]][4])}$       \\\\")
+            i += 1
+        print("\\hline")
+        if j == 5:
+            print("\\\\\\\\\\\\")
+            print("\\hline")
+    print("\end{longtable}")
+    print("\\end{center}")

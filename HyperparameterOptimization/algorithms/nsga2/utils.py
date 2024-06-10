@@ -328,7 +328,7 @@ class NSGA2Utils:
             Returns:
                 - Beta value
         """
-        u = random.uniform(0, 0.5)
+        u = random.uniform(0, 1)
         return u
 
     def __mutate(self, child, model):
@@ -362,7 +362,7 @@ class NSGA2Utils:
         u = random.random()
         if u <= 0.5:
             return u, (2*u)**(1/(self.mutation_param + 1)) - 1
-        return u, 1 - (2*(1-u))**(1/(self.mutation_param + 1))
+        return u, 1 - 2*((1-u)**(1/(self.mutation_param + 1)))
 
     def __tournament(self, population):
         """
