@@ -68,11 +68,8 @@ Los objetivos a minimizar durante la experimentación han sido:
 Los resultados han mostrado que se pueden encontrar soluciones mucho más justas y precisas utilizando los algoritmos empleados que utilizando un árbol de decisión normal.
 
 <div align="center">
-  <a href="https://github.com/Daalma7/FairTreesAlgorithms/tree/master/other">
-    <img src="https://scatter_po_algorithm_adult.png" width="412px"/> 
-  </a>
-  <a href="https://github.com/Daalma7/FairTreesAlgorithms/tree/master/other">
-    <img src="https://scatter_po_algorithm_compas.png" width="412px"/> 
+    <img src="other/scatter_po_algorithm_adult.png" width="412px"/> 
+    <img src="other/scatter_po_algorithm_compas.png" width="412px"/> 
   </a>
 </div>
 <div align="center">
