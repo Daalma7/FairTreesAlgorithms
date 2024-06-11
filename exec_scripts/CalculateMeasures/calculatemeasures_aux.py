@@ -376,6 +376,7 @@ def create_total_pareto_optimal(df_indivs, dataname, obj, nruns=10):
         sns.lineplot(x=x_interp, y=y_interp, color=palette[model])
         sns.scatterplot(df, x=obj[0], y=obj[1], hue='algorithm', palette=palette)
     plt.savefig(f"{PATH_TO_RESULTS}/GeneralGraphics/{dataname}/scatter_po_algorithm_{dataname}.pdf", format='pdf', bbox_inches='tight')
+    plt.savefig(f"../other/scatter_po_algorithm_{dataname}.png", format='png', bbox_inches='tight')
     plt.close()
 
     # Plot general optimal data

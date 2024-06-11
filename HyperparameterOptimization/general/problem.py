@@ -563,7 +563,7 @@ class Problem:
 
 
     #Calculate file with the general pareto front using all pareto fronts in every execution
-    def calculate_pareto_optimal(self, seed, runs, method, correct=True):
+    def calculate_pareto_optimal(self, seed, runs, method, correct=False):
         """
         Calculates pareto optimal individuals from the optimization process.
         ATTENTION: It supooses that all runs have been executed, so the pareto optimal individulas will be
