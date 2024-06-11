@@ -554,7 +554,7 @@ def calculate_algorithm_pareto_front_measures(indivs, pareto_optimal):
     results['Spacing'] = spacing(indivs)                                              # Spacing
     results['Maximum Spread'] = maximum_spread(indivs)                                      # Maximum spread
     results['Overall Pareto Front Spread'] = overall_pareto_front_spread(indivs, pareto_optimal)          # Overall Pareto fron spread
-    results['Error ratio'] = error_ratio(indivs, pareto_optimal)                            # Error ratio
+    results['Error Ratio'] = error_ratio(indivs, pareto_optimal)                            # Error ratio
     results['Generational Distance'] = generational_distance(indivs, pareto_optimal)                  # Generational distance
     results['Inverted Generational Distance'] = inverted_generational_distance(indivs, pareto_optimal)        # Inverted generational distance
 
@@ -689,7 +689,7 @@ def plot_algorithm_metrics(results, po_results, models, dataname):
                     'Spacing': 'Higher',
                     'Maximum Spread': 'Higher',
                     'Overall Pareto Front Spread': 'Higher',
-                    'Error ratio': 'Lower',
+                    'Error Ratio': 'Lower',
                     'Generational Distance': 'Lower',
                     'Inverted Generational Distance': 'Lower'
                     }
@@ -856,6 +856,7 @@ def metrics_ranking(models, results):
         sns.barplot(x=models, y=results[elem], hue=models, palette=[palette[x] for x in models])
         plt.title(f"Barplot showing rakings for {elem} metric\nconsidering all datasets (The higher the better)")
         plt.savefig(f"{PATH_TO_RESULTS}/GeneralGraphics/rankings/ranking_{elem}.pdf", format="pdf", bbox_inches='tight')
+        plt.savefig(f"../other/ranking_{elem}.png", format="png", bbox_inches='tight')
         plt.close()
 
 
@@ -983,7 +984,7 @@ def calculate_statistical_tests(all_data, models, bseed, nind, ngen, obj, extra,
                 #print(results_stats_tests[elem].columns[i], results_stats_tests[elem].columns[j], wilcoxon(results_stats_tests[elem].iloc[:,i], results_stats_tests[elem].iloc[:, j]))
                 cur_results[i][j] = '{:0.2e}'.format(wilcoxon(results_stats_tests[elem].iloc[:,i], results_stats_tests[elem].iloc[:, j])[1], 5)
                 if wilcoxon(results_stats_tests[elem].iloc[:,i], results_stats_tests[elem].iloc[:, j])[1] < 0.05:           # Significative results
-                    if elem in ['Error ratio', 'Generational distance', 'Inverted Generational Distance']:          # The greater the worse
+                    if elem in ['Error Ratio', 'Generational Distance', 'Inverted Generational Distance']:          # The greater the worse
                         if (results_stats_tests[elem].iloc[:,i] > results_stats_tests[elem].iloc[:, j]).sum() > results_stats_tests[elem].shape[0]/2:
                             #print(f"- Es significativamente mejor {results_stats_tests[elem].columns[j]}")
                             cur_results[j][i] = "$\\oplus$"
@@ -1001,7 +1002,7 @@ def calculate_statistical_tests(all_data, models, bseed, nind, ngen, obj, extra,
 
 
                 else:
-                    if elem in ['Error ratio', 'Generational distance', 'Inverted Generational Distance']:          # The greater the worse
+                    if elem in ['Error Ratio', 'Generational Distance', 'Inverted Generational Distance']:          # The greater the worse
                         if (results_stats_tests[elem].iloc[:,i] > results_stats_tests[elem].iloc[:, j]).sum() > 6*results_stats_tests[elem].shape[0]/10:
                             #print("- Es mejor ", results_stats_tests[elem].columns[j])
                             cur_results[j][i] = "$-$"
@@ -1046,7 +1047,7 @@ def calculate_statistical_tests(all_data, models, bseed, nind, ngen, obj, extra,
 
 def table_datasets_results(results):
 
-    print_metric_df = {'Hypervolume': 'Hypervolume', 'Spacing': 'Spacing', 'Maximum Spread': 'Maximum Spread' , 'Overall Pareto Front Spread': 'Overall PF Spread', 'Error ratio': 'Error Ratio', 'Generational Distance': 'GD', 'Inverted Generational Distance': 'Inverted GD'}
+    print_metric_df = {'Hypervolume': 'Hypervolume', 'Spacing': 'Spacing', 'Maximum Spread': 'Maximum Spread' , 'Overall Pareto Front Spread': 'Overall PF Spread', 'Error Ratio': 'Error Ratio', 'Generational Distance': 'GD', 'Inverted Generational Distance': 'Inverted GD'}
     print("-----")
     print("\\newpage")
     print("\\begin{center}")
