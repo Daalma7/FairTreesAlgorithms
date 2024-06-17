@@ -47,6 +47,7 @@ The hyperparameters that define the decision space of each algorithm are as foll
     - **learning_rate**: learning rate of the algorithm.
     - **n_estimators**: number of weak classifiers to be built.
     - **feature_fraction**:  fraction of features used to build the model.
+    - **class_weight**: weight assigned to each class to be predicted (internally uses scale_pos_weight).
     - **fair_param**: controls the balance between the standard loss function (logloss) of the algorithm and the fairness function considered.
 
 The objectives to minimize during the experimentation are as follows:

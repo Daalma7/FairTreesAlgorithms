@@ -17,20 +17,24 @@ import pickle
 import warnings
 import logging
 logging.basicConfig(level=logging.ERROR)
-warnings.filterwarnings('ignore')
+warnings.filterwarnings("ignore", category=UserWarning)
 
 
 PATH_TO_RESULTS = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__)))) + '/results/'
 PATH_TO_DATA = os.path.dirname(os.path.dirname(os.path.dirname(__file__))) + '/datasets/data/'
 
 sys.path.insert(1, os.path.abspath(os.path.join(os.path.join(os.path.dirname(os.path.dirname(__file__))), 'models')))
-from FairDT._classes import DecisionTreeClassifier as FairDecisionTreeClassifier
 from sklearn.tree import DecisionTreeClassifier
+from FairDT._classes import DecisionTreeClassifier as FairDecisionTreeClassifier
 from FLGBM.FLGBM import FairLGBM
 
 
 
-
+def aux_get_weight(weight):
+    if weight < 11:
+        return 1.0 / float(11 - weight)
+    else:
+        return float(weight - 9)
 
 def decode(var_range, model, **features):
     """
@@ -60,6 +64,8 @@ def decode(var_range, model, **features):
 
         if features['class_weight'] is not None:        #In case it's None, all classes are supposed to have weight 1
             features['class_weight'] = int(round(features['class_weight']))
+        else:
+            features['class_weight'] = 10
 
         hyperparameters = ['criterion', 'max_depth', 'min_samples_split', 'max_leaf_nodes', 'class_weight']
     
@@ -84,7 +90,7 @@ def decode(var_range, model, **features):
         if features['class_weight'] is not None:        #In case it's None, all classes are supposed to have weight 1
             features['class_weight'] = int(round(features['class_weight']))
         else:
-            features['class_weight'] = 5
+            features['class_weight'] = 10
         
         if features['fair_param'] is not None:              #In case it's None, it is supposed that fairness will not be taken into account (classical DT)
             features['fair_param'] = int(round(features['fair_param']))
@@ -101,6 +107,9 @@ def decode(var_range, model, **features):
         
         if features['class_weight'] is not None:
             features['class_weight'] = int(round(features['class_weight']))
+        
+        else:
+            features['class_weight'] = 10
         #Other parameters are float, so they haven't got to be further processed
         hyperparameters = ['max_iter', 'tol', 'lambda', 'l1_ratio', 'class_weight']
         
@@ -135,14 +144,19 @@ def decode(var_range, model, **features):
         else:
             features['feature_fraction'] = var_range[5][1]
 
+        if features['class_weight'] is not None:
+            features['class_weight'] = int(round(features['class_weight']))
+        else:
+            features['class_weight'] = 10
+        
         if features['fair_param'] is not None:                          #In case it's None, it is supposed that fairness will not be taken into account (classical DT)
             features['fair_param'] = int(round(features['fair_param']))
         else:
-            features['fair_param'] = var_range[6][0]
+            features['fair_param'] = var_range[7][0]
 
             
         
-        hyperparameters = ['num_leaves', 'min_data_in_leaf', 'max_depth', 'learning_rate', 'n_estimators', 'feature_fraction', 'fair_param']
+        hyperparameters = ['num_leaves', 'min_data_in_leaf', 'max_depth', 'learning_rate', 'n_estimators', 'feature_fraction', 'class_weight', 'fair_param']
         
     list_of_hyperparameters = [(hyperparameter, features[hyperparameter]) for hyperparameter in hyperparameters]
     features = collections.OrderedDict(list_of_hyperparameters)
@@ -337,9 +351,9 @@ def train_model(X_train, y_train, prot_col, seed, model, X_val=None, y_val=None,
     if model == "DT":
         if features['class_weight'] is not None:
             if(features['criterion'] <= 0.5):
-                clf = DecisionTreeClassifier(criterion = 'gini', max_depth = features['max_depth'], min_samples_split = features['min_samples_split'], max_leaf_nodes = features['max_leaf_nodes'], class_weight = {0:features['class_weight'], 1:(10-features['class_weight'])}, random_state=seed)
+                clf = DecisionTreeClassifier(criterion = 'gini', max_depth = features['max_depth'], min_samples_split = features['min_samples_split'], max_leaf_nodes = features['max_leaf_nodes'], class_weight = {0:1.0, 1:aux_get_weight(features['class_weight'])}, random_state=seed)
             else:
-                clf = DecisionTreeClassifier(criterion = 'entropy', max_depth = features['max_depth'], min_samples_split = features['min_samples_split'], max_leaf_nodes = features['max_leaf_nodes'], class_weight = {0:features['class_weight'], 1:(10-features['class_weight'])}, random_state=seed)
+                clf = DecisionTreeClassifier(criterion = 'entropy', max_depth = features['max_depth'], min_samples_split = features['min_samples_split'], max_leaf_nodes = features['max_leaf_nodes'], class_weight = {0:1.0, 1:aux_get_weight(features['class_weight'])}, random_state=seed)
         else:
             if features['criterion'] <= 0.5:
                 clf = DecisionTreeClassifier(criterion = 'gini', max_depth = features['max_depth'], min_samples_split = features['min_samples_split'], max_leaf_nodes = features['max_leaf_nodes'], class_weight = features['class_weight'], random_state=seed)
@@ -349,9 +363,9 @@ def train_model(X_train, y_train, prot_col, seed, model, X_val=None, y_val=None,
     if model == "FDT":
         if features['class_weight'] is not None:
             if(features['criterion'] <= 0.5):
-                clf = FairDecisionTreeClassifier(criterion = 'gini_fair', max_depth = features['max_depth'], min_samples_split = features['min_samples_split'], max_leaf_nodes = features['max_leaf_nodes'], class_weight = {0:features['class_weight'], 1:(10-features['class_weight'])}, f_lambda = float(features['fair_param']) / 100.0, random_state=seed)
+                clf = FairDecisionTreeClassifier(criterion = 'gini_fair', max_depth = features['max_depth'], min_samples_split = features['min_samples_split'], max_leaf_nodes = features['max_leaf_nodes'], class_weight = {0:1.0, 1:aux_get_weight(features['class_weight'])}, f_lambda = float(features['fair_param']) / 100.0, random_state=seed)
             else:
-                clf = FairDecisionTreeClassifier(criterion = 'entropy_fair', max_depth = features['max_depth'], min_samples_split = features['min_samples_split'], max_leaf_nodes = features['max_leaf_nodes'], class_weight = {0:features['class_weight'], 1:(10-features['class_weight'])}, f_lambda = float(features['fair_param']) / 100.0, random_state=seed)
+                clf = FairDecisionTreeClassifier(criterion = 'entropy_fair', max_depth = features['max_depth'], min_samples_split = features['min_samples_split'], max_leaf_nodes = features['max_leaf_nodes'], class_weight = {0:1.0, 1:aux_get_weight(features['class_weight'])}, f_lambda = float(features['fair_param']) / 100.0, random_state=seed)
         else:
             if features['criterion'] <= 0.5:
                 clf = FairDecisionTreeClassifier(criterion = 'gini_fair', max_depth = features['max_depth'], min_samples_split = features['min_samples_split'], max_leaf_nodes = features['max_leaf_nodes'], class_weight = features['class_weight'], f_lambda = float(features['fair_param'])/100.0, random_state=seed)
@@ -360,7 +374,7 @@ def train_model(X_train, y_train, prot_col, seed, model, X_val=None, y_val=None,
     
     if model == "LR":
         if features['class_weight'] is not None:
-            clf = LogisticRegression(max_iter=features['max_iter'], tol=features['tol'], C=features['lambda'], l1_ratio=features['l1_ratio'], class_weight = {0:features['class_weight'], 1:(10-features['class_weight'])}, random_state=seed)
+            clf = LogisticRegression(max_iter=features['max_iter'], tol=features['tol'], C=features['lambda'], l1_ratio=features['l1_ratio'], class_weight = {0:1.0, 1:aux_get_weight(features['class_weight'])}, random_state=seed)
         else:
             clf = LogisticRegression(max_iter=features['max_iter'], tol=features['tol'], C=features['lambda'], l1_ratio=features['l1_ratio'], class_weight = features['class_weight'], random_state=seed)
 
@@ -371,6 +385,7 @@ def train_model(X_train, y_train, prot_col, seed, model, X_val=None, y_val=None,
         'deterministic': True,
         'random_state': seed,
         'verbose': -1,
+        'verbosity': -1,
         'num_leaves': features['num_leaves'],
         'min_data_in_leaf': features['min_data_in_leaf'],
         'max_depth': features['max_depth'],
@@ -378,7 +393,8 @@ def train_model(X_train, y_train, prot_col, seed, model, X_val=None, y_val=None,
         'n_estimators': features['n_estimators'],
         'feature_fraction': features['feature_fraction']/X_train.shape[1],
         'verbose_eval': False,
-        'num_threats': 16
+        'num_threats': 16,
+        'scale_pos_weight': aux_get_weight(features['class_weight'])
         }
         clf = FairLGBM(fair_param=float(features['fair_param'])/100.0, prot=prot_col, fair_fun='fpr_diff', lgbm_params=lgbm_params)
     
@@ -387,7 +403,7 @@ def train_model(X_train, y_train, prot_col, seed, model, X_val=None, y_val=None,
     elif model == "FLGBM":
         learner = clf.fit(X_train, y_train, X_val, y_val)
     else:
-        learner = clf.fit(X_train, y_train, X_val, y_val)
+        learner = clf.fit(X_train, y_train)
 
     return learner
 
@@ -415,13 +431,16 @@ def get_max_depth_FLGBM(X_train, y_train, prot_col, seed, **features):
     'deterministic': True,
     'random_state': seed,
     'verbose': -1,
+    'verbose_eval': False,
+    'verbosity': -1,
     'num_leaves': features['num_leaves'],
     'min_data_in_leaf': features['min_data_in_leaf'],
     'max_depth': features['max_depth'],
     'learning_rate': float(features['learning_rate'])/100,
     'n_estimators': features['n_estimators'],
     'feature_fraction': features['feature_fraction']/X_train.shape[1],
-    'num_threats': 16
+    'num_threats': 16,
+    'scale_pos_weight': aux_get_weight(features['class_weight'])
     }
     
     clf = FairLGBM(fair_param=float(features['fair_param'])/100.0, prot=prot_col, fair_fun='fpr_diff', lgbm_params=lgbm_params)

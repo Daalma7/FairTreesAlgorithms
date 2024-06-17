@@ -1,5 +1,4 @@
-datasets=("adult" "compas" "diabetes" "dutch" "german" "insurance" "obesity" "parkinson" "ricci" "student")
-#datasets=("compas")
+datasets=("adult" "diabetes" "ricci" "dutch" "german" "insurance" "obesity" "parkinson" "student" "compas")
 for data in "${datasets[@]}"
 do
 	for i in {100..109}

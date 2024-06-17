@@ -8,6 +8,15 @@ from sklearn.metrics import confusion_matrix, accuracy_score, f1_score
 from imblearn.metrics import geometric_mean_score
 
 
+
+
+def aux_get_weight(weight):
+    if weight < 11:
+        return 1.0 / float(11 - weight)
+    else:
+        return float(weight - 9)
+    
+
 class Tree_Structure:
 
     """
@@ -29,7 +38,7 @@ class Tree_Structure:
                 - seed: Random seed
                 - combine_train_val: Combines training and validation samples
         """
-
+        
         self.x_train = x_train
         self.y_train = y_train
         self.prot_train = prot_train
@@ -64,7 +73,22 @@ class Tree_Structure:
             self.prot_val = new_prot
                     
         np.random.seed(self.seed)
-        self.clf = DecisionTreeClassifier(random_state=self.seed)
+        choose_struc = []
+        for i in range(1,20):
+            clf = DecisionTreeClassifier(random_state=self.seed, class_weight={0:1.0, 1:aux_get_weight(i)})
+            clf.fit(x_train, y_train)
+            y_val_pred = clf.predict(x_val)
+            choose_struc.append([clf, 1-geometric_mean_score(y_val, y_val_pred)])
+        
+        min_gmean_inv = float('inf')
+        best = None
+        for elem in choose_struc:
+            print(elem[1])
+            if elem[1] < min_gmean_inv:
+                min_gmean_inv = elem[1]
+                best = elem[0]
+        
+        self.clf = copy.deepcopy(best)
         self.clf.fit(x_train, y_train)
 
         self.fair_dict, self.total_samples_dict, self.base_leaves, self.assoc_dict, self.val_nodes = self.aux_objectives_metrics()

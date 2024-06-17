@@ -26,7 +26,7 @@ class NSGA2Utils:
         Auxiliary function for creating initial population for parallel executions
         """
         individual = self.problem.generate_individual()
-        self.problem.calculate_objectives(individual, False, self.problem.seed)
+        self.problem.calculate_objectives(individual, False, False)
         return individual
 
     def create_initial_population(self, model, parallel=True):
@@ -43,31 +43,31 @@ class NSGA2Utils:
             indivlist = []
             if model == 'DT':
                 individual = self.problem.generate_default_individual_dt(criterion='gini')
-                self.problem.calculate_objectives(individual, True, self.problem.seed)
+                self.problem.calculate_objectives(individual, True, False)
                 population.append(individual)
                 individual = self.problem.generate_default_individual_dt(criterion='entropy')
-                self.problem.calculate_objectives(individual, False, self.problem.seed)
+                self.problem.calculate_objectives(individual, False, False)
                 population.append(individual)
             elif model == 'FDT':
                 individual = self.problem.generate_default_individual_fdt(criterion='gini')
-                self.problem.calculate_objectives(individual, True, self.problem.seed)
+                self.problem.calculate_objectives(individual, True, False)
                 population.append(individual)
                 individual = self.problem.generate_default_individual_fdt(criterion='entropy')
-                self.problem.calculate_objectives(individual, False, self.problem.seed)
+                self.problem.calculate_objectives(individual, False, False)
                 population.append(individual)
             elif model == 'LR':
                 individual = self.problem.generate_default_individual_lr(num='first')
-                self.problem.calculate_objectives(individual, True, self.problem.seed)
+                self.problem.calculate_objectives(individual, True, False)
                 population.append(individual)
                 individual = self.problem.generate_default_individual_lr(num='second')
-                self.problem.calculate_objectives(individual, False, self.problem.seed)
+                self.problem.calculate_objectives(individual, False, False)
                 population.append(individual)
             elif model == 'FLGBM':
                 individual = self.problem.generate_default_individual_flgbm(num='first')
-                self.problem.calculate_objectives(individual, True, self.problem.seed)
+                self.problem.calculate_objectives(individual, True, False)
                 population.append(individual)
                 individual = self.problem.generate_default_individual_flgbm(num='second')
-                self.problem.calculate_objectives(individual, False, self.problem.seed)
+                self.problem.calculate_objectives(individual, False, False)
                 population.append(individual)
             new_pop = Parallel(n_jobs=-1)(delayed(self.parallel_create_initial_population_single)() for i in range(self.num_of_individuals - 2))
             for indiv in new_pop:
@@ -107,7 +107,7 @@ class NSGA2Utils:
                         individual = self.problem.generate_default_flgbm(num='second')
                     else:
                         individual = self.problem.generate_individual()
-                self.problem.calculate_objectives(individual, first_individual, self.problem.seed)
+                self.problem.calculate_objectives(individual, first_individual, False)
                 first_individual = False
                 population.append(individual)
 
@@ -212,7 +212,7 @@ class NSGA2Utils:
         child2.features = decode(self.problem.variables_range, model, **child2.features)
         return [child1, child2]
     
-    def parallel_calc_objectives(self, child, first=False):
+    def parallel_calc_objectives(self, child, first=False, calc_test=False):
         """
         Auxiliary function to calculate objectives of a given individual
             Parameters:
@@ -221,7 +221,7 @@ class NSGA2Utils:
             Returns:
                 - child: Individual with calculated objectives
         """
-        self.problem.calculate_objectives(child, first, self.problem.seed)
+        self.problem.calculate_objectives(child, first, calc_test)
         return child
     
     def create_children(self, population, model, parallel = True):

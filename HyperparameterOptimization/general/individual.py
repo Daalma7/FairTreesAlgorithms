@@ -17,10 +17,12 @@ class Individual(object):
         self.domination_count = None
         self.dominated_solutions = None
         self.features = None
-        self.objectives = None
-        self.calc_objectives = False
-        self.extra = None
         self.creation_mode = None
+        self.calc_objectives = False
+        self.objectives = None
+        self.extra = None
+        self.objectives_test = None
+        self.extra_test = None
 
     def __eq__(self, other):
         """

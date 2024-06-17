@@ -115,7 +115,9 @@ for element in os.listdir(datasets_path):
 
 
 plot_df = pd.DataFrame({'Number of rows': x, 'Number of columns': y, 'Name': names, 'sizes':sizes})
-fig = px.scatter(plot_df, x = 'Number of rows', y = 'Number of columns', hover_data=['Name'])
+print(plot_df)
+fig = px.scatter(plot_df, x = 'Number of rows', y = 'Number of columns', text='Name', hover_data=['Name'])
+fig.update_traces(textposition=['top center', 'top center', 'top center', 'top center', 'top center', 'top center', 'bottom center', 'top center', 'top center', 'bottom center'])
 fig.update_layout(
     title={
         'text': "Dimensions of the datasets",

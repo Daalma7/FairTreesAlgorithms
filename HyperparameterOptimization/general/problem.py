@@ -2,13 +2,17 @@ import random
 import string
 from collections import OrderedDict as od
 import sys
+import copy
+import os
+import pandas as pd
+import warnings
+warnings.filterwarnings('ignore')
 
 sys.path.append("..")
 from general.individual import IndividualDT, IndividualDTGrea, IndividualLR, IndividualLRGrea, IndividualFDT, IndividualFLGBM, IndividualFLGBMGrea, IndividualFDTGrea
 from general.population import Population
 from general.ml import decode, print_properties_lgbm, num_leaves, train_model, evaluate_fairness, val_model, save_model, test_model, gmean_inv, fpr_diff, ppv_diff, pnr_diff, data_weight_avg_depth, print_properties_tree, get_max_depth_FLGBM
-import os
-import pandas as pd
+
 
 PATH_TO_DATA = os.path.dirname(os.path.dirname(os.path.dirname(__file__))) + '/datasets/data/'
 PATH_TO_RESULTS = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))) + '/results/'
@@ -119,9 +123,9 @@ class Problem:
             individual = IndividualDTGrea()
         individual.id = ''.join(random.choice(string.ascii_uppercase + string.digits) for _ in range(10))
         if criterion == 'gini':
-            individual.features = [0, None, 2, None, None]
+            individual.features = [0, None, 2, None, 10]
         else:
-            individual.features = [1, None, 2, None, None]
+            individual.features = [1, None, 2, None, 10]
         hyperparameters = ['criterion','max_depth', 'min_samples_split', 'max_leaf_nodes', 'class_weight']
         individual.features = od(zip(hyperparameters, individual.features))
         individual.features = decode(self.variables_range, "DT", **individual.features)
@@ -148,9 +152,9 @@ class Problem:
             individual = IndividualDTGrea()
         individual.id = ''.join(random.choice(string.ascii_uppercase + string.digits) for _ in range(10))
         if criterion == 'gini':
-            individual.features = [0, None, 2, None, None, None]
+            individual.features = [0, None, 2, None, 10, None]
         else:
-            individual.features = [1, None, 2, None, None, None]
+            individual.features = [1, None, 2, None, 10, None]
         hyperparameters = ['criterion','max_depth', 'min_samples_split', 'max_leaf_nodes', 'class_weight', 'fair_param']
         individual.features = od(zip(hyperparameters, individual.features))
         individual.features = decode(self.variables_range, "FDT", **individual.features)
@@ -177,9 +181,9 @@ class Problem:
             individual = IndividualLRGrea()
         individual.id = ''.join(random.choice(string.ascii_uppercase + string.digits) for _ in range(10))
         if num == 'first':
-            individual.features = [100, 0.0001, 1, 0, None]
+            individual.features = [100, 0.0001, 1, 0, 10]
         else:
-            individual.features = [100, 0.0001, 1, 1, None]
+            individual.features = [100, 0.0001, 1, 1, 10]
         hyperparameters = ['max_iter', 'tol', 'lambda', 'l1_ratio', 'class_weight']
         individual.features = od(zip(hyperparameters, individual.features))
         individual.features = decode(self.variables_range, "LR", **individual.features)
@@ -206,10 +210,10 @@ class Problem:
             individual = IndividualFLGBMGrea()
         individual.id = ''.join(random.choice(string.ascii_uppercase + string.digits) for _ in range(10))
         if num == 'first':
-            individual.features = [31, 20, None, 1, 100, self.x_train.shape[1], 0]
+            individual.features = [31, 20, None, 1, 100, self.x_train.shape[1], 10, 0]
         else:
-            individual.features = [31, 20, None, 10, 100, self.x_train.shape[1], 0]
-        hyperparameters = ['num_leaves', 'min_data_in_leaf', 'max_depth', 'learning_rate', 'n_estimators', 'feature_fraction', 'fair_param']
+            individual.features = [31, 20, None, 10, 100, self.x_train.shape[1], 10, 0]
+        hyperparameters = ['num_leaves', 'min_data_in_leaf', 'max_depth', 'learning_rate', 'n_estimators', 'feature_fraction', 'class_weight', 'fair_param']
         individual.features = od(zip(hyperparameters, individual.features))
         individual.features = decode(self.variables_range, "FLGBM", **individual.features)
         individual.creation_mode = "initialization"
@@ -250,7 +254,7 @@ class Problem:
                 individual = IndividualFLGBM()
             if kind == 'grea':
                 individual = IndividualFLGBMGrea()
-            hyperparameters = ['num_leaves', 'min_data_in_leaf', 'max_depth', 'learning_rate', 'n_estimators', 'feature_fraction', 'fair_param']
+            hyperparameters = ['num_leaves', 'min_data_in_leaf', 'max_depth', 'learning_rate', 'n_estimators', 'feature_fraction', 'class_weight', 'fair_param']
         
         individual.id = ''.join(random.choice(string.ascii_uppercase + string.digits) for _ in range(10))
         individual.features = [random.uniform(*x) for x in self.variables_range]
@@ -264,7 +268,7 @@ class Problem:
 
 
     #Validates each individual and exports its parameters and other measures to csv
-    def calculate_objectives(self, individual, first_individual, seed):
+    def calculate_objectives(self, individual, first_individual=False, calc_test=False):
         """
         Calculates objectives (validation) for the given individual
             Parameters:
@@ -272,7 +276,7 @@ class Problem:
                 - first: boolean value to indicate whether the individual is the first or not
                 - seed: Random seed
         """
-        if self.expand and not individual.calc_objectives:
+        if self.expand and ((not individual.calc_objectives) or calc_test):
             individual.calc_objectives=True
             hyperparameters = individual.features
             learner = train_model(self.x_train, self.y_train, self.variable_name, self.seed, self.model, self.x_val, self.y_val, **hyperparameters) #Model training
@@ -339,40 +343,43 @@ class Problem:
                 individual.actual_n_estimators = n_estimators
                 individual.actual_n_features = n_features
                 individual.actual_feature_importance_std = feature_importance_std
+            
+            if calc_test:
+                pred = test_model(self.x_test, learner)       #Model test (not validation as above)
+                y_fair = evaluate_fairness(self.x_test, self.y_test, pred, self.variable_name)      #For getting objectives, using test data
+                objectives_test = []
+                for x in self.objectives:
+                    if x.__name__ == 'gmean_inv':
+                        objectives_test.append(gmean_inv(self.y_test, pred))
+                    elif x.__name__ == 'fpr_diff':
+                        objectives_test.append(fpr_diff(y_fair[0], y_fair[1], y_fair[2], y_fair[3]))
+                    elif x.__name__ == 'ppv_diff':
+                        objectives_test.append(ppv_diff(y_fair[0], y_fair[1], y_fair[2], y_fair[3]))
+                    elif x.__name__ == 'pnr_diff':
+                        objectives_test.append(pnr_diff(y_fair[0], y_fair[1], y_fair[2], y_fair[3]))
+                    elif x.__name__ == 'num_leaves':
+                        objectives_test.append(num_leaves(individual.model))
+                    elif x.__name__ == 'data_weight_avg_depth':
+                        objectives_test.append(data_weight_avg_depth(individual.model))
+                individual.objectives_test = copy.deepcopy(objectives_test)
 
-    """
-    def store_objectives(self, individual):
-        objectives_results_dict = {'gmean_inv': 'gmean_inv', 'fpr_diff': 'fpr_diff', 'ppv_diff': 'ppv_diff', 'pnr_diff': 'pnr_diff', 'num_leaves': 'num_leaves', 'data_weight_avg_depth':'data_weight_avg_depth'}
-        
-        #Dictionaries definitions to create the dataframe representing all needed data from an individual and the execution
-        indiv_list = list(individual.features.items())
-        if self.model == "DT":          #Depending on the model we will have different sets of hyperparameters for that model
-            criterion, max_depth, min_samples_split, max_leaf_nodes, class_weight = [item[1] for item in indiv_list]
-            dict_hyperparameters= {'criterion': [criterion], 'max_depth': [max_depth], 'min_samples_split': [min_samples_split], 'max_leaf_nodes': [max_leaf_nodes], 'class_weight': [class_weight]}
-        if self.model == "FDT":          #Depending on the model we will have different sets of hyperparameters for that model
-            criterion, max_depth, min_samples_split, max_leaf_nodes, class_weight, fair_param = [item[1] for item in indiv_list]
-            dict_hyperparameters= {'criterion': [criterion], 'max_depth': [max_depth], 'min_samples_split': [min_samples_split], 'max_leaf_nodes': [max_leaf_nodes], 'class_weight': [class_weight], 'fair_param':[fair_param]}
-        if self.model == "LR":
-            max_iter, tol, lambd, l1_ratio, class_weight = [item[1] for item in indiv_list]
-            dict_hyperparameters= {'max_iter': [max_iter], 'tol': [tol], 'lambda': [lambd], 'l1_ratio': [l1_ratio], 'class_weight': [class_weight]}
-        if self.model == "FLGBM":
-            lamb, num_leaves, min_data_in_leaf, max_depth, learning_rate, n_estimators, feature_fraction = [item[1] for item in indiv_list]
-            dict_hyperparameters= {'lamb': [lamb], 'num_leaves' : [num_leaves], 'min_data_in_leaf':[min_data_in_leaf], 'max_depth':[max_depth], 'learning_rate': [learning_rate], 'n_estimators': [n_estimators], 'feature_fraction': [feature_fraction]}
-        
-        dict_general_info = {'id': individual.id, 'creation_mode':individual.creation_mode}
-        dict_objectives= {objectives_results_dict.get(self.objectives[i].__name__): individual.objectives[i] for i in range(self.num_of_objectives)}
-        if self.extra != None: 
-            dict_extra= {objectives_results_dict.get(self.extra[i].__name__): individual.extra[i] for i in range(len(self.extra))}
-            dict_dataframe = {**dict_general_info, **dict_objectives, **dict_extra, **dict_hyperparameters} #Union
-        else:
-            dict_dataframe = {**dict_general_info, **dict_objectives, **dict_hyperparameters} #Union
-
-        individuals_aux = pd.DataFrame(dict_dataframe)
-        self.individuals_df = pd.concat([self.individuals_df, individuals_aux])
-        self.individuals_df.to_csv(PATH_TO_RESULTS + self.model + '/' + str(method) + '/individuals/individuals_' + self.dataset_name + '_seed_' + str(seed) + '_var_' + self.variable_name + '_gen_' + str(self.num_of_generations) + '_indiv_' + str(self.num_of_individuals) + '_model_' + self.model + '_obj_' + self.get_obj_string() + self.get_extra_string() + '.csv', index = False, header = True, columns = list(dict_dataframe.keys()))
-        individuals_aux
-    """
-
+                if self.extra != None:
+                    extra_test = []
+                    for x in self.extra:
+                        if x.__name__ == 'gmean_inv':
+                            extra_test.append(gmean_inv(self.y_test, pred))
+                        elif x.__name__ == 'fpr_diff':
+                            extra_test.append(fpr_diff(y_fair[0], y_fair[1], y_fair[2], y_fair[3]))
+                        elif x.__name__ == 'ppv_diff':
+                            extra_test.append(ppv_diff(y_fair[0], y_fair[1], y_fair[2], y_fair[3]))
+                        elif x.__name__ == 'pnr_diff':
+                            extra_test.append(pnr_diff(y_fair[0], y_fair[1], y_fair[2], y_fair[3]))
+                        elif x.__name__ == 'num_leaves':
+                            extra_test.append(num_leaves(individual.model))
+                        elif x.__name__ == 'data_weight_avg_depth':
+                            extra_test.append(data_weight_avg_depth(individual.model))
+                        
+                    individual.extra_test = copy.deepcopy(extra_test)
 
 
 
@@ -388,49 +395,18 @@ class Problem:
                 - method: Algorithm which was used
         """
         if self.expand:
-            hyperparameters = individual.features
-            learner = train_model(self.x_train, self.y_train, self.variable_name, seed, self.model, **hyperparameters)
-            #save_model(learner, self.dataset_name, seed, self.variable_name, self.num_of_generations, self.num_of_individuals, individual.id, self.model, method, self.objectives)
-            pred = test_model(self.x_test, learner)       #Model test (not validation as above)
-            y_fair = evaluate_fairness(self.x_test, self.y_test, pred, self.variable_name)      #For getting objectives, using test data
-            objectives_test = []
-            for x in self.objectives:
-                if x.__name__ == 'gmean_inv':
-                    objectives_test.append(gmean_inv(self.y_test, pred))
-                elif x.__name__ == 'fpr_diff':
-                    objectives_test.append(fpr_diff(y_fair[0], y_fair[1], y_fair[2], y_fair[3]))
-                elif x.__name__ == 'ppv_diff':
-                    objectives_test.append(ppv_diff(y_fair[0], y_fair[1], y_fair[2], y_fair[3]))
-                elif x.__name__ == 'pnr_diff':
-                    objectives_test.append(pnr_diff(y_fair[0], y_fair[1], y_fair[2], y_fair[3]))
-                elif x.__name__ == 'num_leaves':
-                    objectives_test.append(num_leaves(learner))
-                elif x.__name__ == 'data_weight_avg_depth':
-                    objectives_test.append(data_weight_avg_depth(learner))
 
-            extra_test = []
+            dict_extra = None
+            dict_extra_test = None
+
             if self.extra != None:
-                for x in self.extra:
-                    if x.__name__ == 'gmean_inv':
-                        extra_test.append(gmean_inv(self.y_test, pred))
-                    elif x.__name__ == 'fpr_diff':
-                        extra_test.append(fpr_diff(y_fair[0], y_fair[1], y_fair[2], y_fair[3]))
-                    elif x.__name__ == 'ppv_diff':
-                        extra_test.append(ppv_diff(y_fair[0], y_fair[1], y_fair[2], y_fair[3]))
-                    elif x.__name__ == 'pnr_diff':
-                        extra_test.append(pnr_diff(y_fair[0], y_fair[1], y_fair[2], y_fair[3]))
-                    elif x.__name__ == 'num_leaves':
-                        extra_test.append(num_leaves(learner))
-                    elif x.__name__ == 'data_weight_avg_depth':
-                        extra_test.append(data_weight_avg_depth(learner))
                 dict_extra= {f"{self.extra[i].__name__}_val": individual.extra[i] for i in range(len(self.extra))}
-                dict_extra_test = {f"{self.extra[i].__name__}_test": extra_test[i] for i in range(len(self.extra))}
-
+                dict_extra_test = {f"{self.extra[i].__name__}_test": individual.extra_test[i] for i in range(len(self.extra))}
 
             #Dictionaries definitions to create the dataframe representing all needed data from an individual and the execution
             dict_general_info = {'ID': individual.id, 'seed': seed, 'creation_mode':individual.creation_mode}
             dict_objectives= {f"{self.objectives[i].__name__}_val": individual.objectives[i] for i in range(self.num_of_objectives)}
-            dict_test = {f"{self.objectives[i].__name__}_test": objectives_test[i] for i in range(self.num_of_objectives)}
+            dict_test = {f"{self.objectives[i].__name__}_test": individual.objectives_test[i] for i in range(self.num_of_objectives)}
 
             indiv_list = list(individual.features.items())
             if self.model == "DT":          #Depending on the model we will have different sets of hyperparameters for that model
@@ -460,8 +436,8 @@ class Problem:
                     dict_dataframe = {**dict_general_info, **dict_objectives, **dict_test, **dict_hyperparameters}
 
             if self.model == "FLGBM":
-                num_leaves, min_data_in_leaf, max_depth, learning_rate, n_estimators, feature_fraction, fair_param= [item[1] for item in indiv_list]
-                dict_hyperparameters= {'num_leaves' : [num_leaves], 'min_data_in_leaf':[min_data_in_leaf], 'max_depth':[max_depth], 'learning_rate': [learning_rate], 'n_estimators': [n_estimators], 'feature_fraction': [feature_fraction], 'fair_param': [fair_param]}
+                num_leaves, min_data_in_leaf, max_depth, learning_rate, n_estimators, feature_fraction, class_weight, fair_param= [item[1] for item in indiv_list]
+                dict_hyperparameters= {'num_leaves' : [num_leaves], 'min_data_in_leaf':[min_data_in_leaf], 'max_depth':[max_depth], 'learning_rate': [learning_rate], 'n_estimators': [n_estimators], 'feature_fraction': [feature_fraction], 'class_weight': [class_weight], 'fair_param': [fair_param]}
                 if self.extra != None:
                     dict_dataframe = {**dict_general_info, **dict_objectives, **dict_extra, **dict_test, **dict_extra_test, **dict_hyperparameters}
                 else:
@@ -512,7 +488,7 @@ class Problem:
                 hyperparameters = ['max_iter','tol', 'lambda', 'l1_ratio', 'class_weight']
             if self.model == "FLGBM":
                 indiv = IndividualFLGBM()
-                hyperparameters = ['num_leaves', 'min_data_in_leaf', 'max_depth', 'learning_rate', 'n_estimators', 'feature_fraction', 'fair_param']
+                hyperparameters = ['num_leaves', 'min_data_in_leaf', 'max_depth', 'learning_rate', 'n_estimators', 'feature_fraction', 'class_weight', 'fair_param']
             indiv.features = [row[x] for x in hyperparameters]
             indiv.id = row['ID']
             indiv.domination_count = 0
@@ -557,13 +533,13 @@ class Problem:
             if not found:
                 pareto_optimal.remove(p)
         pareto_optimal_df = pd.concat(pareto_optimal_df)
-        pareto_optimal_df.to_csv(f"{PATH_TO_RESULTS}{self.model}/{method}/pareto_individuals/runs/{self.dataset_name}/{self.dataset_name}_seed_{seed + run}_var_{self.variable_name}_gen_{self.num_of_generations}_indiv_{self.num_of_individuals}_model_{self.model}_obj_{self.get_obj_string()}{self.get_extra_string()}.csv", index = False, header = True, columns = list(pareto_fronts.keys()))
-        return pd.read_csv(f"{PATH_TO_RESULTS}{self.model}/{method}/pareto_individuals/runs/{self.dataset_name}/{self.dataset_name}_seed_{seed + run}_var_{self.variable_name}_gen_{self.num_of_generations}_indiv_{self.num_of_individuals}_model_{self.model}_obj_{self.get_obj_string()}{self.get_extra_string()}.csv")
+        pareto_optimal_df.to_csv(f"{PATH_TO_RESULTS}{self.model}/{method}/pareto_individuals/runs/{self.dataset_name}/{self.dataset_name}_seed_{seed + run}_var_{self.variable_name}_gen_{self.num_of_generations}_indiv_{self.num_of_individuals}_model_{self.model}_obj_{self.get_obj_string()}{self.get_extra_string()}_optimal_test.csv", index = False, header = True, columns = list(pareto_fronts.keys()))
+        return pd.read_csv(f"{PATH_TO_RESULTS}{self.model}/{method}/pareto_individuals/runs/{self.dataset_name}/{self.dataset_name}_seed_{seed + run}_var_{self.variable_name}_gen_{self.num_of_generations}_indiv_{self.num_of_individuals}_model_{self.model}_obj_{self.get_obj_string()}{self.get_extra_string()}_optimal_test.csv")
         
 
 
     #Calculate file with the general pareto front using all pareto fronts in every execution
-    def calculate_pareto_optimal(self, seed, runs, method, correct=False):
+    def calculate_pareto_optimal(self, seed, runs, method, correct=True):
         """
         Calculates pareto optimal individuals from the optimization process.
         ATTENTION: It supooses that all runs have been executed, so the pareto optimal individulas will be
@@ -614,7 +590,7 @@ class Problem:
                     hyperparameters = ['max_iter','tol', 'lambda', 'l1_ratio', 'class_weight']
                 if self.model == "FLGBM":
                     indiv = IndividualFLGBM()
-                    hyperparameters = ['num_leaves', 'min_data_in_leaf', 'max_depth', 'learning_rate', 'n_estimators', 'feature_fraction', 'fair_param']
+                    hyperparameters = ['num_leaves', 'min_data_in_leaf', 'max_depth', 'learning_rate', 'n_estimators', 'feature_fraction', 'class_weight', 'fair_param']
                 indiv.features = [row[x] for x in hyperparameters]
                 indiv.id = row['ID']
                 indiv.domination_count = 0
@@ -659,7 +635,6 @@ class Problem:
                 if not found:
                     pareto_optimal.remove(p)
             #We extract them to a file
-            print('a')
             pareto_optimal_df = pd.concat(pareto_optimal_df)
             pareto_optimal_df = pareto_optimal_df.drop_duplicates(subset=(['seed']+hyperparameters), keep='first')
             pareto_optimal_df.to_csv(f"{PATH_TO_RESULTS}{self.model}/{method}/pareto_individuals/overall/{self.dataset_name}/{self.dataset_name}_seed_{seed}_var_{self.variable_name}_gen_{self.num_of_generations}_indiv_{self.num_of_individuals}_model_{self.model}_obj_{self.get_obj_string()}{self.get_extra_string()}.csv", index = False, header = True, columns = list(pareto_fronts.keys()))

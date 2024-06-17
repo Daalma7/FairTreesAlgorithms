@@ -193,7 +193,7 @@ if model == "DT":               #If we're using Decision Trees:
     max_range_leaf_nodes = None
     
     min_range_class_weight = 1
-    max_range_class_weight = 9
+    max_range_class_weight = 19
 
     variables_range = [(min_range_criterion, max_range_criterion),(min_range_max_depth, max_range_max_depth), (min_range_samples_split, max_range_samples_split), (min_range_leaf_nodes, max_range_leaf_nodes), (min_range_class_weight, max_range_class_weight)]
 
@@ -215,12 +215,12 @@ if model == "FDT":               #If we're using Fair Decision Trees:
     max_range_leaf_nodes = None
     
     min_range_class_weight = 1
-    max_range_class_weight = 9
+    max_range_class_weight = 19
 
-    min_fair_param = 0
-    max_fair_param = 100
+    min_range_fair_param = 0
+    max_range_fair_param = 100
 
-    variables_range = [(min_range_criterion, max_range_criterion),(min_range_max_depth, max_range_max_depth), (min_range_samples_split, max_range_samples_split), (min_range_leaf_nodes, max_range_leaf_nodes), (min_range_class_weight, max_range_class_weight), (min_fair_param, max_fair_param)]
+    variables_range = [(min_range_criterion, max_range_criterion),(min_range_max_depth, max_range_max_depth), (min_range_samples_split, max_range_samples_split), (min_range_leaf_nodes, max_range_leaf_nodes), (min_range_class_weight, max_range_class_weight), (min_range_fair_param, max_range_fair_param)]
 
 
 if model == "LR":               #In case we've devided to use Logistic Regression
@@ -237,7 +237,7 @@ if model == "LR":               #In case we've devided to use Logistic Regressio
     max_range_l1_ratio = 1
 
     min_range_class_weight = 1
-    max_range_class_weight = 9
+    max_range_class_weight = 19
 
     variables_range = [(min_range_max_iter, max_range_max_iter),(min_range_tol, max_range_tol),(min_range_C, max_range_C),(min_range_l1_ratio, max_range_l1_ratio),(min_range_class_weight,max_range_class_weight)]
 
@@ -260,10 +260,13 @@ if model == "FLGBM":               #In case we've devided to use Logistic Regres
     min_range_feature_fraction = 1
     max_range_feature_fraction = None
 
+    min_range_class_weight = 1
+    max_range_class_weight = 19
+
     min_range_fair_param = 0
     max_range_fair_param = 100
 
-    variables_range = [(min_range_num_leaves, max_range_num_leaves), (min_range_min_data_in_leaf, max_range_min_data_in_leaf),(min_range_max_depth, max_range_max_depth),(min_range_learning_rate, max_range_learning_rate),(min_range_n_estimators, max_range_n_estimators),(min_range_feature_fraction, max_range_feature_fraction), (min_range_fair_param, max_range_fair_param)]
+    variables_range = [(min_range_num_leaves, max_range_num_leaves), (min_range_min_data_in_leaf, max_range_min_data_in_leaf),(min_range_max_depth, max_range_max_depth),(min_range_learning_rate, max_range_learning_rate),(min_range_n_estimators, max_range_n_estimators),(min_range_feature_fraction, max_range_feature_fraction), (min_range_class_weight, max_range_class_weight), (min_range_fair_param, max_range_fair_param)]
     
 
 
@@ -297,7 +300,7 @@ for run in range(n_runs):
         # number of rows in train
         num_rows_train = get_matrices(dataset, y_col, set_seed)[0].shape[0]
         
-        problem = Problem(num_of_variables = 5,
+        problem = Problem(num_of_variables = len(variables_range),
                         objectives = objectives,
                         extra=extraobj,
                         variables_range = variables_range,
@@ -329,7 +332,7 @@ for run in range(n_runs):
             first = False
 
 
-problem = Problem(num_of_variables = 5,
+problem = Problem(num_of_variables = len(variables_range),
                 objectives = objectives,
                 extra=extraobj,
                 variables_range = variables_range,

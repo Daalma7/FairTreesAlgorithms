@@ -375,6 +375,8 @@ def create_total_pareto_optimal(df_indivs, dataname, obj, nruns=10):
         y_interp = PchipInterpolator(df[obj[0]], df[obj[1]], extrapolate=True)(x_interp)
         sns.lineplot(x=x_interp, y=y_interp, color=palette[model])
         sns.scatterplot(df, x=obj[0], y=obj[1], hue='algorithm', palette=palette)
+    plt.xlabel(r'$1-$G-mean')
+    plt.ylabel(r'FPR$_{\text{diff}}$')
     plt.savefig(f"{PATH_TO_RESULTS}/GeneralGraphics/{dataname}/scatter_po_algorithm_{dataname}.pdf", format='pdf', bbox_inches='tight')
     plt.savefig(f"../other/scatter_po_algorithm_{dataname}.png", format='png', bbox_inches='tight')
     plt.close()
@@ -387,6 +389,8 @@ def create_total_pareto_optimal(df_indivs, dataname, obj, nruns=10):
     sns.scatterplot(df_plot_total, x=obj[0], y=obj[1], hue='algorithm', alpha=0.9, palette=palette)
     for model, df in zip(models, dfs_plot_alg):
         sns.scatterplot(df, x=obj[0], y=obj[1], hue='algorithm', alpha=0.3, palette=palette, legend=False)
+    plt.xlabel(r'$1-$G-mean')
+    plt.ylabel(r'FPR$_{\text{diff}}$')
     plt.savefig(f"{PATH_TO_RESULTS}/GeneralGraphics/{dataname}/scatter_po_total_{dataname}.pdf", format='pdf', bbox_inches='tight')
     plt.close()
     return pareto_optimal_alg, pareto_optimal

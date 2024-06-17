@@ -48,8 +48,8 @@ class Evolution:
             dict_hyperparameters= {'max_iter': [max_iter], 'tol': [tol], 'lambda': [lambd], 'l1_ratio': [l1_ratio], 'class_weight': [class_weight]}
             dict_dataframe = {**dict_general_info, **dict_objectives, **dict_hyperparameters}
         if self.problem.model == "FLGBM":
-            num_leaves, min_data_in_leaf, max_depth, learning_rate, n_estimators, feature_fraction, fair_param= [item[1] for item in indiv_list]
-            dict_hyperparameters= {'num_leaves' : [num_leaves], 'min_data_in_leaf':[min_data_in_leaf], 'max_depth':[max_depth], 'learning_rate': [learning_rate], 'n_estimators': [n_estimators], 'feature_fraction': [feature_fraction], 'fair_param': [fair_param]}
+            num_leaves, min_data_in_leaf, max_depth, learning_rate, n_estimators, feature_fraction, class_weight, fair_param= [item[1] for item in indiv_list]
+            dict_hyperparameters= {'num_leaves' : [num_leaves], 'min_data_in_leaf':[min_data_in_leaf], 'max_depth':[max_depth], 'learning_rate': [learning_rate], 'n_estimators': [n_estimators], 'feature_fraction': [feature_fraction], 'class_weight': [class_weight], 'fair_param': [fair_param]}
             dict_actual_dimensions = {'n_estimators': indiv.actual_n_estimators, 'n_features': indiv.actual_n_features, 'feature_importance_std': indiv.actual_feature_importance_std}
             dict_dataframe = {**dict_general_info, **dict_objectives, **dict_actual_dimensions, **dict_hyperparameters}
         return pd.DataFrame(dict_dataframe)
@@ -123,4 +123,10 @@ class Evolution:
         self.utils.fast_nondominated_sort(self.population)
         generations_df.to_csv(f"{PATH_TO_RESULTS}{self.model_name}/nsga2/generation_stats/{self.dataset_name}/{self.dataset_name}_seed_{self.utils.problem.seed}_var_{self.protected_variable}_gen_{self.num_of_generations}_indiv_{self.num_of_individuals}_model_{self.problem.model}_obj_{str_obj}{self.problem.get_extra_string()}.csv", index = False, header = True)
         self.utils.fast_nondominated_sort(self.population)  #Once we've finished, let's return only nondominated individuals
-        return self.population.fronts[0]
+        #Calculate test objectives
+        return_pop = Parallel(n_jobs=-1)(delayed(self.utils.parallel_calc_objectives)(child, first=False, calc_test=True) for child in self.population.fronts[0])
+        for indiv in return_pop:
+            print(indiv.objectives_test)
+        print(len(return_pop))
+        
+        return return_pop

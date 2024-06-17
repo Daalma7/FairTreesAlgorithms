@@ -6,8 +6,8 @@ from sklearn.metrics import mean_squared_error, accuracy_score
 from sklearn.datasets import load_breast_cancer
 import os
 import contextlib
-
-
+import warnings
+warnings.filterwarnings("ignore", category=UserWarning)
     
 class FairLGBM:
     """
@@ -22,6 +22,9 @@ class FairLGBM:
         self.C = None
         lgbm_params['objective'] = self.bce_fair_loss
         self.lgbm_params = lgbm_params
+        self.scale_pos_weight = None
+        if 'scale_pos_weight' in lgbm_params:
+            self.scale_pos_weight = lgbm_params['scale_pos_weight']
         self.model = None
 
     def sigmoid(self, x):
@@ -87,8 +90,12 @@ class FairLGBM:
         hess = 0
         y = data.get_label()
         s = self.sigmoid(z)
-        grad = 1.443 * (1 - self.fair_param) * (s - y) + self.fair_param * self.C * s * (1 - s)
-        hess = 1.443 * (1 - self.fair_param) * s * (1 - s) + self.fair_param * self.C * ((s * (1 - s)**2) - (s**2 * (1 - s)))
+        if self.scale_pos_weight is None:
+            grad = 1.443 * (1 - self.fair_param) * (s - y) + self.fair_param * self.C * s * (1 - s)
+            hess = 1.443 * (1 - self.fair_param) * s * (1 - s) + self.fair_param * self.C * ((s * (1 - s)**2) - (s**2 * (1 - s)))
+        else:
+            grad = 1.443 * (1 - self.fair_param) * self.weights * (s - y) + self.fair_param * self.weights * self.C * s * (1 - s)
+            hess = 1.443 * (1 - self.fair_param) * self.weights * s * (1 - s) + self.fair_param * self.C * self.weights * ((s * (1 - s)**2) - (s**2 * (1 - s)))
         return grad, hess
         
 
@@ -134,7 +141,10 @@ class FairLGBM:
         """
         y = data.get_label()
         s = self.sigmoid(z)
-        loss = - (1-self.fair_param) * (y * np.log(s) + (1 - y) * np.log(1 - s)) + self.fair_param * np.abs(np.dot(self.p_01_val, s) / np.sum(self.p_01_val) - np.dot(self.p_00_val, s) / np.sum(self.p_00_val))
+        if self.scale_pos_weight is None:
+            loss = - (1-self.fair_param) * (y * np.log(s) + (1 - y) * np.log(1 - s)) + self.fair_param * np.abs(np.dot(self.p_01_val, s) / np.sum(self.p_01_val) - np.dot(self.p_00_val, s) / np.sum(self.p_00_val))
+        else:
+            loss = - (1-self.fair_param) * self.weights_val * (y * np.log(s) + (1 - y) * np.log(1 - s)) + self.fair_param * self.weights_val * np.abs(np.dot(self.p_01_val, s) / np.sum(self.p_01_val) - np.dot(self.p_00_val, s) / np.sum(self.p_00_val))
         return 'bce_fair', loss.mean(), False
 
 
@@ -149,10 +159,14 @@ class FairLGBM:
             Returns:
                 - a copy of the object, with the trained objective function
         """
+        self.lgbm_params['verbose']=-1
+        self.lgbm_params['verbosity']=-1
 
-        lgb_train = lgb.Dataset(X_train, y_train, free_raw_data=False)
+
+        lgb_train = lgb.Dataset(X_train, y_train, params={'verbose':-1, 'verbosity':-1}, free_raw_data=False)
         if self.fair_fun == 'fpr_diff':
             self.p_00 = np.where( (y_train == 0) & (X_train[self.prot] == 0), 1, 0)
+            self.sum_p_00 = np.sum(self.p_00)
             self.p_01 = np.where( (y_train == 0) & (X_train[self.prot] == 1), 1, 0)
             self.C = np.abs(self.p_01 / np.sum(self.p_01) - self.p_00 / np.sum(self.p_00))
             if not X_val is None and not y_val is None:
@@ -164,9 +178,13 @@ class FairLGBM:
         elif self.fair_fun == 'pnr_diff':
             pass
 
+        if not self.scale_pos_weight is None:
+            self.weights = np.where(y_train == 1, self.scale_pos_weight, 1.0)
+            self.weights_val = np.where(y_val == 1, self.scale_pos_weight, 1.0)
+
         if not X_val is None and not y_val is None:
-            lgb_val = lgb.Dataset(data=X_val, label=y_val, reference=lgb_train)
-            self.model = lgb.train(self.lgbm_params, lgb_train, valid_sets=[lgb_val], feval=self.bce_fair_eval, callbacks=[lgb.early_stopping(10)])
+            lgb_val = lgb.Dataset(data=X_val, label=y_val, params={'verbose':-1, 'verbosity':-1}, reference=lgb_train, free_raw_data=False)
+            self.model = lgb.train(self.lgbm_params, lgb_train, valid_sets=lgb_val, feval=self.bce_fair_eval, callbacks=[lgb.early_stopping(10), lgb.log_evaluation(301)])
         else:
             self.model = lgb.train(self.lgbm_params, lgb_train)
         return self
