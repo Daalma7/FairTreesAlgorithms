@@ -9,11 +9,21 @@
 ![Seaborn](https://img.shields.io/badge/seaborn-%236ba1af.svg?logo=seaborn&logoColor=white)
 ![GitHub](https://img.shields.io/badge/github-%23121011.svg?logo=github&logoColor=white)
 
-![Status](https://img.shields.io/badge/status-finished-green)
+![DataScience](https://img.shields.io/badge/Data_Science-finished?color=283D59)
+![ML](https://img.shields.io/badge/ML-finished?color=595828)
+![AI](https://img.shields.io/badge/AI-finished?color=594628)
+![FML](https://img.shields.io/badge/Fairness_in_ML-finished?color=1C2835)
+![MOO](https://img.shields.io/badge/MOO-finished?color=462859)
+![EAs](https://img.shields.io/badge/EAs-finished?color=555555)
+![Probability](https://img.shields.io/badge/Probability-finished?color=285958)
+![Analysis](https://img.shields.io/badge/Analysis-finished?color=131313)
+
+
+![Status](https://img.shields.io/badge/status-finished-Green)
 ![License](https://img.shields.io/badge/license-MIT-red)
 
 
-This repository contains the work done on the implementation and testing of three different multi-objective algorithms, which include methods for achieving a balance between accuracy and fairness. You can read the project report in the file [MasterThesis.pdf](MasterThesis.pdf).
+This repository contains the work done on the implementation and testing of three different fair  machine learning algorithms based on decision trees for binary classification with one binary sensitive attribute, and multiobjective evolutionary procedures using this algorithms to achieve the best balance between accuracy and fairness. You can read the project report in the file [MasterThesis.pdf](MasterThesis.pdf).
 
 ## Abstract
 
@@ -26,7 +36,7 @@ This project will be developed within this area. After conducting a context revi
 
 - **Fair Genetic Pruning (FGP)**: Genetic pruning of a matrix decision tree (the largest decision tree that can be built to perfectly classify the training sample, considering different balances for both classes). This algorithm is an evolutionary algorithm, where each individual in the population is represented by the codes of the nodes where the prunings occur. These codes are lexicographically ordered for efficiency, avoiding pruning already pruned branches of the tree. Crossover assigns prunings from parents to children one by one, ensuring that each pruning assigned is performed in a non-pruned node. Mutations select a leaf of the tree and traverse up or down the matrix tree structure by a certain number of random levels, which depend on the matrix tree depth, then apply or substitute the pruning. This process is repeated a random number of times, depending on the number of leaves of the individual.
 
-- **FairLGBM (FLGBM)**: Modification of the loss function in the LightGBM algorithm to incorporate fairness. $$(1-\lambda) \cdot k \cdot \text{logloss} + \lambda \cdot \text{continuous fairness criterion}$$ In fact, it has the following real structure: $`L_f(Y, \Sigma,P) = k(1-\lambda) L(Y,\Sigma) +\lambda\left| \frac{\text{&#x1D7D9}_{-,0,1}^T \Sigma}{\text{&#x1D7D9}_{-,0,1}^T 1} -\frac{\text{&#x1D7D9}_{-,0,0}^T \Sigma}{\text{&#x1D7D9}_{-,0,0}^T 1} \right|`$ Where $L$ is the logloss function, $\Sigma$ are the prediction scores (after applying the logistic function) and $`\left| \frac{\text{&#x1D7D9}_{-,0,1}^T \Sigma}{\text{&#x1D7D9}_{-,0,1}^T 1} -\frac{\text{&#x1D7D9}_{-,0,0}^T \Sigma}{\text{&#x1D7D9}_{-,0,0}^T 1} \right|`$ is the continuous extension of $\text{FPR}_{\text{diff}}$ fairness criterion. This continuous extension is highly advantageous for the calculation of the derivative and hessian of this function, which is necessary for its implementation in a LightGBM algorithm. $k=\frac{-1}{\ln{0.5}}$ is a "normalization factor", considered using as the worst prediction one of a dummy classifier ($\Sigma=(0.5,0.5,\dots, 0.5$)).  
+- **FairLGBM (FLGBM)**: Modification of the loss function in the LightGBM algorithm to incorporate fairness. $$(1-\lambda) \cdot k \cdot \text{logloss} + \lambda \cdot \text{continuous fairness criterion}$$ In fact, it has the following real structure: $L_f(Y, \Sigma,P) = k(1-\lambda) L(Y,\Sigma) +\lambda\left| \frac{\text{&#x1D7D9}_{-,0,1}^T \Sigma}{\text{&#x1D7D9}_{-,0,1}^T 1} -\frac{\text{&#x1D7D9}_{-,0,0}^T \Sigma}{\text{&#x1D7D9}_{-,0,0}^T 1} \right|$$ Where $L$ is the logloss function, $\Sigma$ are the prediction scores (after applying the logistic function) and $`\left| \frac{\text{&#x1D7D9}_{-,0,1}^T \Sigma}{\text{&#x1D7D9}_{-,0,1}^T 1} -\frac{\text{&#x1D7D9}_{-,0,0}^T \Sigma}{\text{&#x1D7D9}_{-,0,0}^T 1} \right|`$ is the continuous extension of $\text{FPR}_{\text{diff}}$ fairness criterion. This continuous extension is highly advantageous for the calculation of the derivative and hessian of this function, which is necessary for its implementation in a LightGBM algorithm. $k=\frac{-1}{\ln{0.5}}$ is a "normalization factor", considered using as the worst prediction the one made by a dummy classifier ($\Sigma=(0.5,0.5,\dots, 0.5$)). This is not the worst prediction, but it serves as a good normalization point. 
 
 ## Brief description of the experimentation
 The experimentation involved testing each algorithm with 10 datasets for binary classification that are well-known in the field of fairness in machine learning (adult, compas, diabetes, dutch, german, insurance, obesity, parkinson, ricci, and student), containing 1 binary protected attribute. To obtain robust and reproducible results, each experiment was run a total of 10 times with different values of the random seed (from 100 to 109), which controls the partitioning of data into training, validation, and test sets, as well as other pseudo-random processes. Average results were calculated from the outcomes obtained in each run for each algorithm. The experimentation was conducted with the three developed algorithms, as well as with a decision tree (DT).
