@@ -221,7 +221,7 @@ class Genetic_Pruning_Process():
         Applies tournament criterion over population, returning parents population.
         It is currently implemented for single objective functions
             Returns:
-                - new_pop: parents population
+                - new_pop: Parents population
         """
         
         new_pop = []    # Population of nodes winning the tournament
@@ -244,6 +244,14 @@ class Genetic_Pruning_Process():
 
 
     def parallel_pop_crossover(self, parent_1, parent_2):
+        """
+        Auxiliary method to apply crossover using parallelization
+            Parameters:
+                - parent_1: First parent
+                - parent_2: Second parent
+            Returns:
+                - n_p: List containing children individuals
+        """
         rand = np.random.rand()       # We decide if crossover will be done
         n_p = []
         if rand < self.prob_cross:           # If so, we apply it
@@ -259,15 +267,18 @@ class Genetic_Pruning_Process():
     # MODIFIABLE
     def pop_crossover(self, parents, parallel=False):
         """
-        Applies crossover over parents population
+        Applies crossover given a parents population
+            Parameters:
+                - parents: Parents population
+                - parallel: Apply parallelization (default=False)
             Returns:
-                - new_pop: new children population
+                - new_pop: New children population
         """
         new_pop = []                    # Children population
         longi = len(parents)
         parallel = False
         if parallel:
-            new_pop = Parallel(n_jobs=-1)(delayed(self.parallel_pop_crossover)(self.population[2*i], self.population[(2*i)+1]) for i in range(int(longi/2)))
+            new_pop = Parallel(n_jobs=-1)(delayed(self.parallel_pop_crossover)(parents[2*i], parents[(2*i)+1]) for i in range(int(longi/2)))
             new_pop = [child for children in new_pop for child in children]
         else:
             for i in range(int(longi/2)):       # For each pair or parents
@@ -288,10 +299,10 @@ class Genetic_Pruning_Process():
         Return an element given a probability dictionary, and a random value
         This is an auxiliary function
             Parameters:
-                - prob_dict: dictionary with probabilities. The sum of the values has to be 1
-                - rand: random value between 0 and 1
+                - prob_dict: Dictionary with probabilities. The sum of the values has to be 1
+                - rand: Random value between 0 and 1
             Returns:
-                - k: selected key from the dictionary
+                - k: Selected key from the dictionary
         """
         total = 0
         for k, v in prob_dict.items():
@@ -304,9 +315,10 @@ class Genetic_Pruning_Process():
         """
         Applies mutations randomly over an individual. The mutations may not happen at all, depends of probability
             Parameters:
-                - indiv: individual for which the mutation will be done
+                - indiv: Individual for which the mutation will be done
+                - prob_mutation: Probability to mutate that individual
             Returns:
-                - objectives_val: its objectives value
+                - Mutated individual
         """
 
         rand_modify = np.random.rand()
@@ -365,7 +377,8 @@ class Genetic_Pruning_Process():
             weights = [self.struc.total_samples_dict[tuple(elem)] for elem in leaves]
             inverted_weights = [1.0 / w for w in weights]
             sum_inverted_weights = sum(inverted_weights)                                                        # Normalize the inverted weights so they sum to 1
-            for i in range(10):
+            num_mut = random.randint(1, math.ceil(len(leaves) / 10))
+            for i in range(num_mut):
                 leaf = copy.deepcopy(random.choices(leaves, weights=[w / sum_inverted_weights for w in inverted_weights]))   # Inversely proportional probability
                 move_distance = random.randint(1, math.ceil(self.struc.clf.tree_.max_depth / 10))
                 #print(f"--- Select leaf: {time.process_time() - init}")
@@ -553,7 +566,6 @@ class Genetic_Pruning_Process():
 ########################################################################################################################
 
 class Genetic_Pruning_Process_NSGA2(Genetic_Pruning_Process):
-
     """
     Class repreesenting a Genetic Pruning Process.
     It inherits all methods and structures from the Genetic_Pruning_Process class. Some of them
@@ -565,11 +577,10 @@ class Genetic_Pruning_Process_NSGA2(Genetic_Pruning_Process):
 
 
     def __init__(self, struc, objs, num_gen, num_indiv, prob_cross, prob_mutation):
-
         """
         Class constructor
             Parameters:
-                - struc: tree structure with all calculated metrics, from the general.Tree_Structure class
+                - struc: Tree_Structure with all calculated metrics, from the general.Tree_Structure class
                 - objs: Strings defining the objective functions for the optimization process
                 - num_gen: Number of generations
                 - num_indiv: Number of individuals of the population
@@ -586,7 +597,6 @@ class Genetic_Pruning_Process_NSGA2(Genetic_Pruning_Process):
 
 
     def crowding_distance(self, front):
-
         """
         Calculates the crowding distance of all individuals belonging to a given front
             Parameters:
@@ -610,7 +620,6 @@ class Genetic_Pruning_Process_NSGA2(Genetic_Pruning_Process):
 
 
     def fast_nondominated_sort(self):
-
         """
         Fast nondominated sort of the individuals into fronts
         """
@@ -645,9 +654,8 @@ class Genetic_Pruning_Process_NSGA2(Genetic_Pruning_Process):
         """
         Applies tournament criterion over population, returning parents population.
             Returns:
-                - new_pop: parents population
+                - new_pop: Parents population
         """
-
         self.fast_nondominated_sort()
         for front in self.fronts:
             self.crowding_distance(front)
@@ -684,6 +692,14 @@ class Genetic_Pruning_Process_NSGA2(Genetic_Pruning_Process):
     def genetic_optimization(self, seed, store=True, parallel=False):
         """
         Defines the whole optimization process
+            Parameters:
+                - seed: Random seed
+                - store: Boolean value. If true, results will be stored (default=True)
+                - parallel: Boolean value. If true, parallelization will be applied for crossover and mutation (default=False)
+            Returns:
+                - Best individuals: Best individuals from the last optimization generation
+                - gen_stats_df: Dataframe containing statistics from each generation
+                - gen_population_df: Dataframe containing statistic for the population in each generation
         """
 
         np.random.seed(seed)
@@ -731,18 +747,18 @@ class Genetic_Pruning_Process_NSGA2(Genetic_Pruning_Process):
             #init = time.process_time()
             # Remove individuals with repeated representations
             new_pop = []
+            new_pop_initial_size = 0
+
+            all_objectives = []
+            for indiv in self.population:
+                if not indiv.objectives in all_objectives:
+                    all_objectives.append(indiv.objectives)
+                    new_pop.append(indiv)
+                    new_pop_initial_size += 1
+            
             while len(new_pop) < self.num_indiv:
-                all_repres = []
-                if len(new_pop) == 0:
-                    for indiv in self.population:
-                        if not indiv.repre in all_repres:
-                            all_repres.append(indiv.repre)
-                            new_pop.append(indiv)
-                else:
-                    new_pop_2 = []
-                    for indiv in new_pop:
-                        new_pop_2.append(Genetic_Pruning_Process.indiv_class(self.struc, self.objs_string, indiv.repre, indiv.creation_mode, indiv.objectives, indiv.objectives_train))
-                    new_pop = new_pop + new_pop_2
+                for i in range(new_pop_initial_size):
+                    new_pop.append(copy.deepcopy(new_pop[i]))
             #print(f"- Removal of repeated: {time.process_time() - init}")
             #print(len(all_repres))
             #init = time.process_time()

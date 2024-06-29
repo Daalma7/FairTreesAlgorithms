@@ -169,7 +169,7 @@ for run in range(n_runs):
     prot_val = x_val[sens_col].astype(int)
     prot_test = x_test[sens_col].astype(int)
     
-    struc = Tree_Structure(x_train, y_train, prot_train, x_val, y_val, prot_val, run)
+    struc = Tree_Structure(x_train, y_train, prot_train, x_val, y_val, prot_val, set_seed)
     dict_strucs[set_seed] = struc
 
     save_population_name = f"{PATH_TO_RESULTS}/population/{dataset}/{dataset}_seed_{set_seed}_var_{sens_col}_gen_{generations}_indiv_{individuals}_model_FGP_obj_{obj_str}{extra_str}.csv"
@@ -186,7 +186,7 @@ for run in range(n_runs):
     if execute:
         print("--- RUN:", run)
 
-        gen_process = Genetic_Pruning_Process_NSGA2(struc, objectives, generations, individuals, 1, 0.2)
+        gen_process = Genetic_Pruning_Process_NSGA2(struc, objectives, generations, individuals, 1, 0.3)
 
         indivs, gen_stats_df, population_df = gen_process.genetic_optimization(set_seed)
         

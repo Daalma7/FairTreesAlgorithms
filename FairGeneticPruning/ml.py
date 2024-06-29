@@ -109,16 +109,20 @@ def print_properties_tree(learner):
     """
     Returns depth and leaves given a decision tree
         Parameters:
-            - learner: model to get properties
+            - learner: Model to get properties
         Returns:
-            - depth: depth of the model
-            - leaves: number of leaves of the model
-            - w_avg_depth: depth weighted by the number of instances that fall into each leaf.
+            - depth: Depth of the model
+            - leaves: Number of leaves of the model
+            - w_avg_depth: Depth weighted by the number of instances that fall into each leaf.
     """
     depth = learner.get_depth()
     leaves = learner.get_n_leaves()
     w_avg_depth = data_weight_avg_depth(learner)
     return depth, leaves, w_avg_depth
+
+
+
+
 
 def save_model(learner, seed, prot, num_of_generations, num_of_individuals, individual_id, objectives):
     """
@@ -130,7 +134,7 @@ def save_model(learner, seed, prot, num_of_generations, num_of_individuals, indi
             - num_of_generations: Number of generations
             - num_of_individuals: Number of individuals
             - individual_id: ID of the individual
-            - objectives: objectives function as a string
+            - objectives: Objectives function as a string
     """
     str_obj = objectives[0].__name__
     for i in range(1, len(objectives)):
@@ -150,9 +154,9 @@ def val_model(X_val, learner):
     Validates the classifier (comparison with validation set)
         Parameters:
             - X_val: Validation dataset
-            - learner: learner to validate
+            - learner: Learner to validate
         Returns:
-            - results of validation
+            - Results of validation
     """
     return learner.predict(X_val)
 
@@ -166,9 +170,9 @@ def test_model(X_test, learner):
     Tests the classifier (comparison with test set)
         Parameters:
             - X_test: Test dataset
-            - learner: learner to validate
+            - learner: Learner to validate
         Returns:
-            - results of test
+            - Results of test
     """
     return learner.predict(X_test)
 
@@ -182,9 +186,9 @@ def data_weight_avg_depth(learner):
     Return the weighted average of the depth of all leaves nodes,
     considering the number of training samples that fell on each one.
         Parameters:
-            - learner: learner to calculate the measures
+            - learner: Learner to calculate the measures
         Returns:
-            - weighted average depth
+            - Weighted average depth
     """
     stack = [(0,0)]                     #Root node id and its depth
     total_w_depth = 0.0
@@ -423,7 +427,19 @@ def test_and_save_results(x_test, y_test, prot_test, classifiers, gen_stats_df, 
 
 
 def correct_pareto_optimal(dat, var, objectives, nind, ngen, seed, i, extra, struc):
-
+    """
+    Apply a Pareto-optimal set correction, considering only test sets and saving them in a file ended in "optimal_test"
+        Parameters:
+            - dat: Dataset name
+            - var: Protected attribute name
+            - objectives: List containing strings of objective names
+            - nind: Number of individuals
+            - ngen: Number of generations
+            - seed: Random seed used
+            - i: Number of the run
+            - extra: List containing extra objectives
+            - struc: Tree_Structure representing the matrix tree used for this problem
+    """
     obj_str = '__'.join(objectives) 
     extra_str = ''
     if not extra is None:
@@ -480,7 +496,7 @@ def correct_pareto_optimal(dat, var, objectives, nind, ngen, seed, i, extra, str
     pareto_optimal_df = pd.concat(pareto_optimal_df)
     pareto_optimal_df = pareto_optimal_df.drop_duplicates(subset=(['seed']+hyperparameters), keep='first')
 
-    pareto_optimal_df.to_csv(f"{PATH_TO_RESULTS}/pareto_individuals/runs/{dat}/{dat}_seed_{seed + i}_var_{var}_gen_{ngen}_indiv_{nind}_model_FGP_obj_{obj_str}{extra_str}.csv", index=False)
+    pareto_optimal_df.to_csv(f"{PATH_TO_RESULTS}/pareto_individuals/runs/{dat}/{dat}_seed_{seed + i}_var_{var}_gen_{ngen}_indiv_{nind}_model_FGP_obj_{obj_str}{extra_str}_optimal_test.csv", index=False)
 
 
 
@@ -497,6 +513,7 @@ def calculate_pareto_optimal(dat, var, objectives, nind, ngen, seed, runs, extra
             - seed: Random seed
             - runs: Number of runs 
             - extra: Extra objective functions for which the process did optimized
+            - correct: Boolean attribute. If true, apply the function for correction of Pareto-optimal sets using test results (default=True)
         Returns:
             - pareto_optimal: List of Pareto optimal individuals
             - pareto_optimal_df: Dataframe of Pareto optimal individuals
@@ -511,7 +528,9 @@ def calculate_pareto_optimal(dat, var, objectives, nind, ngen, seed, runs, extra
         extra_str = '__'.join(extra)
         extra_str = '_ext_' + extra_str
     
+    print(dict_strucs)
     for i in range(runs):
+        print(i)
         if correct:
             correct_pareto_optimal(dat, var, objectives, nind, ngen, seed, i, extra, dict_strucs[seed + i])
         save_pareto_run_name = f"{PATH_TO_RESULTS}/pareto_individuals/runs/{dat}/{dat}_seed_{seed + i}_var_{var}_gen_{ngen}_indiv_{nind}_model_FGP_obj_{obj_str}{extra_str}.csv"
@@ -521,7 +540,7 @@ def calculate_pareto_optimal(dat, var, objectives, nind, ngen, seed, runs, extra
     hyperparameters = []
     pareto_fronts = pd.concat(pareto_fronts)                            #Union of all pareto fronts got in each run
     pareto_fronts.reset_index(drop=True, inplace=True)                  #Reset index because for each run all rows have repeated ones
-    print(pareto_fronts)
+    #print(pareto_fronts)
     for index, row in pareto_fronts.iterrows():                         #We create an individual object associated with each row
         indiv = Individual_NSGA2(dict_strucs[row['seed']], objectives, dict_strucs[row['seed']].node_id_to_repre(ast.literal_eval(row['repre'])), row['creation_mode'], [float(row[f"{obj}_val"]) for obj in objectives])
         hyperparameters = ['repre']

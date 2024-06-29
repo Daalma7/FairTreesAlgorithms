@@ -107,9 +107,9 @@ def error_ratio(list, pareto_optimal, round_error = 1e-7):
     We use an rounding error for avoding impressicions, but not considering an individual not belonging to the pareto front as so.
     Measure to minimize
         Parameters:
-            - list: list of individuals to calculate error_ratio
+            - list: List of individuals to calculate error_ratio
             - pareto_optimal: Pareto optimal individuals to which compare
-            - round_error: rounding error parameter, so that the distance between individuals should be less than it
+            - round_error: Rounding error parameter, so that the distance between individuals should be less than it
         Returns:
             - Error ratio metric of these individuals
     """
@@ -133,7 +133,7 @@ def overall_pareto_front_spread(list, pareto_optimal):
     Defines overall pareto front metric. This metric compare the spread of a given solution list to that of the pareto front
     Measure to maximize
         Parameters:
-            - list: list of individuals to calculate overall Pareto front spread
+            - list: List of individuals to calculate overall Pareto front spread
             - pareto_optimal: Pareto optimal individuals to which compare
         Returns:
             - Overall Pareto front spread metric of these individuals
@@ -165,7 +165,7 @@ def generational_distance(list, pareto_optimal):
     Defines overall pareto front metric. This metric compare the spread of a given solution list to that of the pareto front
     Measure to maximize
         Parameters:
-            - list: list of individuals to calculate overall Pareto front spread
+            - list: List of individuals to calculate overall Pareto front spread
             - pareto_optimal: Pareto optimal individuals to which compare
         Returns:
             - Overall Pareto front spread metric of these individuals
@@ -190,7 +190,7 @@ def inverted_generational_distance(list, pareto_optimal):
     Defines overall pareto front metric. This metric compare the spread of a given solution list to that of the pareto front
     Measure to maximize
         Parameters:
-            - list: list of individuals to calculate overall Pareto front spread
+            - list: List of individuals to calculate overall Pareto front spread
             - pareto_optimal: Pareto optimal individuals to which compare
         Returns:
             - Overall Pareto front spread metric of these individuals
@@ -214,7 +214,7 @@ def ideal_point(list):
     """
     Calculates the ideal point using a solution set
         Parameters:
-            - list: list of individuals to calculate ideal point
+            - list: List of individuals to calculate ideal point
         Returns:
             - Ideal point for those individuals
     """
@@ -234,7 +234,7 @@ def nadir_point(list):
     """
     Calculates the nadir point using a solution set
         Parameters:
-            - list: list of individuals to calculate nadir point
+            - list: List of individuals to calculate nadir point
         Returns:
             - Nadir point for those individuals
     """
@@ -256,7 +256,7 @@ def algorithm_proportion(indivs):
         Parameters:
             - indivs: List of all individuals to calculate proportion
         Returns
-            - dictionary containing each algorithm name as key, and its proportion as value
+            - Dictionary containing each algorithm name as key, and its proportion as value
     """
     algorithms = Counter([indiv.algorithm for indiv in indivs])
     suma = sum(algorithms.values())

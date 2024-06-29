@@ -20,6 +20,7 @@
 #   |     |
 #   |     +-----> Entropy
 #   |     +-----> Gini
+#   |     +-----> Entropy_Fair
 #   |     +-----> Gini_Fair
 #   |
 #   +-----+-> RegressionCriterion
@@ -2227,11 +2228,3 @@ cdef class Poisson(RegressionCriterion):
 
                 poisson_loss += w * xlogy(y[i, k], y[i, k] / y_mean)
         return poisson_loss / (weight_sum * n_outputs)
-
-
-
-
-
-
-
-

@@ -15,6 +15,14 @@ class FairLGBM:
     """
     
     def __init__(self, fair_param, prot, fair_fun, lgbm_params):
+        """
+        Class constructor
+            Parameters:
+                - fair_param: Parameter controlling relative importance that fairness have over the logloss function
+                - prot: protected attribute's name
+                - fair_fun: String containing the name of the fairness function to apply (currently only fpr_diff is implemented)
+                - lgbm_params: Dictionary containing other parameters to pass to the internal lgbm model
+        """
         self.fair_param = fair_param
         self.prot = prot
         self.fair_fun = fair_fun
@@ -31,7 +39,7 @@ class FairLGBM:
         """
         Calculation of a sigmoid value
             Parameters:
-                - x: value for which compute the sigmoid function
+                - x: Value for which compute the sigmoid function
             Returns:
                 - Value of the sigmoid function
         """
@@ -42,7 +50,7 @@ class FairLGBM:
         """
         Auxiliary method for calculating positive softplus function
             Parameters:
-                - x: value for which compute the sigmoid
+                - x: Value for which compute the sigmoid
             Returns:
                 - Value of the softplus function
         """
@@ -52,7 +60,7 @@ class FairLGBM:
         """
         Auxiliary method for calculating negative softplus function
             Parameters:
-                - x: value for which compute the sotfplus function
+                - x: Value for which compute the sotfplus function
             Returns:
                 - Value of the softplus function
         """
@@ -62,7 +70,7 @@ class FairLGBM:
         """
         Calculation of a sotfplus function
             Parameters:
-                - x: value for which compute the sotfplus function
+                - x: Value for which compute the sotfplus function
             Returns:
                 - Value of the softplus function
         """
@@ -79,8 +87,8 @@ class FairLGBM:
         Custom Binary Cross Entropy with fairness consideration. y is the actual label
         while p is the protected attribute
             Parameters:
-                - z : array with predictions
-                - data : lightgbm data from which use the information.
+                - z : Array with predictions
+                - data : Lightgbm data from which use the information.
             Returns:
                 - grad : Gradient of the loss function
                 - hess: Hessian of the loss function
@@ -103,8 +111,8 @@ class FairLGBM:
         """
         Binary cross entropy loss function
             Parameters:
-                - z : array with predictions
-                - data : lightgbm data from which use the information.
+                - z : Array with predictions
+                - data : Lightgbm data from which use the information.
             Returns:
                 - grad : Gradient of the loss function
                 - hess: Hessian of the loss function
@@ -135,16 +143,16 @@ class FairLGBM:
         Binary cross entropy with fairness consideration evaluation function
             Parameters:
                 - z: Array with predictions
-                - data : lightgbm data from which use the information.
+                - data : Lightgbm data from which use the information.
             Returns:
                 - Metric name, value for the metric, and Boolean value indicating if a higher value is better or not
         """
         y = data.get_label()
         s = self.sigmoid(z)
         if self.scale_pos_weight is None:
-            loss = - (1-self.fair_param) * (y * np.log(s) + (1 - y) * np.log(1 - s)) + self.fair_param * np.abs(np.dot(self.p_01_val, s) / np.sum(self.p_01_val) - np.dot(self.p_00_val, s) / np.sum(self.p_00_val))
+            loss = - (1-self.fair_param) * 1.443 * (y * np.log(s) + (1 - y) * np.log(1 - s)) + self.fair_param * np.abs(np.dot(self.p_01_val, s) / np.sum(self.p_01_val) - np.dot(self.p_00_val, s) / np.sum(self.p_00_val))
         else:
-            loss = - (1-self.fair_param) * self.weights_val * (y * np.log(s) + (1 - y) * np.log(1 - s)) + self.fair_param * self.weights_val * np.abs(np.dot(self.p_01_val, s) / np.sum(self.p_01_val) - np.dot(self.p_00_val, s) / np.sum(self.p_00_val))
+            loss = - (1-self.fair_param) * 1.443 * self.weights_val * (y * np.log(s) + (1 - y) * np.log(1 - s)) + self.fair_param * self.weights_val * np.abs(np.dot(self.p_01_val, s) / np.sum(self.p_01_val) - np.dot(self.p_00_val, s) / np.sum(self.p_00_val))
         return 'bce_fair', loss.mean(), False
 
 
@@ -153,15 +161,14 @@ class FairLGBM:
         Fit the LightGBM model
             Parameters:
                 - X_train: Training data
-                - y_train: y attribute to predict
+                - y_train: Y attribute to predict
                 - X_val: Validation data (optional)
-                - y_val: y attribute to validate (optional)
+                - y_val: Y attribute to validate (optional)
             Returns:
                 - a copy of the object, with the trained objective function
         """
         self.lgbm_params['verbose']=-1
         self.lgbm_params['verbosity']=-1
-
 
         lgb_train = lgb.Dataset(X_train, y_train, params={'verbose':-1, 'verbosity':-1}, free_raw_data=False)
         if self.fair_fun == 'fpr_diff':
@@ -175,6 +182,7 @@ class FairLGBM:
 
         elif self.fair_fun == 'ppv_diff':
             pass
+
         elif self.fair_fun == 'pnr_diff':
             pass
 
@@ -194,7 +202,7 @@ class FairLGBM:
         """
         Predict with trained model the attribute for some new information
             Parameters:
-                - X_test: data to predict
+                - X_test: X dataset to make predictions
             Returns:
                 - predictions
         """

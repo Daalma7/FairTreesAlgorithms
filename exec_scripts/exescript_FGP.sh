@@ -1,11 +1,11 @@
-python ../FairGeneticPruning/main.py nind=150 ngen=300 dat=adult bseed=100 nruns=10 obj=gmean_inv,fpr_diff &
-python ../FairGeneticPruning/main.py nind=150 ngen=300 dat=compas bseed=100 nruns=10 obj=gmean_inv,fpr_diff &
-python ../FairGeneticPruning/main.py nind=150 ngen=300 dat=german bseed=100 nruns=10 obj=gmean_inv,fpr_diff &
-python ../FairGeneticPruning/main.py nind=150 ngen=300 dat=ricci bseed=100 nruns=10 obj=gmean_inv,fpr_diff &
-python ../FairGeneticPruning/main.py nind=150 ngen=300 dat=obesity bseed=100 nruns=10 obj=gmean_inv,fpr_diff &
-python ../FairGeneticPruning/main.py nind=150 ngen=300 dat=insurance bseed=100 nruns=10 obj=gmean_inv,fpr_diff &
-python ../FairGeneticPruning/main.py nind=150 ngen=300 dat=student bseed=100 nruns=10 obj=gmean_inv,fpr_diff &
-python ../FairGeneticPruning/main.py nind=150 ngen=300 dat=diabetes bseed=100 nruns=10 obj=gmean_inv,fpr_diff &
-python ../FairGeneticPruning/main.py nind=150 ngen=300 dat=parkinson bseed=100 nruns=10 obj=gmean_inv,fpr_diff &
-python ../FairGeneticPruning/main.py nind=150 ngen=300 dat=dutch bseed=100 nruns=10 obj=gmean_inv,fpr_diff &
+#datasets=("dutch")
+datasets=("adult" "compas" "diabetes" "dutch" "german" "insurance" "obesity" "parkinson" "student" "ricci")
+for data in "${datasets[@]}"
+do
+	for i in {100..109}
+	do
+		python ../FairGeneticPruning/main.py nind=150 ngen=300 dat=$data bseed=$i nruns=1 obj=gmean_inv,fpr_diff &
+	done
+	wait
+done
 

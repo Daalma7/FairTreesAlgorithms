@@ -16,10 +16,30 @@ from general.ml import decode, print_properties_lgbm, num_leaves, train_model, e
 
 PATH_TO_DATA = os.path.dirname(os.path.dirname(os.path.dirname(__file__))) + '/datasets/data/'
 PATH_TO_RESULTS = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))) + '/results/'
-#Clase que representa un problema multiobjetivo
-class Problem:
 
+class Problem:
+    """
+    Class that respresents a multiobjective optimization problem
+    """
     def __init__(self, objectives, extra, num_of_variables, variables_range, individuals_df, num_of_generations, num_of_individuals, dataset_name, variable_name, model, seed, expand=True, same_range=False):
+        """
+        Class constructor
+            Parameters:
+                - objectives: List containing strings of the names of the objective functions to optimize
+                - extra: List containing strings of the names of the extra objective functions to measure, but not to optimize
+                - num_of_variables: Number of hyperparmaeters
+                - variables_range: Range that these hyperparameters can take
+                - individuals_df: Dataframe where to store information about individuals obtained
+                - num_of_generations: Number of generations
+                - num_of_individuals: Number of individuals
+                - dataset_name: Name of the dataset
+                - variable_name: Name of the protected attribute
+                - model: Name of the algorithm used for base classifiers
+                - seed: Random seed
+                - expand: Auxiliary variable, if True, methods related to training and saving will work (indicates if try to "expand" the solutions of a problem or let them stay the same as they were)
+                - same_range: Says if all the hyperparameters have the same range (default=False)
+        """
+        
         self.num_of_objectives = len(objectives)        # Number of objectives to minimize
         self.num_of_variables = num_of_variables        # Num of variables that represent a solution for our problem
         self.objectives = objectives                    # objective *functions* to minimize
@@ -55,7 +75,7 @@ class Problem:
         """
         Read training, validation and tests datasets, and extracting the attribute to predict
             Returns:
-                - x_train, y_train, x_val, y_val, x_test, y_test: training, validation and test sets, as well as their attributes to predict
+                - x_train, y_train, x_val, y_val, x_test, y_test: Training, validation and test sets, as well as their attributes to predict
         """
         train = pd.read_csv(f"{PATH_TO_DATA}train_val_test_standard/{self.dataset_name}/{self.dataset_name}_{self.variable_name}_train_seed_{self.seed}.csv", index_col = False)
         x_train = train.iloc[:, :-1]
@@ -273,8 +293,8 @@ class Problem:
         Calculates objectives (validation) for the given individual
             Parameters:
                 - individual: Individual to which calculate the objectives
-                - first: boolean value to indicate whether the individual is the first or not
-                - seed: Random seed
+                - first_individual: Boolean value to indicate whether the individual is the first or not
+                - calc_test: Indicates whether to calculate test results or not for that individual. It will also recalculate the rest of objective functions anyway
         """
         if self.expand and ((not individual.calc_objectives) or calc_test):
             individual.calc_objectives=True
@@ -454,7 +474,13 @@ class Problem:
 
     #Calculate file with the general pareto front using all pareto fronts in every execution
     def correct_pareto(self, seed, run, method):
-        
+        """
+        Method to create files for storing the Pareto-optimal individuals non dominated by their test results
+            Parameters:
+                - seed: Random seed
+                - run: Run for which to calculate those individual
+                - method: Algorithm which was used
+        """
         all_indivs = []
         pareto_optimal = []
         #ATTENTION!!! As we could want to compute the hypervolume, and for returning a structure independent from the measures we use, we should NORMALIZE HERE
@@ -548,6 +574,7 @@ class Problem:
                 - seed: Random partition seed
                 - runs: Number of runs which were run
                 - method: Algorithm used
+                - correct: If True, apply correct_pareto method, if False it won't
             Returns:
                 - pareto_optimal: List containing all pareto optimal individuals
                 - pareto_optimal_df: Dataframe containing all pareto optimal individuals

@@ -6,12 +6,23 @@ from joblib import Parallel, delayed
 
 class NSGA2Utils:
     """
-    Class definint NSGA2 utilities
+    Class defining NSGA2 utilities
     """
 
     def __init__(self, problem, num_of_individuals=50,
                  num_of_tour_particips=2, tournament_prob=0.9, crossover_param=2, mutation_param=5, mutation_prob=0.1, beta_method='uniform'):
-
+        """
+        Class constructor
+            Parameters:
+                - problem: Problem class which defines teh problem
+                - num_of_individuals: Number of individuals
+                - num_of_tour_participants: Number of participants in tournament
+                - tournament_prob: Probability value for tournament to select the best individual
+                - crossover_param: Parameter which controls the crossover method
+                - mutation_param: Parameter which controls the mutation method
+                - mutation_prob: Probability of mutations to happen
+                - beta_method: Beta method calculation for crossover (possible values are 'uniform' or anything other than 'uniform')
+        """
         self.problem = problem
         self.num_of_individuals = num_of_individuals
         self.num_of_tour_particips = num_of_tour_particips
@@ -24,6 +35,8 @@ class NSGA2Utils:
     def parallel_create_initial_population_single(self):
         """
         Auxiliary function for creating initial population for parallel executions
+            Returns:
+                - individual: Individual belonging to the initial population
         """
         individual = self.problem.generate_individual()
         self.problem.calculate_objectives(individual, False, False)
@@ -118,7 +131,7 @@ class NSGA2Utils:
         Sorting population criterion by dominance of solutions. Population is sorted dividing it in different
         fronts, where all individuals from front i dominates all solutions from the rest of the fronts
             Parameters:
-                - Population: population to sort. Fronts are asigned to a population attribute
+                - Population: Population to sort. Fronts are asigned to a population attribute
         """
         population.fronts = [[]]
 
@@ -170,6 +183,10 @@ class NSGA2Utils:
                 if scale == 0: scale = 1
                 for i in range(1, solutions_num-1):
                     front[i].crowding_distance += (front[i+1].objectives[m] - front[i-1].objectives[m])/scale
+        
+
+        #for elem in front:
+        #    print(elem.crowding_distance)
 
     def crowding_operator(self, individual, other_individual):
         """
@@ -191,9 +208,9 @@ class NSGA2Utils:
         Auxiliary function to create children population using a parallel execution
             Parameters:
                 - Population: Population containing previous population
-                - model: ML model type
+                - model: ML algorithm to use
             Returns:
-                - [child1, child2]: Two children created
+                - [child1, child2]: Two created children
         """
         parent1 = self.__tournament(population)
         parent2 = parent1
@@ -216,7 +233,7 @@ class NSGA2Utils:
         """
         Auxiliary function to calculate objectives of a given individual
             Parameters:
-                - child: individual to calculate objectives
+                - child: Individual to calculate objectives
                 - first: Boolean value indicating if the individual is the first individual or not
             Returns:
                 - child: Individual with calculated objectives
@@ -236,7 +253,7 @@ class NSGA2Utils:
         """
         if parallel:
             pop_size = len(population.population)
-            child_pop = Parallel(n_jobs=-1)(delayed(self.parallel_create_children)(population, model) for i in range(pop_size))
+            child_pop = Parallel(n_jobs=-1)(delayed(self.parallel_create_children)(population, model) for i in range(int(pop_size/2)))
             child_pop = [child for children in child_pop for child in children]
             child_pop_prev = [child for child in child_pop if child.calc_objectives]
             child_pop_new = Parallel(n_jobs=-1)(delayed(self.parallel_calc_objectives)(child) for child in child_pop if not child.calc_objectives)
@@ -355,9 +372,9 @@ class NSGA2Utils:
 
     def __get_delta(self):
         """
-        Auxiliary function to get beta value for mutation
+        Auxiliary function to get delta value for mutation
             Returns:
-                - Beta value
+                - Delta value
         """
         u = random.random()
         if u <= 0.5:

@@ -316,7 +316,7 @@ def print_properties_lr(learner):
         Parameters:
             - learner: LR model to which calculate its parametesrs
         Returns:
-            coefficients
+            Coefficients
     """
     return learner.coef_
 
@@ -325,6 +325,9 @@ def print_properties_lr(learner):
 
 
 def print_properties_flgbm(learner):
+    """
+    Function which was not used
+    """
     pass
 
 
@@ -337,10 +340,12 @@ def train_model(X_train, y_train, prot_col, seed, model, X_val=None, y_val=None,
     Classifier training
         Parameters:
             - X_train: Training dataset
-            - y_train: attribute to predict
+            - y_train: Attribute to predict
             - prot_col: Name of the protected attribute
             - seed: Random seed to control reproducibility
             - model: ML model to train
+            - x_val: Validation x data (optional)
+            - y_val: Validation y data (optional)
             - features: Other hyperparameters for training
         Return:
             - Trained model    
@@ -417,7 +422,7 @@ def get_max_depth_FLGBM(X_train, y_train, prot_col, seed, **features):
     (This will serve to specify parameters range)
         Parameters:
             - X_train: Training dataset
-            - y_train: attribute to predict
+            - y_train: Attribute to predict
             - prot_col: Name of the protected attribute
             - seed: Random seed to control reproducibility
             - model: ML model to train
@@ -713,7 +718,7 @@ def num_leaves(learner):
         Parameters:
             - learner: Trained ML model (DT or FDT)
         Returns:
-            - number of leaves
+            - Number of leaves
     """
     return int(learner.get_n_leaves())
 
@@ -771,7 +776,7 @@ def create_generation_stats(model):
     """
     Creates generation stats dataframe, which store data for each generation
     - Parameters:
-        - model: learning model
+        - model: Learning model
     - Returns:
         - pd.DataFrame of information to store during each generation
     """

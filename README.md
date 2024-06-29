@@ -13,16 +13,18 @@
 ![License](https://img.shields.io/badge/license-MIT-red)
 
 
-This repository contains the work done on the implementation and testing of three different multi-objective algorithms, which include methods for achieving a balance between accuracy and fairness. You can read the project report in the file [report.pdf](report.pdf).
+This repository contains the work done on the implementation and testing of three different multi-objective algorithms, which include methods for achieving a balance between accuracy and fairness. You can read the project report in the file [MasterThesis.pdf](MasterThesis.pdf).
+
+## Abstract
+
+Fairness in machine learning is an area that has gained great prominence and relevance in recent years. This area deals with the study and quantification of different measures of fairness on various specific problems and decision processes, as well as the development and implementation of solutions to create fairer systems. Unfortunately, at the limits of joint optimization between accuracy and fairness, a trade-off is reached, so that requiring a fairer system will necessarily imply less accuracy and vice versa. Due to this fact, multiobjective optimization emerges as a method that allows finding a wide range of solutions exploring this optimization frontier. Genetic algorithms represent the state of the art in these optimization processes.
+
+This project will be developed within this area. After conducting a context review from a mathematical perspective, analyzing various mathematical interpretations of fairness and multi-objective optimization, the creation of three novel algorithms based on decision trees for fair binary classification with a binary protected attribute will be proposed. The first one, called Fair Decision Tree (FDT), modifies the information gain criterion during tree training to incorporate fairness. The second one, called Fair Genetic Pruning (FGP), proposes a genetic optimization procedure for pruning in a matrix tree, which will be the tree that perfectly classifies the training sample. The last one, called Fair LightGBM (FLGBM), modifies the loss function of a LightGBM model to incorporate fairness. For the two algorithms that do not inherently use genetic optimization processes, a multi-objective hyperparameter optimization genetic procedure based on NSGA-II algorithm will be employed. This will allow finding models on the joint optimization frontier, balancing accuracy and fairness objectives. A study will be conducted testing these algorithms on 10 relevant datasets in the area, and they will be compared with a baseline algorithm (decision tree).
 
 ## Brief descrition of developed algorithms
-- **FairDT (FDT)**: Modification of the impurity criterion calculation during decision tree training to also consider fairness. Its general expression is:
-
-$$(1-\lambda) * \text{gini/entropy} - \lambda * \text{fairness criterion} $$
-- **Fair Genetic Pruning (FGP)**: Genetic pruning of a matrix decision tree (the largest decision tree that can be built to perfectly classify the training sample), so that each individual in the population is represented by the codes of the nodes where the prunings occur."
-- **FairLGBM (FLGBM)**: Modification of the loss function in the LightGBM algorithm to incorporate fairness.
-
-$$(1-\lambda) * \text{Logloss} + \lambda * \text{continuous fairness criterion} $$
+- **FairDT (FDT)**: Modification of the impurity criterion calculation during decision tree training to also consider fairness. Its general expression is:$$(1-\lambda) \cdot k \cdot \text{gini/entropy} - \lambda \cdot \text{fairness criterion} $$ Where $\lambda$ is the hyperparameter that controls the importance given to the fairness criterion used. k is a normalization factor, with $k=2$ if the Gini impurity criterion is used, and $k=1$ is the entropy impurity criterion is used, since the fairness criterion will take values in the range $[0,1]$. Different strategies are proposed for calculating the value of the fairness criterion at any internal node, as a classification is needed to compute it. Finally, a method named "Fair probabilistic prediction" is used.
+- **Fair Genetic Pruning (FGP)**: Genetic pruning of a matrix decision tree (the largest decision tree that can be built to perfectly classify the training sample, considering different balances for both classes). This algorithm is an evolutionary algorithm, where each individual in the population is represented by the codes of the nodes where the prunings occur. These codes are lexicographically ordered for efficiency, avoiding pruning already pruned branches of the tree. Crossover assigns prunings from parents to children one by one, ensuring that each pruning assigned is performed in a non-pruned node. Mutations select a leaf of the tree and traverse up or down the matrix tree structure by a certain number of random levels, which depend on the matrix tree depth, then apply or substitute the pruning. This process is repeated a random number of times, depending on the number of leaves of the individual.
+- **FairLGBM (FLGBM)**: Modification of the loss function in the LightGBM algorithm to incorporate fairness. $$(1-\lambda) \cdot \text{logloss} + \lambda \codt \text{continuous fairness criterion} $$ In fact, it has the following real structure: $$L_f(Y, \Sigma,P) &= -(1-\lambda)k \left( Y\ln{\Sigma} + (1-Y)\ln{(1-\Sigma)}\right) +\lambda\left| \frac{\mathds{1}_{-,0,1}^T \Sigma}{\mathds{1}_{-,0,1}^T 1} -\frac{\mathds{1}_{-,0,0}^T \Sigma}{\mathds{1}_{-,0,0}^T 1} \right|$$ Where $L$ is the logloss function, $\Sigma$ are the prediction scores (after applying the logistic function) and $\left| \frac{\mathds{1}_{-,0,1}^T \Sigma}{\mathds{1}_{-,0,1}^T 1} -\frac{\mathds{1}_{-,0,0}^T \Sigma}{\mathds{1}_{-,0,0}^T 1} \right|$ is the continuous extension of FPR$_{\text{diff}}$ fairness criterion. This continuous extension is highly advantageous for the calculation of the derivative and hessian of this function, which is necessary for its implementation in a LightGBM algorithm. $k=\frac{-1}{\ln{0.5}}$ is a "normalization factor", considered using as the worst prediction one of a dummy classifier ($\Sigma=(0.5,0.5,\dots, 0.5$).  
 
 ## Brief description of the experimentation
 The experimentation involved testing each algorithm with 10 datasets for binary classification that are well-known in the field of fairness in machine learning (adult, compas, diabetes, dutch, german, insurance, obesity, parkinson, ricci, and student), containing 1 binary protected attribute. To obtain robust and reproducible results, each experiment was run a total of 10 times with different values of the random seed (from 100 to 109), which controls the partitioning of data into training, validation, and test sets, as well as other pseudo-random processes. Average results were calculated from the outcomes obtained in each run for each algorithm. The experimentation was conducted with the three developed algorithms, as well as with a decision tree (DT).
@@ -56,9 +58,12 @@ The objectives to minimize during the experimentation are as follows:
 - **Difference in False Positive Rate** (FPR$_{\text{diff}}$):  This is the difference between the probabilities $|P[p=1|Y=0,A=0]-P[p=1|Y=0,A=1]|$, where $p$ is the result of the classifier, $Y$ is the attribute to be predicted, and $A$ is the sensitive attribute.
 
 
+![An overall structure of the experimentation conducted for each dataset can be seen in this Figure. The population size used was $n_i=150$, while the number of generations used was $n_g=300$. The probability of crossover $p_c=1$ (as both previous and current population will be joined applying elitist selection) and the probability of mutation $p_M=0.3$.](other/METHOD.png)
+
+
 ## Main results
 
-The results have shown that fairer and more accurate classifiers can be found using the employed algorithms than using a regular decision tree.
+The results have shown that fairer and more accurate classifiers can be found using the employed algorithms than using a regular decision tree algorithm.
 
 <div align="center">
     <img src="other/scatter_po_algorithm_adult.png" width="412px"/> 
@@ -81,7 +86,7 @@ The results have shown that fairer and more accurate classifiers can be found us
     <img src="other/scatter_po_algorithm_student.png" width="412px"/> 
 </div>
 
-The rankings of the quality measures on the average Pareto fronts found can also be consulted here. At least one of the developed algorithms has outperformed the base algorithm in each of the quality measures of the studied solution sets.
+The rankings of the quality measures on the average Pareto fronts found can also be consulted here:
 
 <div align="center">
     <img src="other/ranking_Hypervolume.png" width="412px"/> 
@@ -99,6 +104,8 @@ The rankings of the quality measures on the average Pareto fronts found can also
     <img src="other/ranking_Inverted Generational Distance.png" width="412px"/> 
 </div>
 
+The average execution times of each generation can also be consulted here:
+![Average xecution times of each generation (in seconds)](other/execution_times.jpg)
 
 
 ## Libraries and dependencies:

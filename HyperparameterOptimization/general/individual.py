@@ -11,6 +11,9 @@ class Individual(object):
     General individual object for the multiobjective algorithm
     """
     def __init__(self):
+        """
+        Class constructor
+        """
         self.id = None
         self.rank = None
         self.crowding_distance = None
@@ -27,6 +30,10 @@ class Individual(object):
     def __eq__(self, other):
         """
         Equality comparison operator
+            Parameters:
+                - other: Individual to which compare
+            Returns:
+                - True if both are equal, False otherwise
         """
         if isinstance(self, other.__class__):
             return self.features == other.features
@@ -50,6 +57,9 @@ class Individual(object):
 
     @abc.abstractmethod
     def dominates(self, other_individual):
+        """
+        Abstract method for individual dominance
+        """
         pass
 
 
@@ -62,6 +72,9 @@ class IndividualDT(Individual):
     General individual object for the multiobjective algorithm
     """
     def __init__(self):
+        """
+        Class constructor
+        """
         super().__init__()
         self.actual_depth = None
         self.actual_leaves = None
@@ -101,6 +114,9 @@ class IndividualDT(Individual):
 class IndividualDTGrea(IndividualDT):
 
     def __init__(self):
+        """
+        Class constructor
+        """
         super().__init__()
         self.grid_coordinates = None
         self.grid_rating = None
@@ -185,6 +201,9 @@ class IndividualDTGrea(IndividualDT):
 class IndividualFDT(Individual):
 
     def __init__(self):
+        """
+        Class constructor
+        """
         super().__init__()
         self.actual_depth = None
         self.actual_leaves = None
@@ -193,6 +212,13 @@ class IndividualFDT(Individual):
 
 
     def dominates(self, other_individual):
+        """
+        Domination criterion
+            Parameters:
+                - other_individual: Other individual to which compare the domination
+            Return:
+                - Boolean, True if dominates other_individual, False in any other case
+        """
         return super().dominates_standard(other_individual)
         
 
@@ -202,6 +228,9 @@ class IndividualFDT(Individual):
 
 class IndividualFDTGrea(IndividualFDT):
     def __init__(self):
+        """
+        Class constructor
+        """
         super().__init__()
         self.grid_coordinates = None
         self.grid_rating = None
@@ -283,9 +312,19 @@ class IndividualFDTGrea(IndividualFDT):
 class IndividualLR(Individual):
 
     def __init__(self):
+        """
+        Class constructor
+        """
         super().__init__()
 
     def dominates(self, other_individual):
+        """
+        Domination criterion
+            Parameters:
+                - other_individual: Other individual to which compare the domination
+            Return:
+                - Boolean, True if dominates other_individual, False in any other case
+        """
         return super().dominates_standard(other_individual)
         
 
@@ -295,6 +334,9 @@ class IndividualLR(Individual):
 
 class IndividualLRGrea(IndividualLR):
     def __init__(self):
+        """
+        Class constructor
+        """
         super().__init__()
         self.grid_coordinates = None
         self.grid_rating = None
@@ -379,12 +421,22 @@ class IndividualLRGrea(IndividualLR):
 class IndividualFLGBM(Individual):
 
     def __init__(self):
+        """
+        Class constructor
+        """
         self.actual_n_estimators = None
         self.actual_n_features_ = None
         self.actual_std_feature_importance = None
         super().__init__()
 
     def dominates(self, other_individual):
+        """
+        Domination criterion
+            Parameters:
+                - other_individual: Other individual to which compare the domination
+            Return:
+                - Boolean, True if dominates other_individual, False in any other case
+        """
         return super().dominates_standard(other_individual)
         
 
@@ -395,6 +447,9 @@ class IndividualFLGBM(Individual):
 
 class IndividualFLGBMGrea(IndividualFLGBM):
     def __init__(self):
+        """
+        Class constructor
+        """
         super().__init__()
         self.grid_coordinates = None
         self.grid_rating = None

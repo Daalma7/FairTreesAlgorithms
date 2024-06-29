@@ -5,13 +5,22 @@ class Population:
     Class representing a population of individuals
     """
     def __init__(self):
+        """
+        Class constructor
+        """
         self.population = []
         self.fronts = []
 
     def __len__(self):
+        """
+        len operator
+        """
         return len(self.population)
 
     def __iter__(self):
+        """
+        iterator definition
+        """
         return self.population.__iter__()
 
     def extend(self, new_individuals):
@@ -30,12 +39,24 @@ class Population:
         """
         self.population.append(new_individual)
 
+    def remove(self, individual):
+        """
+        Removes the individual from the population
+            Parameters:
+                - individual: Individual to remove from the population
+        """
+        self.population.remove(individual)
 
 class PopulationGrea(Population):
     """
     Class reprsenting a population of individuals, using the GrEA algorithm
     """
     def __init__(self, div):
+        """
+        Class constructor
+            Parameters:
+                - div: Number of division to make in each dimension of the grid
+        """
         super().__init__()
         self.upper = [] #Upper boundries for each grid dimension
         self.lower = [] #Lower boundries for each grid dimension
@@ -46,7 +67,7 @@ class PopulationGrea(Population):
         Calculate grid boundries for that population
         Has to be invoked after every population selection or initialization
             Returns:
-                - grid boundries for that population
+                - Grid boundries for that population
         """
         self.upper = []
         self.lower = []
@@ -80,6 +101,8 @@ class PopulationGrea(Population):
         """
         Finds the best solution of the current population, having been initialized the
         quality measures of all its individuals
+            Returns:
+                - Best solution for the current populaton
         """
         best = self.population[0]
         for i in range(1, len(self.population)):

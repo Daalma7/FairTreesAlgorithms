@@ -12,10 +12,29 @@ from joblib import Parallel, delayed
 
 
 PATH_TO_RESULTS = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))) + '/results/'
-#Clase que define el funcionamiento del algoritmo NSGA-II
 class Evolution:
+    """
+    Class defining NSGA-II multiobjective evolutionary algorithm
+    """
 
     def __init__(self, problem, evolutions_df, dataset_name, model_name, protected_variable,num_of_generations=5 ,num_of_individuals=10, num_of_tour_particips=2, tournament_prob=0.9, crossover_param=2, mutation_param=5, mutation_prob=0.3, beta_method="uniform"):
+        """
+        Constructor
+            Paramaeters:
+                - problem: Problem class which defines teh problem
+                - evolutions_df: Empty Dataframe to store evolution data
+                - dataset_name: Name of the dataset
+                - model_name: Name of the learning algorithm
+                - protected_variable: Name of the protected variable
+                - num_of_generations: Number of generations
+                - num_of_individuals: Number of individuals
+                - num_of_tour_participants: Number of participants in tournament
+                - tournament_prob: Probability value for tournament to select the best individual
+                - crossover_param: Parameter which controls the crossover method
+                - mutation_param: Parameter which controls the mutation method
+                - mutation_prob: Probability of mutations to happen
+                - beta_method: Beta method calculation for crossover (possible values are 'uniform' or anything other than 'uniform')
+        """
         self.utils = NSGA2Utils(problem, num_of_individuals, num_of_tour_particips, tournament_prob, crossover_param, mutation_param, mutation_prob, beta_method)
         self.problem = problem
         self.population = None
@@ -30,6 +49,13 @@ class Evolution:
         self.beta_method = beta_method
 
     def get_dataframes(self, indiv):
+        """
+        Get dataframes for saving data about individuals
+            Parameters:
+                -indiv: individual for which to generate the datarame
+            Returns:
+                - Dataframe containing the information of the inndividual
+        """
         dict_general_info = {'ID': indiv.id, 'seed': self.problem.seed, 'creation_mode':indiv.creation_mode}
         dict_objectives= {f"{self.problem.objectives[j].__name__}_val": indiv.objectives[j] for j in range(self.problem.num_of_objectives)}
         indiv_list = list(indiv.features.items())
@@ -54,8 +80,12 @@ class Evolution:
             dict_dataframe = {**dict_general_info, **dict_objectives, **dict_actual_dimensions, **dict_hyperparameters}
         return pd.DataFrame(dict_dataframe)
     
-    #NSGA-II METHOD ITSELF
     def evolve(self):
+        """
+        Applies NSGA-II method itself
+            Returns:
+                - return_pop: List containing Pareto-optimal individuals from the last population
+        """
         str_obj = self.problem.objectives[0].__name__
         for i in range(1, len(self.problem.objectives)):
             str_obj += "__" + self.problem.objectives[i].__name__
@@ -86,30 +116,28 @@ class Evolution:
             start_total_time = time.time()
             print("GENERATION:",i+1)
             self.population.extend(children)
-            
+
 
             # Remove individuals with repeated objective functions:
             new_pop = []
-            while len(new_pop) < self.num_of_individuals:
-                if len(new_pop) == 0:
-                    all_objectives = []
-                    for indiv in self.population:
-                        if not indiv.objectives in all_objectives:
-                            all_objectives.append(indiv.objectives)
-                            new_pop.append(indiv)
-                else:
-                    new_pop_2 = []
-                    for indiv in new_pop:
-                        new_pop_2.append(copy.deepcopy(indiv))
-                    new_pop = new_pop + new_pop_2
+            new_pop_initial_size = 0
 
+            all_objectives = []
+            for indiv in self.population:
+                if not indiv.objectives in all_objectives:
+                    all_objectives.append(indiv.objectives)
+                    new_pop.append(indiv)
+                    new_pop_initial_size += 1
+            
+            while len(new_pop) < self.num_of_individuals:
+                for i in range(new_pop_initial_size):
+                    new_pop.append(copy.deepcopy(new_pop[i]))
 
             self.population.population = new_pop
             self.utils.fast_nondominated_sort(self.population)
-
             new_population = Population()
             front_num = 0
-            while len(new_population) + len(self.population.fronts[front_num]) <= self.num_of_individuals:
+            while len(new_population) + len(self.population.fronts[front_num]) < self.num_of_individuals:
                 self.utils.calculate_crowding_distance(self.population.fronts[front_num])
                 new_population.extend(self.population.fronts[front_num])
                 front_num += 1

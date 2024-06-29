@@ -10,7 +10,7 @@ sns.set_theme(style='darkgrid', palette='pastel')
 
 
 sys.path.insert(1, os.path.dirname(os.path.dirname(__file__)))
-from calculatemeasures_aux import read_runs_pareto_files, plot_generation_stats, plot_algorithm_metrics, plot_div_test_val, create_total_pareto_optimal, calculate_general_pareto_front_measures, calculate_algorithm_pareto_front_measures, calculate_algorithm_pareto_front_measures, coverage_analysis, metrics_ranking, hyperparameter_plots, calculate_statistical_tests, table_datasets_results
+from calculatemeasures_aux import read_runs_pareto_files, plot_generation_stats, plot_algorithm_metrics, plot_div_test_val, create_total_pareto_optimal, calculate_general_pareto_front_measures, calculate_algorithm_pareto_front_measures, calculate_algorithm_pareto_front_measures, coverage_analysis, metrics_ranking, hyperparameter_plots, calculate_statistical_tests, table_datasets_results, execution_times
 
 #Dictionary to propperly create individuals given the objectives
 quality_measures = ['Mean solutions', 'Proportion', 'Hypervolume', 'Spacing', 'Maximum spread', 'Overall PF spread',  'Error Ratio', 'GD', 'Inverted GD']
@@ -28,6 +28,7 @@ alg = dat = var = obj = mod = extra = False        #Possible parameters given
 
 PATH_TO_RESULTS = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))) + '/results/FGP'
 CALC_STAT_TESTS = True
+KIND = 'all'
 
 nind = ngen = dat = sens_col = bseed = nruns = obj = extra = False        #Possible parameters given
 dataset = None
@@ -159,15 +160,14 @@ if not extraobj is None:
 
 #measures_df, measures_df_2 = create_results_df()
 models = ['DT', 'FDT', 'FGP', 'FLGBM']
-all_data = ['adult', 'compas', 'german', 'ricci', 'obesity', 'insurance', 'student', 'diabetes', 'parkinson', 'dutch']
+all_data = ['adult', 'compas', 'diabetes', 'dutch', 'german', 'insurance', 'obesity', 'parkinson', 'ricci', 'student']
 
 model_ranking = {}
 all_indivs = None
 results_stats_tests = None
 print_alg_results = {}
 
-calculate_statistical_tests(all_data, models, set_seed_base, individuals, generations, objectives, extraobj, n_runs=10)
-
+execution_times(all_data, models, set_seed_base, n_runs, individuals, generations, objectives, extraobj)
 
 for dataset in all_data:
     print("-----------------")
@@ -180,7 +180,7 @@ for dataset in all_data:
 
     # Read all pareto files for the given models 
     print("Reading pareto optimal elements...")
-    indiv_lists = read_runs_pareto_files(dataset, models, set_seed_base, individuals, generations, objectives, extraobj)
+    indiv_lists = read_runs_pareto_files(dataset, models, set_seed_base, individuals, generations, objectives, extraobj, n_runs=10, kind=KIND)
 
     indiv_list = [indiv for alist in indiv_lists for indiv in alist]
 
@@ -222,7 +222,6 @@ for dataset in all_data:
         if elem in ['Error Ratio', 'Generational Distance', 'Inverted Generational Distance']:
             # print(results[elem])
             results[elem] = [1 - x for x in results[elem]]
-            # print(results[elem])
         if not elem in model_ranking:
             model_ranking[elem] = rankdata(results[elem]) - 1
         else:
@@ -246,6 +245,9 @@ for dataset in all_data:
 metrics_ranking(models, model_ranking)
 
 hyperparameter_plots(models, all_indivs)
+
+calculate_statistical_tests(all_data, models, set_seed_base, individuals, generations, objectives, extraobj, n_runs=10, kind=KIND, average_results=print_alg_results, use_average_results=True)
+calculate_statistical_tests(all_data, models, set_seed_base, individuals, generations, objectives, extraobj, n_runs=10, kind=KIND, average_results=print_alg_results, use_average_results=False)
 
 table_datasets_results(print_alg_results)
 
