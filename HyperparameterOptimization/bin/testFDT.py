@@ -148,7 +148,7 @@ for dataset in  ['adult', 'compas', 'german', 'ricci', 'obesity', 'insurance', '
                     x_estimator=np.mean, fit_reg=False, color='#EB473B')
         fig.legend(loc='upper right', bbox_to_anchor=(0.9, 0.88))
         plt.xlabel('$\lambda$')
-        plt.ylabel('FPR_diff')
+        plt.ylabel(r'FPR$_{\text{diff}}$')
         plt.title(f'Evolution of FPR_diff for {dataset} dataset using\ndifferent values of the fairness parameter $\lambda$')
         plt.savefig(f'{PATH_TO_RESULTS}{dataset}_fpr_diff.pdf', format='pdf')
 
