@@ -49,7 +49,7 @@ palette = {'DT': '#1f77b4', 'DT-mean': '#0e3653',
            'FDT': '#ff7f0e', 'FDT-mean': '#8f4300',
            'FGP': '#2ca02c', 'FGP-mean': '#185818',
            'FLGBM': '#9467bd', 'FLGBM-mean': '#553375',
-           'Total':'#d62728'}
+           'General':'#d62728'}
 palette_obj = {'gmean_inv': '#a1c9f4', 'fpr_diff': '#8de5a1'}
 
 sns.set_theme(style='darkgrid', palette='bright')
@@ -396,8 +396,12 @@ def create_total_pareto_optimal(df_indivs, dataname, obj, nruns=10):
 
 
     # Plot data by algorithm
-    plt.title(f"Synthetic Pareto front by algorithm for {dataname} dataset")
+    plt.title(f"Average Pareto front by algorithm for {dataname} dataset")
     sns.scatterplot(df_calculate, x=obj[0], y=obj[1], hue='algorithm', alpha=0.3, palette=palette, legend=False)
+    if dataname == 'compas':
+        ax = sns.scatterplot(x=[0.34759], y=[0.14751], color='sienna')
+        annotation_text = f"COMPAS model"
+        ax.text(0.34759 + 0.015, 0.14751-0.003, annotation_text, color='sienna', fontsize=7)
 
     for model, df in zip(models, dfs_plot_alg):
         if df.shape[0] > 1:
@@ -412,16 +416,20 @@ def create_total_pareto_optimal(df_indivs, dataname, obj, nruns=10):
     plt.close()
 
     # Plot general optimal data
-    plt.title(f"Synthetic general Pareto front for {dataname} dataset")
+    plt.title(f"General average Pareto front for {dataname} dataset")
     x_interp = np.linspace(df_plot_total[obj[0]].min(), df_plot_total[obj[0]].max(), 1000)
     y_interp = PchipInterpolator(df_plot_total.drop_duplicates(obj[0])[obj[0]], df_plot_total.drop_duplicates(obj[0])[obj[1]], extrapolate=True)(x_interp)
-    sns.lineplot(x=x_interp, y=y_interp, color='r')
+    sns.lineplot(x=x_interp, y=y_interp, color='r', linewidth=0.8)
     sns.scatterplot(df_plot_total, x=obj[0], y=obj[1], hue='algorithm', alpha=0.9, palette=palette)
     for model, df in zip(models, dfs_plot_alg):
         sns.scatterplot(df, x=obj[0], y=obj[1], hue='algorithm', alpha=0.3, palette=palette, legend=False)
+    if dataname == 'compas':
+        ax = sns.scatterplot(x=[0.34759], y=[0.14751], color='sienna')
+        annotation_text = f"COMPAS model"
+        ax.text(0.34759 + 0.015, 0.14751-0.003, annotation_text, color='sienna', fontsize=7)
     plt.xlabel(r'$1-$G-mean')
     plt.ylabel(r'FPR$_{\text{diff}}$')
-    plt.savefig(f"{PATH_TO_RESULTS}/GeneralGraphics/{dataname}/scatter_po_total_{dataname}.pdf", format='pdf', bbox_inches='tight')
+    plt.savefig(f"{PATH_TO_RESULTS}/GeneralGraphics/{dataname}/scatter_po_general_{dataname}.pdf", format='pdf', bbox_inches='tight')
     plt.close()
     return pareto_optimal_alg, pareto_optimal
     
@@ -559,7 +567,7 @@ def calculate_general_pareto_front_measures(pareto_optimal, dataname, obj, extra
             return '{v:d}'.format(v=val)
         return my_format
     plt.pie(results['Proportion'].values(), labels = results['Proportion'].keys(), autopct=autopct_format(results['Proportion'].values()), colors=[palette[x] for x in results['Proportion'].keys()])
-    plt.title(f"Proportion of individuals by algorithm in the\naverage Pareto front for {dataname} dataset")
+    plt.title(f"Proportion of individuals by algorithm in the\ngeneral average Pareto front for {dataname} dataset")
     plt.savefig(f"{PATH_TO_RESULTS}/GeneralGraphics/{dataname}/pie_proportion_{dataname}.pdf", format='pdf', bbox_inches='tight')
     plt.close()
     return results
@@ -617,10 +625,14 @@ def plot_div_test_val(dataname, models, indivs_list, obj, filter=True, p_iqr=5):
             mean = part_cumm_df['test/val'].mean()
             cumm_df = cumm_df.drop(cumm_df.loc[(cumm_df['algorithm'] == 'alg') & (cumm_df['test/val'] > mean + p_iqr*iqr)].index)
             cumm_df = cumm_df.drop(cumm_df.loc[(cumm_df['algorithm'] == 'alg') & (cumm_df['test/val'] < mean - p_iqr*iqr)].index)
+    
+    cumm_df['Objective'] = cumm_df['measure']
+    cumm_df['Objective'] = cumm_df['Objective'].replace({'gmean_inv': r'$1-$G-mean', 'fpr_diff': r'FPR$_{\text{diff}}$'})
 
-    sns.violinplot(cumm_df, x='algorithm', y='test/val', width=0.9, hue='measure', palette=[palette_obj[x] for x in obj], density_norm='width', log_scale=True)
+    sns.violinplot(cumm_df, x='algorithm', y='test/val', width=0.9, hue='Objective', palette=[palette_obj[x] for x in obj], density_norm='width', log_scale=True)
     plt.title(f"Relation between test and validation (overfit) for {dataname} dataset")
-    plt.ylabel('Test/Validation results')
+    plt.ylabel('Test / Validation results')
+    plt.xlabel('Algorithm')
     plt.savefig(f"{PATH_TO_RESULTS}/GeneralGraphics/{dataname}/violin_overfit_{dataname}.pdf", format='pdf', bbox_inches='tight')
     plt.close()
 
@@ -733,7 +745,7 @@ def plot_algorithm_metrics(results, po_results, models, dataname):
     # Create dataframes and store
     results = pd.DataFrame(data=results, index=models)
     results['models'] = results.index
-    results_with_po = pd.DataFrame(data=results_with_po, index=models + ['Total'])
+    results_with_po = pd.DataFrame(data=results_with_po, index=models + ['General'])
     results_with_po['models'] = results_with_po.index
 
     for data in [results, results_with_po]:
@@ -769,7 +781,7 @@ def coverage_analysis(algorithms, indiv_lists, dataname):
     
     df = pd.DataFrame(df_algorithms, index=algorithms)
     sns.heatmap(df, annot=True, cmap='Blues', vmin=0, vmax=1, fmt=".4f", annot_kws={'size':16})
-    plt.title(f"Coverage analysis using average Pareto fronts by algorithm for {dataname} dataset")
+    plt.title(f"Coverage analysis using average Pareto\nfronts by algorithm for {dataname} dataset")
     plt.xlabel("Covered")
     plt.ylabel("Covering")
     plt.savefig(f"{PATH_TO_RESULTS}/GeneralGraphics/{dataname}/coverage_{dataname}.pdf", format='pdf', bbox_inches='tight')
@@ -818,7 +830,7 @@ def plot_generation_stats(dataname, models, bseed, runs, nind, ngen, obj, extra)
         elif model == 'FGP':
             metrics = ['prunings', 'leaves', 'depth', 'data_avg_depth', 'depth_unbalance']
         else:
-            metrics = ['n_estimators', 'n_features', 'feature_importance_std']
+            metrics = ['n_estimators', 'feature_importance_std']
         line_evolution(dataname, model, mean_df, std_df, metrics, True, False, True)
  
     
@@ -837,7 +849,7 @@ def line_evolution(dataname, model, mean_df, std_df, metrics, include_ext=True, 
             - store: Boolean attribute. If true, the graphic is stored. In any other case, it will be plotted on screen
     """
     fig, axes = plt.subplots(len(metrics), 1, figsize=(15, 3*len(metrics)), sharey=False)
-    fig.suptitle(f"Metrics of Fair Decision Trees in each generation")
+    fig.suptitle(f"Structural metrics of {model} in each generation")
     plt.gcf().subplots_adjust(bottom=0.1)
 
     metric_colors = {'strong_prunings': 'darkorange', 'medium_prunings': 'orange', 'weak_prunings': 'gold',
@@ -893,7 +905,7 @@ def metrics_ranking(models, results):
         sns.barplot(x=models, y=results[elem], hue=models, palette=[palette[x] for x in models])
         plt.xlabel('Algorithm')
         plt.ylabel('Ranking score')
-        plt.title(f"Barplot showing rakings for {elem} metric\nconsidering all datasets (The higher the better)")
+        plt.title(f"Barplot showing rakings for {elem} indicator\nconsidering all datasets (The higher the better)")
         plt.savefig(f"{PATH_TO_RESULTS}/GeneralGraphics/rankings/ranking_{elem}.pdf", format="pdf", bbox_inches='tight')
         plt.savefig(f"../other/ranking_{elem}.png", format="png", bbox_inches='tight')
         plt.close()
@@ -1036,18 +1048,16 @@ def calculate_statistical_tests(all_data, models, bseed, nind, ngen, obj, extra,
                 results_stats_tests = {meas: pd.DataFrame({elem: [average_results[dataset][meas][i]] for i, elem in enumerate(models)}) for meas in average_results[dataset]}
             else:
                 for meas in average_results[dataset]:
-                    print(results_stats_tests[meas], average_results[dataset][meas])
                     results_stats_tests[meas].loc[len(results_stats_tests[meas])] = average_results[dataset][meas][:-1]
-            print(results_stats_tests)
 
     print("-----------------")
     #print(results_stats_tests)
     print("\\begin{table}[htbp!]")
     if use_average_results:
-        print(f"\\caption{{Paired samples Wilcoxon signed-rank test for all quality metrics using average results for all datasets}}")
+        print(f"\\caption{{Paired samples Wilcoxon signed-rank test for all quality indicators using average results for all datasets}}")
         print("\\label{tab:resultswilcoxonaverage}")
     else:
-        print(f"\\caption{{Paired samples Wilcoxon signed-rank test for all quality metrics using all runs and datasets}}")
+        print(f"\\caption{{Paired samples Wilcoxon signed-rank test for all quality indicators using all runs and datasets}}")
         print("\\label{tab:resultswilcoxonallruns}")
     for elem in results_stats_tests:
         #print(elem)
@@ -1100,7 +1110,7 @@ def calculate_statistical_tests(all_data, models, bseed, nind, ngen, obj, extra,
 
 
         print("\\begin{subtable}[t]{\\textwidth}")
-        print(f"\\caption{{Wilcoxon signed-rank test for {elem} metric}}")
+        print(f"\\caption{{Wilcoxon signed-rank test for {elem} indicator}}")
         print("\\centering")
         #print("\\begin{adjustbox}{max width=\textwidth}")
         print("\\begin{tabular}{ccccc}")
@@ -1177,6 +1187,8 @@ def execution_times(all_data, models, bseed, runs, nind, ngen, obj, extra, store
 
     last_dataname = all_data[-1]
     ranking_scores = []
+    all_gens_times = {model: [] for model in models}
+    all_runs_times = {model: [] for model in models}
     for dataname in all_data:  
         dict_models = {}
         mean_total_process_time = []
@@ -1187,11 +1199,16 @@ def execution_times(all_data, models, bseed, runs, nind, ngen, obj, extra, store
                 prev_path = f"{PATH_TO_RESULTS}/{model}"
             generations_dfs = []
             for i in range(runs):
-                generations_dfs.append(pd.read_csv(f"{prev_path}/generation_stats/{dataname}/{dataname}_seed_{bseed + i}_var_{dict_protected[dataname]}_gen_{ngen}_indiv_{nind}_model_{model}_obj_{obj_str}{extra_str}.csv"))
+                new_data = pd.read_csv(f"{prev_path}/generation_stats/{dataname}/{dataname}_seed_{bseed + i}_var_{dict_protected[dataname]}_gen_{ngen}_indiv_{nind}_model_{model}_obj_{obj_str}{extra_str}.csv")
+                all_runs_times[model].append(new_data['process_time'].sum())
+                generations_dfs.append(new_data)
             generations_dfs = pd.concat(generations_dfs)
             dict_models[model+'-mean'] = generations_dfs['process_time'].mean()
             dict_models[model+'-std'] = generations_dfs['process_time'].std()
             mean_total_process_time.append(generations_dfs['process_time'].sum()/10.0)
+            for elem in generations_dfs['process_time']:
+                all_gens_times[model].append(elem)
+            
         aux_mean_total_process_time = [1 - x for x in mean_total_process_time]
         if len(ranking_scores) == 0:
             ranking_scores = rankdata(aux_mean_total_process_time) - 1
@@ -1206,15 +1223,15 @@ def execution_times(all_data, models, bseed, runs, nind, ngen, obj, extra, store
         if store_graphics:
             data_df = pd.DataFrame({'models': models, 'mean_total_proces_time':mean_total_process_time})
             sns.barplot(data_df, x='models', y=mean_total_process_time, hue='models', palette=[palette[x] for x in data_df['models']])
-            plt.title(f"Barplot showing Average Total Process Time by run for {dataname} dataset\n(Lower is better)")
-            plt.ylabel('Average Total Process Time (seconds)')
+            plt.title(f"Barplot showing Average Total Processing Time by run for {dataname} dataset\n(Lower is better)")
+            plt.ylabel('Average Total Processing Time (seconds)')
             plt.xlabel("Algorithm")
             plt.savefig(f"{PATH_TO_RESULTS}/GeneralGraphics/{dataname}/barplot_Process Time_{dataname}.pdf", format="pdf", bbox_inches='tight')
             plt.close()
     data_df = pd.DataFrame({'models': models, 'average_total_proces_time':ranking_scores})
     sns.barplot(data_df, x='models', y='average_total_proces_time', hue='models', palette=[palette[x] for x in data_df['models']])
-    plt.title(f"Barplot showing rakings for Average Total Process Time metric\nconsidering all datasets (The higher the better)")
-    plt.ylabel('Average Total Process Time (seconds)')
+    plt.title(f"Barplot showing rakings for Average Total Processing Time\nconsidering all datasets (The higher the better)")
+    plt.ylabel('Ranking score')
     plt.xlabel("Algorithm")
     plt.savefig(f"{PATH_TO_RESULTS}/GeneralGraphics/rankings/ranking_Process Time.pdf", format="pdf", bbox_inches='tight')
     plt.savefig(f"../other/ranking_Process Time.png", format="png", bbox_inches='tight')
@@ -1225,4 +1242,68 @@ def execution_times(all_data, models, bseed, runs, nind, ngen, obj, extra, store
 
     print("\\end{tabular}")
     print("\\end{center}")
+    print("\\end{table}")
+
+
+    for elem in all_gens_times:
+        print(elem, len(all_gens_times[elem]))
+    for elem in all_runs_times:
+        print(elem, len(all_runs_times[elem]))
+    
+    all_gens_times_df = pd.DataFrame(all_gens_times)
+    all_runs_times_df = pd.DataFrame(all_runs_times)
+
+    print("-----------------")
+    #print(results_stats_tests)
+    print("\\begin{table}[htbp!]")
+    print(f"\\caption{{Paired samples Wilcoxon signed-rank test for all processing times using results for all datasets}}")
+    print("\\label{tab:resultswilcoxontimes}")
+    for results_stats_tests in [all_runs_times_df, all_gens_times_df]:
+        cur_results = np.zeros((results_stats_tests.shape[1], results_stats_tests.shape[1])).tolist()
+        for i in range(results_stats_tests.shape[1]):
+            for j in range(i+1, results_stats_tests.shape[1]):
+                #print(results_stats_tests[elem].columns[i], results_stats_tests[elem].columns[j], wilcoxon(results_stats_tests[elem].iloc[:,i], results_stats_tests[elem].iloc[:, j]))
+                wilcox = scipy.stats.wilcoxon(results_stats_tests.iloc[:,i], results_stats_tests.iloc[:, j], alternative='two-sided')[1]
+                cur_results[i][j] = '{:0.2e}'.format(wilcox, 5)
+                if wilcox < 0.05:           # Significative results
+                    # The greater the worse
+                    if (results_stats_tests.iloc[:,i] > results_stats_tests.iloc[:, j]).sum() > results_stats_tests.shape[0]/2:
+                        #print(f"- Es significativamente mejor {results_stats_tests[elem].columns[j]}")
+                        cur_results[j][i] = "$\\oplus$"
+                    else:
+                        #print(f"- Es significativamente mejor {results_stats_tests[elem].columns[i]}")
+                        cur_results[j][i] = "$\\ominus$"
+
+                else:
+                    # The greater the worse
+                    if (results_stats_tests.iloc[:,i] > results_stats_tests.iloc[:, j]).sum() > 6*results_stats_tests.shape[0]/10:
+                        #print("- Es mejor ", results_stats_tests[elem].columns[j])
+                        cur_results[j][i] = "$+$"
+                    elif (results_stats_tests.iloc[:,i] < results_stats_tests.iloc[:, j]).sum() > 6*results_stats_tests.shape[0]/10:
+                        #print("- Es mejor ", results_stats_tests[elem].columns[i])
+                        cur_results[j][i] = "$-$"
+                    else:
+                        #print("- Ninguno es mejor")
+                        cur_results[j][i] = "$=$"
+
+
+
+        print("\\begin{subtable}[t]{\\textwidth}")
+        if results_stats_tests.equals(all_gens_times_df):
+            print(f"\\caption{{Wilcoxon signed-rank test using the processing times of each generation and run.}}")
+        elif results_stats_tests.equals(all_runs_times_df):
+            print(f"\\caption{{Wilcoxon signed-rank test using the total processing times of each run.}}")
+        print("\\centering")
+        #print("\\begin{adjustbox}{max width=\textwidth}")
+        print("\\begin{tabular}{ccccc}")
+        print("\\toprule")
+        print(f" & \\textbf{{DT}} & \\textbf{{FDT}} & \\textbf{{FGP}}   & \\textbf{{FLGBM}} \\\\ \\hline")
+        print(f"\\textbf{{DT}}          &    & \\num{{{cur_results[0][1]}}} & \\num{{{cur_results[0][2]}}}   & \\num{{{cur_results[0][3]}}}  \\\\")
+        print(f"\\textbf{{FDT}}         & {cur_results[1][0]}  &     & \\num{{{cur_results[1][2]}}} & \\num{{{cur_results[1][3]}}}   \\\\")
+        print(f"\\textbf{{FGP}}         & {cur_results[2][0]}  & {cur_results[2][1]}   &       & \\num{{{cur_results[2][3]}}}   \\\\")
+        print(f"\\textbf{{FLGBM}}       & {cur_results[3][0]}  & {cur_results[3][1]}   & {cur_results[3][2]}     &      \\\\")
+        print("\\bottomrule")
+        print("\\end{tabular}")
+        #print("\\end{adjustbox}")
+        print("\\end{subtable}")
     print("\\end{table}")

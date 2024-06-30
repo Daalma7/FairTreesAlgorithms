@@ -227,6 +227,11 @@ for dataset in all_data:
         else:
             model_ranking[elem] += rankdata(results[elem]) - 1
     
+    #We undo the correction
+    for elem in results:
+        if elem in ['Error Ratio', 'Generational Distance', 'Inverted Generational Distance']:
+            # print(results[elem])
+            results[elem] = [1 - x for x in results[elem]]
     plot_algorithm_metrics(results, po_results, models, dataset)
 
     coverage_analysis(models, pareto_optimal_algorithms, dataset)
